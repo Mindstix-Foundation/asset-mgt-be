@@ -47,11 +47,18 @@ enum EmployeeStatus {
   INACTIVE
 }
 
+enum VendorType {
+  SUPPLIER
+  SERVICE
+  MANUFACTURER
+  DISTRIBUTOR
+  CONTRACTOR
+  BOTH
+}
+
 enum VendorStatus {
   ACTIVE
   INACTIVE
-  PENDING
-  SUSPENDED
 }
 
 enum MaintenanceTypeEnum {
@@ -277,7 +284,7 @@ model Model {
 model Vendor {
   id            Int          @id @default(autoincrement())
   name          String       @db.VarChar(100)
-  vendorType    String       @default("supplier") @map("vendor_type") @db.VarChar(20)
+  vendorType    VendorType   @default(SUPPLIER) @map("vendor_type")
   contactPerson String?      @map("contact_person") @db.VarChar(100)
   email         String?      @db.VarChar(255)
   phone         String?      @db.VarChar(15)
