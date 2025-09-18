@@ -1,7 +1,7 @@
 // Application constants
 export const APP_CONSTANTS = {
   DEFAULT_PAGE_SIZE: 10,
-  MAX_PAGE_SIZE: 100,
+  MAX_PAGE_SIZE: 10000, // Increased to allow large datasets
   JWT_EXPIRES_IN: '7d',
 } as const;
 

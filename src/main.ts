@@ -31,6 +31,7 @@ async function bootstrap() {
     .setDescription('Comprehensive API documentation for TrackStix Asset Management System')
     .setVersion('1.0')
     .addTag('auth', 'Authentication operations')
+    .addTag('employees', 'Employee management operations')
     .addTag('vendors', 'Vendor management operations')
     .addBearerAuth(
       {
