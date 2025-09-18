@@ -33,6 +33,13 @@ async function bootstrap() {
     .addTag('auth', 'Authentication operations')
     .addTag('employees', 'Employee management operations')
     .addTag('vendors', 'Vendor management operations')
+    .addTag('asset-categories', 'Asset category management operations')
+    .addTag('asset-types', 'Asset type management operations')
+    .addTag('brands', 'Brand management operations')
+    .addTag('models', 'Model management operations')
+    .addTag('assets', 'Asset management operations')
+    .addTag('assignments', 'Asset assignment and return operations')
+    .addTag('reports', 'Report generation and export operations')
     .addBearerAuth(
       {
         type: 'http',

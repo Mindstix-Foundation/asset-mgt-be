@@ -1,0 +1,230 @@
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { CreateAssetCategoryDto, UpdateAssetCategoryDto, AssetCategoryQueryDto } from './dto';
+
+@Injectable()
+export class AssetCategoriesService {
+  constructor(private prisma: PrismaService) {}
+
+  async create(createAssetCategoryDto: CreateAssetCategoryDto, userId: number) {
+    try {
+      const assetCategory = await this.prisma.assetCategory.create({
+        data: {
+          ...createAssetCategoryDto,
+          createdBy: userId,
+          updatedBy: userId,
+        },
+        include: {
+          createdByUser: {
+            select: { id: true, username: true }
+          },
+          _count: {
+            select: { assetTypes: true }
+          }
+        },
+      });
+
+      return {
+        message: 'Asset category created successfully',
+        data: { assetCategory },
+      };
+    } catch (error) {
+      if (error.code === 'P2002') {
+        throw new ConflictException('Asset category name already exists');
+      }
+      throw error;
+    }
+  }
+
+  async findAll(queryDto: AssetCategoryQueryDto) {
+    const { page = 1, limit = 10, search, sortBy = 'name', sortOrder = 'asc' } = queryDto;
+    const skip = (page - 1) * limit;
+
+    const where = search
+      ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' as const } },
+            { description: { contains: search, mode: 'insensitive' as const } },
+          ],
+        }
+      : {};
+
+    const orderBy = { [sortBy]: sortOrder } as any;
+
+    const [assetCategories, totalCount] = await Promise.all([
+      this.prisma.assetCategory.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy,
+        include: {
+          createdByUser: {
+            select: { id: true, username: true }
+          },
+          _count: {
+            select: { assetTypes: true }
+          }
+        },
+      }),
+      this.prisma.assetCategory.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(totalCount / limit);
+
+    return {
+      message: 'Asset categories retrieved successfully',
+      data: {
+        assetCategories,
+        pagination: {
+          totalCount,
+          currentPage: page,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrevious: page > 1,
+        },
+      },
+    };
+  }
+
+  async findOne(id: number) {
+    const assetCategory = await this.prisma.assetCategory.findUnique({
+      where: { id },
+      include: {
+        createdByUser: {
+          select: { id: true, username: true }
+        },
+        updatedByUser: {
+          select: { id: true, username: true }
+        },
+        assetTypes: {
+          select: {
+            id: true,
+            name: true,
+            isActive: true,
+            _count: {
+              select: { assets: true }
+            }
+          }
+        },
+        _count: {
+          select: { assetTypes: true }
+        }
+      },
+    });
+
+    if (!assetCategory) {
+      throw new NotFoundException('Asset category not found');
+    }
+
+    return {
+      message: 'Asset category retrieved successfully',
+      data: { assetCategory },
+    };
+  }
+
+  async update(id: number, updateAssetCategoryDto: UpdateAssetCategoryDto, userId: number) {
+    try {
+      const assetCategory = await this.prisma.assetCategory.update({
+        where: { id },
+        data: {
+          ...updateAssetCategoryDto,
+          updatedBy: userId,
+        },
+        include: {
+          createdByUser: {
+            select: { id: true, username: true }
+          },
+          updatedByUser: {
+            select: { id: true, username: true }
+          },
+          _count: {
+            select: { assetTypes: true }
+          }
+        },
+      });
+
+      return {
+        message: 'Asset category updated successfully',
+        data: { assetCategory },
+      };
+    } catch (error) {
+      if (error.code === 'P2002') {
+        throw new ConflictException('Asset category name already exists');
+      }
+      if (error.code === 'P2025') {
+        throw new NotFoundException('Asset category not found');
+      }
+      throw error;
+    }
+  }
+
+  async remove(id: number) {
+    try {
+      // Check if category has associated asset types
+      const categoryWithTypes = await this.prisma.assetCategory.findUnique({
+        where: { id },
+        include: {
+          _count: {
+            select: { assetTypes: true }
+          }
+        }
+      });
+
+      if (!categoryWithTypes) {
+        throw new NotFoundException('Asset category not found');
+      }
+
+      if (categoryWithTypes._count.assetTypes > 0) {
+        throw new BadRequestException(
+          'Cannot delete asset category with associated asset types'
+        );
+      }
+
+      await this.prisma.assetCategory.delete({
+        where: { id },
+      });
+
+      return {
+        message: 'Asset category deleted successfully',
+      };
+    } catch (error) {
+      if (error.code === 'P2025') {
+        throw new NotFoundException('Asset category not found');
+      }
+      throw error;
+    }
+  }
+
+  // Helper method for creating default user (similar to vendors)
+  async getOrCreateDefaultUser(): Promise<number> {
+    let defaultUser = await this.prisma.user.findFirst({
+      where: { username: 'system' },
+    });
+
+    if (!defaultUser) {
+      // Create default employee first
+      const defaultEmployee = await this.prisma.employee.create({
+        data: {
+          employeeId: 'SYS001',
+          firstName: 'System',
+          lastName: 'User',
+          email: 'system@company.com',
+          createdBy: 1, // Bootstrap
+          updatedBy: 1,
+        },
+      });
+
+      defaultUser = await this.prisma.user.create({
+        data: {
+          employeeId: defaultEmployee.id,
+          username: 'system',
+          passwordHash: 'system',
+          createdBy: 1, // Bootstrap
+          updatedBy: 1,
+        },
+      });
+    }
+
+    return defaultUser.id;
+  }
+} 
