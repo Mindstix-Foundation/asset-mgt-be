@@ -105,6 +105,88 @@ export class AssignmentsService {
     }
   }
 
+  async findAllActiveForCollect(queryDto: AssignmentQueryDto) {
+    const { page = 1, limit = 10, search, assetId, employeeId, sortBy = 'issueDate', sortOrder = 'desc' } = queryDto;
+    const skip = (page - 1) * limit;
+
+    const where: any = {
+      returnDate: null, // Only active assignments
+    };
+
+    if (search) {
+      where.OR = [
+        { asset: { assetId: { contains: search, mode: 'insensitive' as const } } },
+        { employee: { firstName: { contains: search, mode: 'insensitive' as const } } },
+        { employee: { lastName: { contains: search, mode: 'insensitive' as const } } },
+        { notes: { contains: search, mode: 'insensitive' as const } },
+      ];
+    }
+
+    if (assetId) where.assetId = assetId;
+    if (employeeId) where.employeeId = employeeId;
+
+    const orderBy = { [sortBy]: sortOrder } as any;
+
+    const [assignments, totalCount] = await Promise.all([
+      this.prisma.assetIssue.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy,
+        include: {
+          asset: {
+            select: {
+              id: true,
+              assetId: true,
+              serialNumber: true,
+              assetType: { select: { id: true, name: true } },
+              brand: { select: { id: true, name: true } },
+              model: { 
+                select: { 
+                  id: true, 
+                  name: true,
+                  specifications: true
+                } 
+              },
+              condition: true,
+              status: true,
+              location: true,
+            }
+          },
+          employee: {
+            select: {
+              id: true,
+              employeeId: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            }
+          },
+          issuedByUser: {
+            select: { id: true, username: true }
+          }
+        },
+      }),
+      this.prisma.assetIssue.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(totalCount / limit);
+
+    return {
+      message: 'Active assignments retrieved successfully',
+      data: {
+        assignments,
+        pagination: {
+          totalCount,
+          currentPage: page,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrevious: page > 1,
+        },
+      },
+    };
+  }
+
   async findAllActive(queryDto: AssignmentQueryDto) {
     const { page = 1, limit = 10, search, assetId, employeeId, sortBy = 'issueDate', sortOrder = 'desc' } = queryDto;
     const skip = (page - 1) * limit;

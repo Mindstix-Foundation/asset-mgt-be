@@ -256,11 +256,13 @@ export class AssetTypesService {
         isActive: true 
       },
       orderBy: { name: 'asc' },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        isActive: true,
+      include: {
+        category: {
+          select: { id: true, name: true }
+        },
+        createdByUser: {
+          select: { id: true, username: true }
+        },
         _count: {
           select: { assets: true, models: true }
         }
@@ -304,5 +306,108 @@ export class AssetTypesService {
     }
 
     return defaultUser.id;
+  }
+
+  async mergeAssetTypes(sourceId: number, targetId: number, userId: number) {
+    if (sourceId === targetId) {
+      throw new BadRequestException('Cannot merge asset type with itself');
+    }
+
+    try {
+      // Start a transaction to ensure atomicity
+      const result = await this.prisma.$transaction(async (prisma) => {
+        // Verify both asset types exist and are in the same category
+        const [sourceAssetType, targetAssetType] = await Promise.all([
+          prisma.assetType.findUnique({
+            where: { id: sourceId },
+            include: {
+              category: true,
+              models: {
+                include: {
+                  assets: true
+                }
+              },
+              assets: true,
+              _count: {
+                select: { models: true, assets: true }
+              }
+            }
+          }),
+          prisma.assetType.findUnique({
+            where: { id: targetId },
+            include: {
+              category: true,
+              _count: {
+                select: { models: true, assets: true }
+              }
+            }
+          })
+        ]);
+
+        if (!sourceAssetType) {
+          throw new NotFoundException(`Source asset type with ID ${sourceId} not found`);
+        }
+        if (!targetAssetType) {
+          throw new NotFoundException(`Target asset type with ID ${targetId} not found`);
+        }
+
+        // Ensure both asset types are in the same category
+        if (sourceAssetType.categoryId !== targetAssetType.categoryId) {
+          throw new BadRequestException('Cannot merge asset types from different categories');
+        }
+
+        // Count what will be transferred
+        let transferredAssets = sourceAssetType._count.assets;
+        sourceAssetType.models.forEach(model => {
+          transferredAssets += model.assets.length;
+        });
+
+        // Transfer all models from source to target asset type
+        await prisma.model.updateMany({
+          where: { assetTypeId: sourceId },
+          data: { 
+            assetTypeId: targetId,
+            updatedBy: userId
+          }
+        });
+
+        // Transfer all assets from source to target asset type
+        await prisma.asset.updateMany({
+          where: { assetTypeId: sourceId },
+          data: { 
+            assetTypeId: targetId,
+            updatedBy: userId
+          }
+        });
+
+        // Delete the source asset type
+        await prisma.assetType.delete({
+          where: { id: sourceId }
+        });
+
+        // Update the target asset type's updatedAt timestamp
+        await prisma.assetType.update({
+          where: { id: targetId },
+          data: { updatedBy: userId }
+        });
+
+        return {
+          sourceAssetType: sourceAssetType.name,
+          targetAssetType: targetAssetType.name,
+          transferredModels: sourceAssetType._count.models,
+          transferredAssets
+        };
+      });
+
+      return {
+        message: 'Asset types merged successfully',
+        data: { mergeOperation: result }
+      };
+    } catch (error) {
+      if (error.code === 'P2025') {
+        throw new NotFoundException('Source or target asset type not found');
+      }
+      throw error;
+    }
   }
 } 

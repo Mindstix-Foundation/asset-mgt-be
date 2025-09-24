@@ -227,4 +227,90 @@ export class AssetCategoriesService {
 
     return defaultUser.id;
   }
+
+  async mergeCategories(sourceId: number, targetId: number, userId: number) {
+    if (sourceId === targetId) {
+      throw new BadRequestException('Cannot merge category with itself');
+    }
+
+    try {
+      // Start a transaction to ensure atomicity
+      const result = await this.prisma.$transaction(async (prisma) => {
+        // Verify both categories exist
+        const [sourceCategory, targetCategory] = await Promise.all([
+          prisma.assetCategory.findUnique({
+            where: { id: sourceId },
+            include: {
+              assetTypes: {
+                include: {
+                  assets: true
+                }
+              },
+              _count: {
+                select: { assetTypes: true }
+              }
+            }
+          }),
+          prisma.assetCategory.findUnique({
+            where: { id: targetId },
+            include: {
+              _count: {
+                select: { assetTypes: true }
+              }
+            }
+          })
+        ]);
+
+        if (!sourceCategory) {
+          throw new NotFoundException(`Source category with ID ${sourceId} not found`);
+        }
+        if (!targetCategory) {
+          throw new NotFoundException(`Target category with ID ${targetId} not found`);
+        }
+
+        // Count what will be transferred
+        let transferredAssets = 0;
+        sourceCategory.assetTypes.forEach(assetType => {
+          transferredAssets += assetType.assets.length;
+        });
+
+        // Transfer all asset types from source to target category
+        await prisma.assetType.updateMany({
+          where: { categoryId: sourceId },
+          data: { 
+            categoryId: targetId,
+            updatedBy: userId
+          }
+        });
+
+        // Delete the source category
+        await prisma.assetCategory.delete({
+          where: { id: sourceId }
+        });
+
+        // Update the target category's updatedAt timestamp
+        await prisma.assetCategory.update({
+          where: { id: targetId },
+          data: { updatedBy: userId }
+        });
+
+        return {
+          sourceCategory: sourceCategory.name,
+          targetCategory: targetCategory.name,
+          transferredAssetTypes: sourceCategory._count.assetTypes,
+          transferredAssets
+        };
+      });
+
+      return {
+        message: 'Categories merged successfully',
+        data: { mergeOperation: result }
+      };
+    } catch (error) {
+      if (error.code === 'P2025') {
+        throw new NotFoundException('Source or target category not found');
+      }
+      throw error;
+    }
+  }
 } 
