@@ -1,13 +1,32 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AssetIdService } from './asset-id.service';
 import { CreateAssetDto, UpdateAssetDto, AssetQueryDto } from './dto';
 
 @Injectable()
 export class AssetsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private assetIdService: AssetIdService
+  ) {}
 
   async create(createAssetDto: CreateAssetDto, userId: number) {
     try {
+      // Generate sequential asset ID if not provided
+      let assetId = createAssetDto.assetId;
+      if (!assetId) {
+        assetId = await this.assetIdService.generateNextAssetId();
+      } else {
+        // Validate provided asset ID format
+        if (!this.assetIdService.validateAssetIdFormat(assetId)) {
+          throw new BadRequestException('Invalid asset ID format. Expected format: AST-XXXX');
+        }
+        // Check if provided asset ID already exists
+        if (await this.assetIdService.assetIdExists(assetId)) {
+          throw new ConflictException('Asset ID already exists');
+        }
+      }
+
       // Verify all foreign keys exist
       const [assetType, brand, model, vendor] = await Promise.all([
         this.prisma.assetType.findUnique({ where: { id: createAssetDto.assetTypeId } }),
@@ -34,6 +53,7 @@ export class AssetsService {
       const asset = await this.prisma.asset.create({
         data: {
           ...createAssetDto,
+          assetId, // Use generated or validated asset ID
           purchaseDate: createAssetDto.purchaseDate ? new Date(createAssetDto.purchaseDate) : null,
           warrantyStartDate: createAssetDto.warrantyStartDate ? new Date(createAssetDto.warrantyStartDate) : null,
           warrantyEndDate: createAssetDto.warrantyEndDate ? new Date(createAssetDto.warrantyEndDate) : null,
@@ -115,6 +135,23 @@ export class AssetsService {
           model: { select: { id: true, name: true } },
           vendor: { select: { id: true, name: true } },
           createdByUser: { select: { id: true, username: true } },
+          assetIssues: {
+            where: { returnDate: null }, // Only active assignments
+            select: {
+              id: true,
+              issueDate: true,
+              employee: {
+                select: {
+                  id: true,
+                  employeeId: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true
+                }
+              }
+            },
+            take: 1 // Only get the most recent active assignment
+          },
           _count: { select: { assetIssues: true } }
         },
       }),
@@ -204,6 +241,23 @@ export class AssetsService {
 
   async update(id: number, updateAssetDto: UpdateAssetDto, userId: number) {
     try {
+      // Validate assetId format if being updated
+      if (updateAssetDto.assetId) {
+        if (!this.assetIdService.validateAssetIdFormat(updateAssetDto.assetId)) {
+          throw new BadRequestException('Invalid asset ID format. Expected format: AST-XXXX');
+        }
+        // Check if provided asset ID already exists (excluding current asset)
+        const existingAsset = await this.prisma.asset.findFirst({
+          where: {
+            assetId: updateAssetDto.assetId,
+            id: { not: id }
+          }
+        });
+        if (existingAsset) {
+          throw new ConflictException('Asset ID already exists');
+        }
+      }
+
       // Verify foreign keys if they're being updated
       if (updateAssetDto.assetTypeId || updateAssetDto.brandId || updateAssetDto.modelId || updateAssetDto.vendorId) {
         const verifications: Array<{ check: () => Promise<any>, error: string }> = [];

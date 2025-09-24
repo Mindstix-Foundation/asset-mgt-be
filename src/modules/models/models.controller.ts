@@ -34,13 +34,114 @@ export class ModelsController {
     return this.modelsService.findAll(queryDto);
   }
 
-  @Get('by-brand-and-type')
-  @ApiOperation({ summary: 'Get models by brand ID and asset type ID' })
-  @ApiQuery({ name: 'brandId', required: true, description: 'Brand ID' })
-  @ApiQuery({ name: 'assetTypeId', required: true, description: 'Asset Type ID' })
-  @ApiResponse({ status: 200, description: 'Models retrieved successfully' })
-  async findByBrandAndType(@Query('brandId', ParseIntPipe) brandId: number, @Query('assetTypeId', ParseIntPipe) assetTypeId: number) {
-    return this.modelsService.findByBrandAndType(brandId, assetTypeId);
+  @Get('by-brand/:brandId')
+  @ApiOperation({ summary: 'Get models by brand ID' })
+  @ApiParam({ name: 'brandId', description: 'Brand ID' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Models retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string' },
+        data: {
+          type: 'object',
+          properties: {
+            models: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'number' },
+                  name: { type: 'string' },
+                  specifications: { type: 'object' },
+                  assetType: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'number' },
+                      name: { type: 'string' },
+                      category: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'number' },
+                          name: { type: 'string' }
+                        }
+                      }
+                    }
+                  },
+                  _count: {
+                    type: 'object',
+                    properties: {
+                      assets: { type: 'number' }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  })
+  async findByBrand(@Param('brandId', ParseIntPipe) brandId: number) {
+    return this.modelsService.findByBrand(brandId);
+  }
+
+  @Get('by-brand/:brandId/asset-type/:assetTypeId')
+  @ApiOperation({ summary: 'Get models by brand and asset type' })
+  @ApiParam({ name: 'brandId', description: 'Brand ID' })
+  @ApiParam({ name: 'assetTypeId', description: 'Asset Type ID' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Models retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string' },
+        data: {
+          type: 'object',
+          properties: {
+            models: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'number' },
+                  name: { type: 'string' },
+                  specifications: { type: 'object' },
+                  brand: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'number' },
+                      name: { type: 'string' }
+                    }
+                  },
+                  assetType: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'number' },
+                      name: { type: 'string' }
+                    }
+                  },
+                  _count: {
+                    type: 'object',
+                    properties: {
+                      assets: { type: 'number' }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  })
+  async findByBrandAndAssetType(
+    @Param('brandId', ParseIntPipe) brandId: number,
+    @Param('assetTypeId', ParseIntPipe) assetTypeId: number
+  ) {
+    return this.modelsService.findByBrandAndAssetType(brandId, assetTypeId);
   }
 
   @Get(':id')
@@ -73,5 +174,37 @@ export class ModelsController {
   @ApiResponse({ status: 400, description: 'Cannot delete model with associated assets' })
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.modelsService.remove(id);
+  }
+
+  @Post(':sourceId/merge/:targetId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Merge two models by transferring all references from source to target' })
+  @ApiParam({ name: 'sourceId', description: 'Source model ID (will be deleted after merge)' })
+  @ApiParam({ name: 'targetId', description: 'Target model ID (will receive all references)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Models merged successfully',
+    schema: {
+      example: {
+        message: 'Models merged successfully',
+        data: {
+          mergeOperation: {
+            sourceModel: 'iPhone 15 Pra',
+            targetModel: 'iPhone 15 Pro',
+            transferredAssets: 12
+          }
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Source or target model not found' })
+  @ApiResponse({ status: 400, description: 'Cannot merge model with itself or models from different brands/asset types' })
+  async mergeModels(
+    @Param('sourceId', ParseIntPipe) sourceId: number,
+    @Param('targetId', ParseIntPipe) targetId: number,
+    @Request() req: any,
+  ) {
+    const userId = req.user?.id || await this.modelsService.getOrCreateDefaultUser();
+    return this.modelsService.mergeModels(sourceId, targetId, userId);
   }
 } 

@@ -122,6 +122,23 @@ export class AssignmentsController {
     return this.assignmentsService.findAllActive(queryDto);
   }
 
+  @Get('active/collect')
+  @ApiOperation({ summary: 'Get all active assignments with enhanced data for collect asset page' })
+  @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page (default: 10, max: 100)' })
+  @ApiQuery({ name: 'search', required: false, description: 'Search by asset ID, employee name, or notes' })
+  @ApiQuery({ name: 'assetId', required: false, description: 'Filter by asset ID' })
+  @ApiQuery({ name: 'employeeId', required: false, description: 'Filter by employee ID' })
+  @ApiQuery({ name: 'sortBy', required: false, description: 'Sort by field (issueDate, returnDate, createdAt, updatedAt)' })
+  @ApiQuery({ name: 'sortOrder', required: false, description: 'Sort order (asc, desc)' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Active assignments with enhanced data retrieved successfully'
+  })
+  async findAllActiveForCollect(@Query() queryDto: AssignmentQueryDto) {
+    return this.assignmentsService.findAllActiveForCollect(queryDto);
+  }
+
   @Get()
   @ApiOperation({ summary: 'Get all assignments with filtering' })
   @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)' })
