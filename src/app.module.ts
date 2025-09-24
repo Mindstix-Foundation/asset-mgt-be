@@ -6,13 +6,9 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { EmployeesModule } from './employees/employees.module';
 import { VendorsModule } from './modules/vendors/vendors.module';
-import { AssetCategoriesModule } from './modules/asset-categories/asset-categories.module';
-import { BrandsModule } from './modules/brands/brands.module';
-import { AssetTypesModule } from './modules/asset-types/asset-types.module';
-import { ModelsModule } from './modules/models/models.module';
-import { AssetsModule } from './modules/assets/assets.module';
-import { AssignmentsModule } from './modules/assignments/assignments.module';
-import { ReportsModule } from './modules/reports/reports.module';
+
+import { MaintenanceModule } from './maintenance/maintenance.module';
+import { AssetsModule } from './assets/assets.module';
 
 @Module({
   imports: [
@@ -24,13 +20,8 @@ import { ReportsModule } from './modules/reports/reports.module';
     AuthModule,
     EmployeesModule,
     VendorsModule,
-    AssetCategoriesModule,
-    BrandsModule,
-    AssetTypesModule,
-    ModelsModule,
+    MaintenanceModule,
     AssetsModule,
-    AssignmentsModule,
-    ReportsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
