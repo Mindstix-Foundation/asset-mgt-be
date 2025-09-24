@@ -26,6 +26,11 @@ export class MaintenanceService {
         throw new NotFoundException('Asset not found');
       }
 
+      // Check if asset is assigned - only allow maintenance for available assets
+      if (asset.status === 'ASSIGNED') {
+        throw new BadRequestException('Cannot schedule maintenance for assigned assets. Asset must be available.');
+      }
+
     // Check if asset is available for maintenance on the scheduled date
     const existingMaintenance = await this.prisma.maintenanceSchedule.findFirst({
       where: {
@@ -135,111 +140,162 @@ export class MaintenanceService {
     } = query;
 
     const skip = (page - 1) * limit;
-    const where: Prisma.MaintenanceScheduleWhereInput = {};
+    
+    // First, get the latest maintenance record for each asset
+    const latestMaintenanceSubquery = `
+      SELECT DISTINCT ON (asset_id) 
+        id, asset_id, maintenance_type, scheduled_date, frequency_days, description,
+        estimated_cost, vendor_id, status, actual_start_date, actual_completion_date,
+        actual_cost, completion_notes, cancellation_date, cancellation_reason,
+        cancellation_notes, is_active, created_by, created_at, updated_by, updated_at
+      FROM maintenance_schedules 
+      WHERE is_active = true
+      ORDER BY asset_id, created_at DESC
+    `;
 
-    // Apply filters
+    // Build where conditions for the subquery results
+    const conditions: string[] = ['m.is_active = true'];
+    const params: any[] = [];
+
     if (search) {
-      where.OR = [
-        { description: { contains: search, mode: 'insensitive' } },
-        { asset: { assetId: { contains: search, mode: 'insensitive' } } },
-        { completionNotes: { contains: search, mode: 'insensitive' } },
-      ];
+      conditions.push(`(
+        m.description ILIKE $${params.length + 1} OR 
+        a.asset_id ILIKE $${params.length + 1} OR 
+        m.completion_notes ILIKE $${params.length + 1}
+      )`);
+      params.push(`%${search}%`);
     }
 
     if (status) {
-      where.status = status;
+      conditions.push(`m.status = $${params.length + 1}`);
+      params.push(status);
     }
 
     if (assetId) {
-      where.assetId = assetId;
+      conditions.push(`m.asset_id = $${params.length + 1}`);
+      params.push(assetId);
     }
 
     if (maintenanceType) {
-      where.maintenanceType = maintenanceType;
+      conditions.push(`m.maintenance_type = $${params.length + 1}`);
+      params.push(maintenanceType);
     }
 
     if (vendorId) {
-      where.vendorId = vendorId;
+      conditions.push(`m.vendor_id = $${params.length + 1}`);
+      params.push(vendorId);
     }
 
     if (vendorName) {
-      where.vendor = {
-        name: { contains: vendorName, mode: 'insensitive' }
-      };
+      conditions.push(`v.name ILIKE $${params.length + 1}`);
+      params.push(`%${vendorName}%`);
     }
 
-    if (scheduledDateFrom || scheduledDateTo) {
-      where.scheduledDate = {};
-      if (scheduledDateFrom) {
-        where.scheduledDate.gte = new Date(scheduledDateFrom);
-      }
-      if (scheduledDateTo) {
-        where.scheduledDate.lte = new Date(scheduledDateTo);
-      }
+    if (scheduledDateFrom) {
+      conditions.push(`m.scheduled_date >= $${params.length + 1}`);
+      params.push(new Date(scheduledDateFrom));
     }
 
-    // Build orderBy
-    const orderBy: Prisma.MaintenanceScheduleOrderByWithRelationInput = {};
+    if (scheduledDateTo) {
+      conditions.push(`m.scheduled_date <= $${params.length + 1}`);
+      params.push(new Date(scheduledDateTo));
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    // Build order by clause
+    let orderByClause = 'ORDER BY m.scheduled_date DESC';
     switch (sortBy) {
       case 'scheduledDate':
-        orderBy.scheduledDate = sortOrder;
+        orderByClause = `ORDER BY m.scheduled_date ${sortOrder.toUpperCase()}`;
         break;
       case 'createdAt':
-        orderBy.createdAt = sortOrder;
+        orderByClause = `ORDER BY m.created_at ${sortOrder.toUpperCase()}`;
         break;
       case 'status':
-        orderBy.status = sortOrder;
+        orderByClause = `ORDER BY m.status ${sortOrder.toUpperCase()}`;
         break;
       case 'maintenanceType':
-        orderBy.maintenanceType = sortOrder;
+        orderByClause = `ORDER BY m.maintenance_type ${sortOrder.toUpperCase()}`;
         break;
       case 'estimatedCost':
-        orderBy.estimatedCost = sortOrder;
+        orderByClause = `ORDER BY m.estimated_cost ${sortOrder.toUpperCase()}`;
         break;
       case 'vendorName':
-        orderBy.vendor = {
-          name: sortOrder
-        };
+        orderByClause = `ORDER BY v.name ${sortOrder.toUpperCase()}`;
         break;
-      default:
-        orderBy.scheduledDate = sortOrder;
     }
 
-    const [maintenances, total] = await Promise.all([
-      this.prisma.maintenanceSchedule.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy,
-        include: {
-          asset: {
-            select: {
-              id: true,
-              assetId: true,
-              assetType: { select: { name: true } },
-              brand: { select: { name: true } },
-              model: { select: { name: true } },
-            },
-          },
-          vendor: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phone: true,
-            },
-          },
-        },
-      }),
-      this.prisma.maintenanceSchedule.count({ where }),
+    // Get paginated results
+    const maintenanceQuery = `
+      WITH latest_maintenance AS (${latestMaintenanceSubquery})
+      SELECT 
+        m.*,
+        a.asset_id as asset_asset_id,
+        at.name as asset_type_name,
+        b.name as brand_name,
+        mo.name as model_name,
+        v.id as vendor_id,
+        v.name as vendor_name,
+        v.email as vendor_email,
+        v.phone as vendor_phone
+      FROM latest_maintenance m
+      LEFT JOIN assets a ON m.asset_id = a.id
+      LEFT JOIN asset_types at ON a.asset_type_id = at.id
+      LEFT JOIN brands b ON a.brand_id = b.id
+      LEFT JOIN models mo ON a.model_id = mo.id
+      LEFT JOIN vendors v ON m.vendor_id = v.id
+      ${whereClause}
+      ${orderByClause}
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `;
+
+    params.push(limit, skip);
+
+    // Get count
+    const countQuery = `
+      WITH latest_maintenance AS (${latestMaintenanceSubquery})
+      SELECT COUNT(*) as total
+      FROM latest_maintenance m
+      LEFT JOIN assets a ON m.asset_id = a.id
+      LEFT JOIN vendors v ON m.vendor_id = v.id
+      ${whereClause}
+    `;
+
+    const countParams = params.slice(0, -2); // Remove limit and offset for count query
+
+    const [maintenanceResults, countResult] = await Promise.all([
+      this.prisma.$queryRawUnsafe(maintenanceQuery, ...params),
+      this.prisma.$queryRawUnsafe(countQuery, ...countParams),
     ]);
 
+    const total = Number((countResult as any)[0]?.total || 0);
     const totalPages = Math.ceil(total / limit);
 
+    // Format the results
+    const maintenances = (maintenanceResults as any[]).map(row => ({
+      id: row.id.toString(),
+      assetId: row.asset_asset_id,
+      assetName: `${row.asset_type_name} - ${row.brand_name} ${row.model_name}`,
+      maintenanceTypeId: row.maintenance_type,
+      maintenanceTypeName: row.maintenance_type,
+      status: row.status,
+      vendorName: row.vendor_name,
+      assignedTo: row.vendor_name || 'Internal Team',
+      scheduledDate: row.scheduled_date,
+      estimatedCost: row.estimated_cost ? Number(row.estimated_cost) : null,
+      actualCost: row.actual_cost ? Number(row.actual_cost) : null,
+      description: row.description,
+      completionNotes: row.completion_notes,
+      cancellationNotes: row.cancellation_notes,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+
     return {
-      message: 'Maintenances retrieved successfully',
+      message: 'Latest maintenance records retrieved successfully',
       data: {
-        maintenances: maintenances.map(this.formatMaintenanceResponse),
+        maintenances,
         pagination: {
           total,
           page,
@@ -514,6 +570,94 @@ export class MaintenanceService {
       message: 'Asset availability checked',
       data: { available: !existingMaintenance },
     };
+  }
+
+  async getMaintenanceHistory(assetId: string) {
+    try {
+      // First try to find asset by assetId (string) or by id (if it's a number)
+      let asset;
+      const isNumeric = /^\d+$/.test(assetId);
+      
+      if (isNumeric) {
+        // If it's a number, search by internal ID
+        asset = await this.prisma.asset.findUnique({
+          where: { id: parseInt(assetId) },
+          select: {
+            id: true,
+            assetId: true,
+            assetType: { select: { name: true } },
+            brand: { select: { name: true } },
+            model: { select: { name: true } },
+          },
+        });
+      } else {
+        // If it's a string, search by assetId
+        asset = await this.prisma.asset.findUnique({
+          where: { assetId: assetId },
+          select: {
+            id: true,
+            assetId: true,
+            assetType: { select: { name: true } },
+            brand: { select: { name: true } },
+            model: { select: { name: true } },
+          },
+        });
+      }
+
+      if (!asset) {
+        throw new NotFoundException('Asset not found');
+      }
+
+      // Get all maintenance records for this asset, ordered by creation date descending
+      const maintenanceHistory = await this.prisma.maintenanceSchedule.findMany({
+        where: {
+          assetId: asset.id, // Use the internal asset ID
+          isActive: true,
+        },
+        include: {
+          asset: {
+            select: {
+              id: true,
+              assetId: true,
+              assetType: { select: { name: true } },
+              brand: { select: { name: true } },
+              model: { select: { name: true } },
+            },
+          },
+          vendor: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      return {
+        message: 'Maintenance history retrieved successfully',
+        data: {
+          asset: {
+            id: asset.id,
+            assetId: asset.assetId,
+            name: `${asset.assetType?.name} - ${asset.brand?.name} ${asset.model?.name}`,
+          },
+          maintenanceHistory: maintenanceHistory.map(this.formatMaintenanceResponse),
+          totalRecords: maintenanceHistory.length,
+        },
+      };
+    } catch (error) {
+      console.error('❌ Error in MaintenanceService.getMaintenanceHistory:', {
+        error: error.message,
+        assetId,
+        timestamp: new Date().toISOString()
+      });
+      throw error;
+    }
   }
 
   async getMaintenanceTypes() {

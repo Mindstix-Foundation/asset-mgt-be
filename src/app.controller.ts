@@ -13,12 +13,7 @@ export class AppController {
 
   @Get('dashboard/stats')
   @UseGuards(JwtAuthGuard)
-  getDashboardStats() {
-    return {
-      totalAssets: 1234,
-      available: 856,
-      assigned: 342,
-      maintenance: 36,
-    };
+  async getDashboardStats() {
+    return await this.appService.getDashboardStats();
   }
 }
