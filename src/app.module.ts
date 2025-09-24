@@ -13,6 +13,8 @@ import { ModelsModule } from './modules/models/models.module';
 import { AssetsModule } from './modules/assets/assets.module';
 import { AssignmentsModule } from './modules/assignments/assignments.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { MaintenanceModule } from './maintenance/maintenance.module';
+import { AssetsModule as LocalAssetsModule } from './assets/assets.module';
 
 @Module({
   imports: [
@@ -31,6 +33,8 @@ import { ReportsModule } from './modules/reports/reports.module';
     AssetsModule,
     AssignmentsModule,
     ReportsModule,
+    MaintenanceModule,
+    LocalAssetsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
