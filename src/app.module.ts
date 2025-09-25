@@ -14,7 +14,6 @@ import { AssignmentsModule } from './modules/assignments/assignments.module';
 import { ReportsModule } from './reports/reports.module';
 import { MaintenanceModule } from './maintenance/maintenance.module';
 
-import { MaintenanceModule } from './maintenance/maintenance.module';
 import { AssetsModule } from './modules/assets/assets.module';
 
 @Module({

@@ -103,7 +103,7 @@ export class MaintenanceService {
             email: true,
             phone: true,
           },
-        },i
+        },
       },
     });
 
