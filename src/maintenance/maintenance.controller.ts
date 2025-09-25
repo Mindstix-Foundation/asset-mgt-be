@@ -56,6 +56,14 @@ export class MaintenanceController {
     return this.maintenanceService.checkAssetAvailability(assetId, scheduledDate, excludeId);
   }
 
+  @Get('asset/:assetId/history')
+  @ApiOperation({ summary: 'Get maintenance history for a specific asset' })
+  @ApiResponse({ status: 200, description: 'Maintenance history retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Asset not found' })
+  getMaintenanceHistory(@Param('assetId') assetId: string) {
+    return this.maintenanceService.getMaintenanceHistory(assetId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a specific maintenance schedule by ID' })
   @ApiResponse({ status: 200, description: 'Maintenance retrieved successfully' })

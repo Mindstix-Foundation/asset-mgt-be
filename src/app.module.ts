@@ -11,7 +11,8 @@ import { AssetTypesModule } from './modules/asset-types/asset-types.module';
 import { BrandsModule } from './modules/brands/brands.module';
 import { ModelsModule } from './modules/models/models.module';
 import { AssignmentsModule } from './modules/assignments/assignments.module';
-import { ReportsModule } from './modules/reports/reports.module';
+import { ReportsModule } from './reports/reports.module';
+import { MaintenanceModule } from './maintenance/maintenance.module';
 
 import { MaintenanceModule } from './maintenance/maintenance.module';
 import { AssetsModule } from './modules/assets/assets.module';
