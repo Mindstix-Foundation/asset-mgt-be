@@ -7,13 +7,15 @@ import { AuthModule } from './auth/auth.module';
 import { EmployeesModule } from './employees/employees.module';
 import { VendorsModule } from './modules/vendors/vendors.module';
 import { AssetCategoriesModule } from './modules/asset-categories/asset-categories.module';
-import { BrandsModule } from './modules/brands/brands.module';
 import { AssetTypesModule } from './modules/asset-types/asset-types.module';
+import { BrandsModule } from './modules/brands/brands.module';
 import { ModelsModule } from './modules/models/models.module';
-import { AssetsModule } from './modules/assets/assets.module';
 import { AssignmentsModule } from './modules/assignments/assignments.module';
 import { ReportsModule } from './reports/reports.module';
 import { MaintenanceModule } from './maintenance/maintenance.module';
+
+import { MaintenanceModule } from './maintenance/maintenance.module';
+import { AssetsModule } from './modules/assets/assets.module';
 
 @Module({
   imports: [
@@ -26,13 +28,13 @@ import { MaintenanceModule } from './maintenance/maintenance.module';
     EmployeesModule,
     VendorsModule,
     AssetCategoriesModule,
-    BrandsModule,
     AssetTypesModule,
+    BrandsModule,
     ModelsModule,
-    AssetsModule,
     AssignmentsModule,
     ReportsModule,
     MaintenanceModule,
+    AssetsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

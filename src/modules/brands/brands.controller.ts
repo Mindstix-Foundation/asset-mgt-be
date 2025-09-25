@@ -218,4 +218,37 @@ export class BrandsController {
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.brandsService.remove(id);
   }
+
+  @Post(':sourceId/merge/:targetId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Merge two brands by transferring all references from source to target' })
+  @ApiParam({ name: 'sourceId', description: 'Source brand ID (will be deleted after merge)' })
+  @ApiParam({ name: 'targetId', description: 'Target brand ID (will receive all references)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Brands merged successfully',
+    schema: {
+      example: {
+        message: 'Brands merged successfully',
+        data: {
+          mergeOperation: {
+            sourceBrand: 'Appale',
+            targetBrand: 'Apple',
+            transferredModels: 8,
+            transferredAssets: 45
+          }
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Source or target brand not found' })
+  @ApiResponse({ status: 400, description: 'Cannot merge brand with itself' })
+  async mergeBrands(
+    @Param('sourceId', ParseIntPipe) sourceId: number,
+    @Param('targetId', ParseIntPipe) targetId: number,
+    @Request() req: any,
+  ) {
+    const userId = req.user?.id || await this.brandsService.getOrCreateDefaultUser();
+    return this.brandsService.mergeBrands(sourceId, targetId, userId);
+  }
 } 

@@ -2,13 +2,28 @@ import { Controller, Get, Post, Body, Put, Param, Delete, Query, ParseIntPipe, H
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AssetsService } from './assets.service';
+import { AssetIdService } from './asset-id.service';
 import { CreateAssetDto, UpdateAssetDto, AssetQueryDto } from './dto';
 
 @ApiTags('assets')
 @ApiBearerAuth('JWT-auth')
 @Controller('assets')
 export class AssetsController {
-  constructor(private readonly assetsService: AssetsService) {}
+  constructor(
+    private readonly assetsService: AssetsService,
+    private readonly assetIdService: AssetIdService
+  ) {}
+
+  @Get('generate-id')
+  @ApiOperation({ summary: 'Generate next sequential asset ID' })
+  @ApiResponse({ status: 200, description: 'Next asset ID generated successfully' })
+  async generateAssetId() {
+    const assetId = await this.assetIdService.generateNextAssetId();
+    return {
+      message: 'Asset ID generated successfully',
+      data: { assetId }
+    };
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)

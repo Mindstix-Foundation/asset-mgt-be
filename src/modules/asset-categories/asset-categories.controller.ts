@@ -204,4 +204,37 @@ export class AssetCategoriesController {
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.assetCategoriesService.remove(id);
   }
+
+  @Post(':sourceId/merge/:targetId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Merge two asset categories by transferring all references from source to target' })
+  @ApiParam({ name: 'sourceId', description: 'Source category ID (will be deleted after merge)' })
+  @ApiParam({ name: 'targetId', description: 'Target category ID (will receive all references)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Categories merged successfully',
+    schema: {
+      example: {
+        message: 'Categories merged successfully',
+        data: {
+          mergeOperation: {
+            sourceCategory: 'Electroncs',
+            targetCategory: 'Electronics',
+            transferredAssetTypes: 3,
+            transferredAssets: 15
+          }
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Source or target category not found' })
+  @ApiResponse({ status: 400, description: 'Cannot merge category with itself' })
+  async mergeCategories(
+    @Param('sourceId', ParseIntPipe) sourceId: number,
+    @Param('targetId', ParseIntPipe) targetId: number,
+    @Request() req: any,
+  ) {
+    const userId = req.user?.id || await this.assetCategoriesService.getOrCreateDefaultUser();
+    return this.assetCategoriesService.mergeCategories(sourceId, targetId, userId);
+  }
 } 

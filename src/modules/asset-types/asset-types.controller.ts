@@ -52,4 +52,37 @@ export class AssetTypesController {
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.assetTypesService.remove(id);
   }
+
+  @Post(':sourceId/merge/:targetId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Merge two asset types by transferring all references from source to target' })
+  @ApiParam({ name: 'sourceId', description: 'Source asset type ID (will be deleted after merge)' })
+  @ApiParam({ name: 'targetId', description: 'Target asset type ID (will receive all references)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Asset types merged successfully',
+    schema: {
+      example: {
+        message: 'Asset types merged successfully',
+        data: {
+          mergeOperation: {
+            sourceAssetType: 'Laptap',
+            targetAssetType: 'Laptop',
+            transferredModels: 5,
+            transferredAssets: 25
+          }
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Source or target asset type not found' })
+  @ApiResponse({ status: 400, description: 'Cannot merge asset type with itself or types from different categories' })
+  async mergeAssetTypes(
+    @Param('sourceId', ParseIntPipe) sourceId: number,
+    @Param('targetId', ParseIntPipe) targetId: number,
+    @Request() req: any,
+  ) {
+    const userId = req.user?.id || await this.assetTypesService.getOrCreateDefaultUser();
+    return this.assetTypesService.mergeAssetTypes(sourceId, targetId, userId);
+  }
 } 

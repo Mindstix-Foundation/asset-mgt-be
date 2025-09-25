@@ -3,16 +3,17 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type, Transform } from 'class-transformer';
 
 export class CreateAssetDto {
-  @ApiProperty({
-    description: 'Asset ID (unique identifier)',
-    example: 'AST001',
-    minLength: 1,
-    maxLength: 20,
+  @ApiPropertyOptional({
+    description: 'Asset ID (unique identifier). If not provided, will be auto-generated in format AST-XXXX',
+    example: 'AST-0001',
+    minLength: 7,
+    maxLength: 8,
   })
+  @IsOptional()
   @IsString()
-  @MinLength(1)
-  @MaxLength(20)
-  assetId: string;
+  @MinLength(7)
+  @MaxLength(8)
+  assetId?: string;
 
   @ApiProperty({
     description: 'ID of the asset type',

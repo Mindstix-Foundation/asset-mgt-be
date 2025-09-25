@@ -263,17 +263,50 @@ export class ModelsService {
     }
   }
 
-  async findByBrandAndType(brandId: number, assetTypeId: number) {
+
+
+  async findByBrand(brandId: number) {
+    const models = await this.prisma.model.findMany({
+      where: { 
+        brandId
+      },
+      orderBy: { name: 'asc' },
+      include: {
+        assetType: {
+          select: { 
+            id: true, 
+            name: true,
+            category: {
+              select: { id: true, name: true }
+            }
+          }
+        },
+        _count: {
+          select: { assets: true }
+        }
+      }
+    });
+
+    return {
+      message: 'Models retrieved successfully',
+      data: { models },
+    };
+  }
+
+  async findByBrandAndAssetType(brandId: number, assetTypeId: number) {
     const models = await this.prisma.model.findMany({
       where: { 
         brandId,
         assetTypeId
       },
       orderBy: { name: 'asc' },
-      select: {
-        id: true,
-        name: true,
-        specifications: true,
+      include: {
+        brand: {
+          select: { id: true, name: true }
+        },
+        assetType: {
+          select: { id: true, name: true }
+        },
         _count: {
           select: { assets: true }
         }
@@ -317,5 +350,92 @@ export class ModelsService {
     }
 
     return defaultUser.id;
+  }
+
+  async mergeModels(sourceId: number, targetId: number, userId: number) {
+    if (sourceId === targetId) {
+      throw new BadRequestException('Cannot merge model with itself');
+    }
+
+    try {
+      // Start a transaction to ensure atomicity
+      const result = await this.prisma.$transaction(async (prisma) => {
+        // Verify both models exist and are compatible
+        const [sourceModel, targetModel] = await Promise.all([
+          prisma.model.findUnique({
+            where: { id: sourceId },
+            include: {
+              brand: true,
+              assetType: true,
+              assets: true,
+              _count: {
+                select: { assets: true }
+              }
+            }
+          }),
+          prisma.model.findUnique({
+            where: { id: targetId },
+            include: {
+              brand: true,
+              assetType: true,
+              _count: {
+                select: { assets: true }
+              }
+            }
+          })
+        ]);
+
+        if (!sourceModel) {
+          throw new NotFoundException(`Source model with ID ${sourceId} not found`);
+        }
+        if (!targetModel) {
+          throw new NotFoundException(`Target model with ID ${targetId} not found`);
+        }
+
+        // Ensure both models have the same brand and asset type
+        if (sourceModel.brandId !== targetModel.brandId) {
+          throw new BadRequestException('Cannot merge models from different brands');
+        }
+        if (sourceModel.assetTypeId !== targetModel.assetTypeId) {
+          throw new BadRequestException('Cannot merge models from different asset types');
+        }
+
+        // Transfer all assets from source to target model
+        await prisma.asset.updateMany({
+          where: { modelId: sourceId },
+          data: { 
+            modelId: targetId,
+            updatedBy: userId
+          }
+        });
+
+        // Delete the source model
+        await prisma.model.delete({
+          where: { id: sourceId }
+        });
+
+        // Update the target model's updatedAt timestamp
+        await prisma.model.update({
+          where: { id: targetId },
+          data: { updatedBy: userId }
+        });
+
+        return {
+          sourceModel: sourceModel.name,
+          targetModel: targetModel.name,
+          transferredAssets: sourceModel._count.assets
+        };
+      });
+
+      return {
+        message: 'Models merged successfully',
+        data: { mergeOperation: result }
+      };
+    } catch (error) {
+      if (error.code === 'P2025') {
+        throw new NotFoundException('Source or target model not found');
+      }
+      throw error;
+    }
   }
 } 
