@@ -16,7 +16,7 @@ export class AssignmentQueryDto {
 
   @ApiPropertyOptional({
     description: 'Number of items per page',
-    example: 10,
+    example: 15,
     minimum: 1,
     maximum: 100,
   })
@@ -25,7 +25,7 @@ export class AssignmentQueryDto {
   @IsInt()
   @Min(1)
   @Max(100)
-  limit?: number = 10;
+  limit?: number = 15;
 
   @ApiPropertyOptional({
     description: 'Search term for asset ID, employee name, or notes',
