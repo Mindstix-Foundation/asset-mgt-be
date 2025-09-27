@@ -140,6 +140,8 @@ export class AssetsService {
             select: {
               id: true,
               issueDate: true,
+              issueReason: true,
+              notes: true,
               employee: {
                 select: {
                   id: true,
@@ -147,6 +149,12 @@ export class AssetsService {
                   firstName: true,
                   lastName: true,
                   email: true
+                }
+              },
+              issuedByUser: {
+                select: {
+                  id: true,
+                  username: true
                 }
               }
             },
@@ -205,6 +213,9 @@ export class AssetsService {
             returnDate: true,
             issueCondition: true,
             returnCondition: true,
+            issueReason: true,
+            returnReason: true,
+            notes: true,
             employee: {
               select: { 
                 id: true, 
