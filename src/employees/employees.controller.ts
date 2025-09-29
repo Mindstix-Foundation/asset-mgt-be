@@ -11,6 +11,8 @@ import {
   Request,
   HttpStatus,
   HttpCode,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -30,6 +32,7 @@ import {
   EmployeeDetailResponseDto,
 } from './dto/employee-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('employees')
 @ApiBearerAuth('JWT-auth')
@@ -136,7 +139,39 @@ export class EmployeesController {
     return this.employeesService.findAll(query);
   }
 
-
+  @Get('dropdowns')
+  @ApiOperation({ summary: 'Get all employees for dropdown selection (ID and name only)' })
+  @ApiQuery({ name: 'status', required: false, enum: ['ACTIVE', 'INACTIVE'], description: 'Filter by status (default: ACTIVE)', example: 'ACTIVE' })
+  @ApiResponse({
+    status: 200,
+    description: 'Employees retrieved successfully for dropdown',
+    schema: {
+      example: {
+        message: 'Employees retrieved successfully',
+        data: {
+          employees: [
+            {
+              id: 'uuid-string',
+              employeeId: 'EMP001',
+              firstName: 'John',
+              lastName: 'Doe',
+              name: 'John Doe'
+            },
+            {
+              id: 'uuid-string-2',
+              employeeId: 'EMP002',
+              firstName: 'Jane',
+              lastName: 'Smith',
+              name: 'Jane Smith'
+            }
+          ]
+        }
+      }
+    }
+  })
+  async findAllForDropdowns(@Query('status') status?: string) {
+    return this.employeesService.findAllForDropdowns(status);
+  }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get employee by ID' })
@@ -214,6 +249,32 @@ export class EmployeesController {
     @Request() req: any,
   ): Promise<EmployeeDetailResponseDto> {
     return this.employeesService.update(id, updateEmployeeDto, req.user.id);
+  }
+
+  @Post('bulk-upload')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Bulk upload employees from CSV/Excel file' })
+  @ApiBody({
+    description: 'File upload with optional validation',
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary', description: 'CSV or Excel file containing employee data' },
+        validate_only: { type: 'string', enum: ['true', 'false'], description: 'Validate only without inserting', example: 'false' }
+      }
+    }
+  })
+  @ApiResponse({ status: 200, description: 'Employees uploaded successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid file format or validation errors' })
+  async bulkUpload(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('validate_only') validateOnly: string,
+    @Request() req: any,
+  ) {
+    const userId = req.user?.id || 1
+    const isValidateOnly = validateOnly === 'true'
+    return this.employeesService.bulkUpload(file, userId, isValidateOnly)
   }
 
   @Delete(':id')

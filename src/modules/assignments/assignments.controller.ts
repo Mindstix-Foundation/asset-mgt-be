@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Body, Put, Param, Query, ParseIntPipe, HttpStatus, HttpCode, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Put, Param, Query, ParseIntPipe, HttpStatus, HttpCode, Request, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { AssignmentsService } from './assignments.service';
 import { CreateAssignmentDto, ReturnAssignmentDto, AssignmentQueryDto } from './dto';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 @ApiTags('assignments')
 @ApiBearerAuth('JWT-auth')
@@ -53,9 +54,13 @@ export class AssignmentsController {
     }
   })
   @ApiResponse({ status: 400, description: 'Bad Request - Asset not available or validation failed' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - User authentication required' })
   @ApiResponse({ status: 404, description: 'Asset or employee not found' })
   async create(@Body() createAssignmentDto: CreateAssignmentDto, @Request() req: any) {
-    const userId = req.user?.id || await this.assignmentsService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to issue assets.');
+    }
+    const userId = req.user.id;
     return this.assignmentsService.create(createAssignmentDto, userId);
   }
 
@@ -211,7 +216,10 @@ export class AssignmentsController {
     @Body() returnAssignmentDto: ReturnAssignmentDto,
     @Request() req: any
   ) {
-    const userId = req.user?.id || await this.assignmentsService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to return assets.');
+    }
+    const userId = req.user.id;
     return this.assignmentsService.returnAsset(id, returnAssignmentDto, userId);
   }
 } 

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Put, Param, Delete, Query, ParseIntPipe, HttpStatus, HttpCode, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Put, Param, Delete, Query, ParseIntPipe, HttpStatus, HttpCode, Request, UnauthorizedException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { ModelsService } from './models.service';
 import { CreateModelDto, UpdateModelDto, ModelQueryDto } from './dto';
@@ -16,7 +16,10 @@ export class ModelsController {
   @ApiResponse({ status: 400, description: 'Bad Request - Validation failed or brand/asset type not found' })
   @ApiResponse({ status: 409, description: 'Conflict - Model name already exists for this brand and asset type' })
   async create(@Body() createModelDto: CreateModelDto, @Request() req: any) {
-    const userId = req.user?.id || await this.modelsService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
+    }
+    const userId = req.user.id;
     return this.modelsService.create(createModelDto, userId);
   }
 
@@ -161,7 +164,10 @@ export class ModelsController {
   @ApiResponse({ status: 400, description: 'Bad Request - Brand or asset type not found' })
   @ApiResponse({ status: 409, description: 'Conflict - Model name already exists for this brand and asset type' })
   async update(@Param('id', ParseIntPipe) id: number, @Body() updateModelDto: UpdateModelDto, @Request() req: any) {
-    const userId = req.user?.id || await this.modelsService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
+    }
+    const userId = req.user.id;
     return this.modelsService.update(id, updateModelDto, userId);
   }
 
@@ -204,7 +210,10 @@ export class ModelsController {
     @Param('targetId', ParseIntPipe) targetId: number,
     @Request() req: any,
   ) {
-    const userId = req.user?.id || await this.modelsService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
+    }
+    const userId = req.user.id;
     return this.modelsService.mergeModels(sourceId, targetId, userId);
   }
 } 

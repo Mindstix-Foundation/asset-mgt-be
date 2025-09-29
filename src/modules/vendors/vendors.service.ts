@@ -8,50 +8,6 @@ import * as XLSX from 'xlsx';
 export class VendorsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getOrCreateDefaultUser(): Promise<number> {
-    try {
-      // Try to find any existing user
-      const existingUser = await this.prisma.user.findFirst();
-      if (existingUser) {
-        return existingUser.id;
-      }
-
-      // If no users exist, we need to create a default employee first
-      const defaultEmployee = await this.prisma.employee.upsert({
-        where: { employeeId: 'EMP001' },
-        update: {},
-        create: {
-          employeeId: 'EMP001',
-          firstName: 'System',
-          lastName: 'Admin',
-          email: 'admin@system.local',
-          status: 'ACTIVE',
-          createdBy: 1, // Self-reference for bootstrap
-          updatedBy: 1,
-        },
-      });
-
-      // Create a default user
-      const defaultUser = await this.prisma.user.upsert({
-        where: { username: 'system_admin' },
-        update: {},
-        create: {
-          employeeId: defaultEmployee.id,
-          username: 'system_admin',
-          passwordHash: 'placeholder', // This should be properly hashed in real implementation
-          createdBy: 1, // Self-reference for bootstrap
-          updatedBy: 1,
-        },
-      });
-
-      return defaultUser.id;
-    } catch (error) {
-      console.error('Error creating default user:', error);
-      // Fallback to ID 1 if all else fails
-      return 1;
-    }
-  }
-
   async create(createVendorDto: CreateVendorDto, userId: number): Promise<Vendor> {
     try {
       // Check if vendor name already exists

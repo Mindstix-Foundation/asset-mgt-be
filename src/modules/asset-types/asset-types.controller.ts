@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Put, Param, Delete, Query, ParseIntPipe, HttpStatus, HttpCode, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Put, Param, Delete, Query, ParseIntPipe, HttpStatus, HttpCode, Request, UnauthorizedException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { AssetTypesService } from './asset-types.service';
 import { CreateAssetTypeDto, UpdateAssetTypeDto, AssetTypeQueryDto } from './dto';
@@ -13,7 +13,10 @@ export class AssetTypesController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new asset type' })
   async create(@Body() createAssetTypeDto: CreateAssetTypeDto, @Request() req: any) {
-    const userId = req.user?.id || await this.assetTypesService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to create asset types.');
+    }
+    const userId = req.user.id;
     return this.assetTypesService.create(createAssetTypeDto, userId);
   }
 
@@ -41,7 +44,10 @@ export class AssetTypesController {
   @ApiOperation({ summary: 'Update asset type by ID' })
   @ApiParam({ name: 'id', description: 'Asset Type ID' })
   async update(@Param('id', ParseIntPipe) id: number, @Body() updateAssetTypeDto: UpdateAssetTypeDto, @Request() req: any) {
-    const userId = req.user?.id || await this.assetTypesService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to update asset types.');
+    }
+    const userId = req.user.id;
     return this.assetTypesService.update(id, updateAssetTypeDto, userId);
   }
 
@@ -82,7 +88,10 @@ export class AssetTypesController {
     @Param('targetId', ParseIntPipe) targetId: number,
     @Request() req: any,
   ) {
-    const userId = req.user?.id || await this.assetTypesService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to merge asset types.');
+    }
+    const userId = req.user.id;
     return this.assetTypesService.mergeAssetTypes(sourceId, targetId, userId);
   }
 } 

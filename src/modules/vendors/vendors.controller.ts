@@ -14,6 +14,7 @@ import {
   HttpCode,
   Put,
   Request,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -64,7 +65,10 @@ export class VendorsController {
   async create(@Body() createVendorDto: CreateVendorDto, @Request() req: any) {
     // For now, we'll create a default user if none exists
     // TODO: Implement proper authentication and get real user ID
-    const userId = req.user?.id || await this.vendorsService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
+    }
+    const userId = req.user.id;
     const vendor = await this.vendorsService.create(createVendorDto, userId);
     return {
       message: 'Vendor created successfully',
@@ -206,7 +210,10 @@ export class VendorsController {
     @Body() updateVendorDto: UpdateVendorDto,
     @Request() req: any,
   ) {
-    const userId = req.user?.id || await this.vendorsService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
+    }
+    const userId = req.user.id;
     return this.vendorsService.update(id, updateVendorDto, userId);
   }
 
@@ -267,7 +274,10 @@ export class VendorsController {
     @Body() statusDto: VendorStatusDto,
     @Request() req: any,
   ) {
-    const userId = req.user?.id || await this.vendorsService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
+    }
+    const userId = req.user.id;
     return this.vendorsService.updateStatus(id, statusDto, userId);
   }
 
@@ -326,7 +336,10 @@ export class VendorsController {
     @Body('validate_only') validateOnly: string,
     @Request() req: any,
   ) {
-    const userId = req.user?.id || await this.vendorsService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
+    }
+    const userId = req.user.id;
     const isValidateOnly = validateOnly === 'true';
     return this.vendorsService.bulkUpload(file, userId, isValidateOnly);
   }

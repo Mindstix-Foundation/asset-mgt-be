@@ -11,6 +11,7 @@ import {
   HttpStatus,
   HttpCode,
   Request,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -60,7 +61,10 @@ export class AssetCategoriesController {
   @ApiResponse({ status: 400, description: 'Bad Request - Validation failed' })
   @ApiResponse({ status: 409, description: 'Conflict - Category name already exists' })
   async create(@Body() createAssetCategoryDto: CreateAssetCategoryDto, @Request() req: any) {
-    const userId = req.user?.id || await this.assetCategoriesService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
+    }
+    const userId = req.user.id;
     return this.assetCategoriesService.create(createAssetCategoryDto, userId);
   }
 
@@ -182,7 +186,10 @@ export class AssetCategoriesController {
     @Body() updateAssetCategoryDto: UpdateAssetCategoryDto,
     @Request() req: any,
   ) {
-    const userId = req.user?.id || await this.assetCategoriesService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
+    }
+    const userId = req.user.id;
     return this.assetCategoriesService.update(id, updateAssetCategoryDto, userId);
   }
 
@@ -234,7 +241,10 @@ export class AssetCategoriesController {
     @Param('targetId', ParseIntPipe) targetId: number,
     @Request() req: any,
   ) {
-    const userId = req.user?.id || await this.assetCategoriesService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
+    }
+    const userId = req.user.id;
     return this.assetCategoriesService.mergeCategories(sourceId, targetId, userId);
   }
 } 

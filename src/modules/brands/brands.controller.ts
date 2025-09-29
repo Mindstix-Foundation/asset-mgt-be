@@ -11,6 +11,7 @@ import {
   HttpStatus,
   HttpCode,
   Request,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -61,7 +62,10 @@ export class BrandsController {
   @ApiResponse({ status: 400, description: 'Bad Request - Validation failed' })
   @ApiResponse({ status: 409, description: 'Conflict - Brand name already exists' })
   async create(@Body() createBrandDto: CreateBrandDto, @Request() req: any) {
-    const userId = req.user?.id || await this.brandsService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
+    }
+    const userId = req.user.id;
     return this.brandsService.create(createBrandDto, userId);
   }
 
@@ -196,7 +200,10 @@ export class BrandsController {
     @Body() updateBrandDto: UpdateBrandDto,
     @Request() req: any,
   ) {
-    const userId = req.user?.id || await this.brandsService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
+    }
+    const userId = req.user.id;
     return this.brandsService.update(id, updateBrandDto, userId);
   }
 
@@ -248,7 +255,10 @@ export class BrandsController {
     @Param('targetId', ParseIntPipe) targetId: number,
     @Request() req: any,
   ) {
-    const userId = req.user?.id || await this.brandsService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
+    }
+    const userId = req.user.id;
     return this.brandsService.mergeBrands(sourceId, targetId, userId);
   }
 } 

@@ -488,38 +488,7 @@ export class AssetsService {
     };
   }
 
-  // Helper method for creating default user
-  async getOrCreateDefaultUser(): Promise<number> {
-    let defaultUser = await this.prisma.user.findFirst({
-      where: { username: 'system' },
-    });
 
-    if (!defaultUser) {
-      // Create default employee first
-      const defaultEmployee = await this.prisma.employee.create({
-        data: {
-          employeeId: 'SYS001',
-          firstName: 'System',
-          lastName: 'User',
-          email: 'system@company.com',
-          createdBy: 1, // Bootstrap
-          updatedBy: 1,
-        },
-      });
-
-      defaultUser = await this.prisma.user.create({
-        data: {
-          employeeId: defaultEmployee.id,
-          username: 'system',
-          passwordHash: 'system',
-          createdBy: 1, // Bootstrap
-          updatedBy: 1,
-        },
-      });
-    }
-
-    return defaultUser.id;
-  }
 
   async searchAssets(queryDto: any) {
     const { q, page = 1, limit = 10, assetTypeId, brandId, status, condition } = queryDto;
@@ -586,6 +555,72 @@ export class AssetsService {
           hasPrevious: page > 1,
         },
       },
+    };
+  }
+
+  async getAssetsForDropdowns(query: any) {
+    const { status = 'AVAILABLE', assetTypeId, brandId, modelId } = query;
+
+    // Build where clause
+    const where: any = {};
+
+    // Default to AVAILABLE if no status specified
+    if (status) {
+      where.status = status;
+    } else {
+      where.status = 'AVAILABLE';
+    }
+
+    // Apply additional filters
+    if (assetTypeId) where.assetTypeId = parseInt(assetTypeId);
+    if (brandId) where.brandId = parseInt(brandId);
+    if (modelId) where.modelId = parseInt(modelId);
+
+    // Get all assets with minimal data for dropdowns
+    const assets = await this.prisma.asset.findMany({
+      where,
+      select: {
+        id: true,
+        assetId: true,
+        serialNumber: true,
+        condition: true,
+        status: true,
+        location: true,
+        assetType: {
+          select: {
+            id: true,
+            name: true,
+            category: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
+        },
+        brand: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        model: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      },
+      orderBy: {
+        assetId: 'asc'
+      }
+    });
+
+    return {
+      message: 'Assets retrieved successfully',
+      data: {
+        assets
+      }
     };
   }
 

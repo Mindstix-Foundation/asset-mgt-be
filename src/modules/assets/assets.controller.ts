@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Put, Param, Delete, Query, ParseIntPipe, HttpStatus, HttpCode, Request, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Controller, Get, Post, Body, Put, Param, Delete, Query, ParseIntPipe, HttpStatus, HttpCode, Request, UseInterceptors, UploadedFile, UnauthorizedException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AssetsService } from './assets.service';
@@ -32,7 +32,10 @@ export class AssetsController {
   @ApiResponse({ status: 400, description: 'Bad Request - Validation failed or related entity not found' })
   @ApiResponse({ status: 409, description: 'Conflict - Asset ID or serial number already exists' })
   async create(@Body() createAssetDto: CreateAssetDto, @Request() req: any) {
-    const userId = req.user?.id || await this.assetsService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to create assets.');
+    }
+    const userId = req.user.id;
     return this.assetsService.create(createAssetDto, userId);
   }
 
@@ -129,6 +132,40 @@ export class AssetsController {
     return this.assetsService.searchAssets(queryDto);
   }
 
+  @Get('dropdowns')
+  @ApiOperation({ summary: 'Get all available assets for dropdown selection (ID and basic info only)' })
+  @ApiQuery({ name: 'status', required: false, enum: ['AVAILABLE', 'ASSIGNED', 'IN_MAINTENANCE', 'RETIRED', 'LOST'], description: 'Filter by status (default: AVAILABLE)', example: 'AVAILABLE' })
+  @ApiQuery({ name: 'assetTypeId', required: false, description: 'Filter by asset type ID' })
+  @ApiQuery({ name: 'brandId', required: false, description: 'Filter by brand ID' })
+  @ApiQuery({ name: 'modelId', required: false, description: 'Filter by model ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Assets retrieved successfully for dropdown',
+    schema: {
+      example: {
+        message: 'Assets retrieved successfully',
+        data: {
+          assets: [
+            {
+              id: 'uuid-here',
+              assetId: 'AST001',
+              serialNumber: 'SN123456789',
+              assetType: { id: 1, name: 'Laptop' },
+              brand: { id: 1, name: 'Apple' },
+              model: { id: 1, name: 'MacBook Pro 16"' },
+              condition: 'GOOD',
+              status: 'AVAILABLE',
+              location: 'Office Floor 3'
+            }
+          ]
+        }
+      }
+    }
+  })
+  async getAssetsForDropdowns(@Query() query: any) {
+    return this.assetsService.getAssetsForDropdowns(query);
+  }
+
   @Get('available')
   @ApiOperation({ summary: 'Get all available assets (for issue asset page)' })
   @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)' })
@@ -205,7 +242,10 @@ export class AssetsController {
   @ApiResponse({ status: 400, description: 'Bad Request - Related entity not found' })
   @ApiResponse({ status: 409, description: 'Conflict - Asset ID or serial number already exists' })
   async update(@Param('id', ParseIntPipe) id: number, @Body() updateAssetDto: UpdateAssetDto, @Request() req: any) {
-    const userId = req.user?.id || await this.assetsService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to update assets.');
+    }
+    const userId = req.user.id;
     return this.assetsService.update(id, updateAssetDto, userId);
   }
 
@@ -281,7 +321,10 @@ export class AssetsController {
     @Body('validate_only') validateOnly: string,
     @Request() req: any,
   ) {
-    const userId = req.user?.id || await this.assetsService.getOrCreateDefaultUser();
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to upload assets.');
+    }
+    const userId = req.user.id;
     const isValidateOnly = validateOnly === 'true';
     return this.assetsService.bulkUpload(file, userId, isValidateOnly);
   }

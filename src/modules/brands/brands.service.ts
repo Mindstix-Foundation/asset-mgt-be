@@ -244,55 +244,6 @@ export class BrandsService {
     };
   }
 
-  // Helper method for creating default user
-  async getOrCreateDefaultUser(): Promise<number> {
-    let defaultUser = await this.prisma.user.findFirst({
-      where: { username: 'system' },
-    });
-
-    if (!defaultUser) {
-      // Create default user if not exists
-      const defaultEmployee = await this.prisma.employee.findFirst({
-        where: { employeeId: 'SYSTEM001' },
-      });
-
-      if (!defaultEmployee) {
-        const newEmployee = await this.prisma.employee.create({
-        data: {
-            employeeId: 'SYSTEM001',
-          firstName: 'System',
-          lastName: 'User',
-          email: 'system@company.com',
-            createdBy: 1,
-          updatedBy: 1,
-        },
-      });
-
-        defaultUser = await this.prisma.user.create({
-          data: {
-            employeeId: newEmployee.id,
-            username: 'system',
-            passwordHash: 'system',
-            createdBy: 1,
-            updatedBy: 1,
-          },
-        });
-      } else {
-      defaultUser = await this.prisma.user.create({
-        data: {
-          employeeId: defaultEmployee.id,
-          username: 'system',
-          passwordHash: 'system',
-            createdBy: 1,
-          updatedBy: 1,
-        },
-      });
-      }
-    }
-
-    return defaultUser.id;
-  }
-
   async mergeBrands(sourceId: number, targetId: number, userId: number) {
     if (sourceId === targetId) {
       throw new BadRequestException('Cannot merge brand with itself');

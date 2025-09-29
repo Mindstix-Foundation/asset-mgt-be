@@ -276,37 +276,7 @@ export class AssetTypesService {
   }
 
   // Helper method for creating default user
-  async getOrCreateDefaultUser(): Promise<number> {
-    let defaultUser = await this.prisma.user.findFirst({
-      where: { username: 'system' },
-    });
 
-    if (!defaultUser) {
-      // Create default employee first
-      const defaultEmployee = await this.prisma.employee.create({
-        data: {
-          employeeId: 'SYS001',
-          firstName: 'System',
-          lastName: 'User',
-          email: 'system@company.com',
-          createdBy: 1, // Bootstrap
-          updatedBy: 1,
-        },
-      });
-
-      defaultUser = await this.prisma.user.create({
-        data: {
-          employeeId: defaultEmployee.id,
-          username: 'system',
-          passwordHash: 'system',
-          createdBy: 1, // Bootstrap
-          updatedBy: 1,
-        },
-      });
-    }
-
-    return defaultUser.id;
-  }
 
   async mergeAssetTypes(sourceId: number, targetId: number, userId: number) {
     if (sourceId === targetId) {
