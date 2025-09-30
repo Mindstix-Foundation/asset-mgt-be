@@ -46,6 +46,7 @@ model User {
   updatedUsers                User[]                @relation("UserUpdatedBy")
   createdVendors              Vendor[]              @relation("VendorCreatedBy")
   updatedVendors              Vendor[]              @relation("VendorUpdatedBy")
+  assetAuditLogs              AssetAuditLog[]       @relation("AssetAuditChangedBy")
   vendor                      Vendor?
 
   @@index([isActive, lastLogin])
@@ -236,6 +237,7 @@ model Asset {
   notes                String?
   retirementDate       DateTime?             @map("retirement_date") @db.Date
   retirementReason     String?               @map("retirement_reason")
+  retirementNotes      String?               @map("retirement_notes")
   reactivationDate     DateTime?             @map("reactivation_date") @db.Date
   reactivationReason   String?               @map("reactivation_reason")
   qrCode               String?               @map("qr_code") @db.VarChar(255)
@@ -245,6 +247,7 @@ model Asset {
   updatedBy            Int                   @map("updated_by")
   updatedAt            DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   assetIssues          AssetIssue[]
+  assetAuditLogs       AssetAuditLog[]
   assetType            AssetType             @relation(fields: [assetTypeId], references: [id])
   brand                Brand                 @relation(fields: [brandId], references: [id])
   createdByUser        User                  @relation("AssetCreatedBy", fields: [createdBy], references: [id])
@@ -297,6 +300,29 @@ model AssetIssue {
   @@map("asset_issues")
 }
 
+model AssetAuditLog {
+  id            Int           @id @default(autoincrement())
+  assetId       Int           @map("asset_id")
+  fieldName     String        @map("field_name") @db.VarChar(50)
+  oldValue      String?       @map("old_value") @db.VarChar(255)
+  newValue      String?       @map("new_value") @db.VarChar(255)
+  changeType    AuditChangeType @map("change_type")
+  changeReason  String?       @map("change_reason") @db.VarChar(255)
+  changedBy     Int           @map("changed_by")
+  changedAt     DateTime      @default(now()) @map("changed_at") @db.Timestamptz(6)
+  ipAddress     String?       @map("ip_address") @db.VarChar(45)
+  userAgent     String?       @map("user_agent") @db.VarChar(500)
+  asset         Asset         @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  changedByUser User          @relation("AssetAuditChangedBy", fields: [changedBy], references: [id])
+
+  @@index([assetId])
+  @@index([changedBy])
+  @@index([changedAt])
+  @@index([fieldName])
+  @@index([changeType])
+  @@map("asset_audit_logs")
+}
+
 model MaintenanceSchedule {
   id                   Int                 @id @default(autoincrement())
   assetId              Int                 @map("asset_id")
@@ -341,6 +367,7 @@ enum AssetCondition {
   FAIR
   POOR
   DAMAGED
+  REFURBISHED
 }
 
 enum AssetStatus {
@@ -349,6 +376,15 @@ enum AssetStatus {
   IN_MAINTENANCE
   RETIRED
   LOST
+}
+
+enum AuditChangeType {
+  STATUS_CHANGE
+  CONDITION_CHANGE
+  LOCATION_CHANGE
+  FIELD_UPDATE
+  RETIREMENT
+  REACTIVATION
 }
 
 enum MaintenanceStatus {
