@@ -1,9 +1,11 @@
-import { Controller, Get, Post, Body, Put, Param, Delete, Query, ParseIntPipe, HttpStatus, HttpCode, Request, UseInterceptors, UploadedFile, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Put, Param, Delete, Query, ParseIntPipe, HttpStatus, HttpCode, Request, UseInterceptors, UploadedFile, UnauthorizedException, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { AssetsService } from './assets.service';
 import { AssetIdService } from './asset-id.service';
-import { CreateAssetDto, UpdateAssetDto, AssetQueryDto } from './dto';
+import { AssetHistoryService } from './asset-history.service';
+import { CreateAssetDto, UpdateAssetDto, AssetQueryDto, AssetHistoryQueryDto, RetireAssetDto, ReactivateAssetDto } from './dto';
 
 @ApiTags('assets')
 @ApiBearerAuth('JWT-auth')
@@ -11,7 +13,8 @@ import { CreateAssetDto, UpdateAssetDto, AssetQueryDto } from './dto';
 export class AssetsController {
   constructor(
     private readonly assetsService: AssetsService,
-    private readonly assetIdService: AssetIdService
+    private readonly assetIdService: AssetIdService,
+    private readonly assetHistoryService: AssetHistoryService
   ) {}
 
   @Get('generate-id')
@@ -79,6 +82,60 @@ export class AssetsController {
   })
   async getAssetStats() {
     return this.assetsService.getAssetStats();
+  }
+
+  @Get('export')
+  @ApiOperation({ summary: 'Export assets to Excel file with filtering support' })
+  @ApiQuery({ name: 'search', required: false, description: 'Search by asset ID, serial number, or notes' })
+  @ApiQuery({ name: 'assetTypeId', required: false, description: 'Filter by asset type ID' })
+  @ApiQuery({ name: 'brandId', required: false, description: 'Filter by brand ID' })
+  @ApiQuery({ name: 'modelId', required: false, description: 'Filter by model ID' })
+  @ApiQuery({ name: 'vendorId', required: false, description: 'Filter by vendor ID' })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter by status (AVAILABLE, ASSIGNED, IN_MAINTENANCE, RETIRED, LOST)' })
+  @ApiQuery({ name: 'condition', required: false, description: 'Filter by condition (NEW, GOOD, FAIR, POOR, DAMAGED, REFURBISHED)' })
+  @ApiQuery({ name: 'location', required: false, description: 'Filter by location' })
+  @ApiQuery({ name: 'sortBy', required: false, description: 'Sort by field (assetId, status, condition, purchaseDate, createdAt, updatedAt)' })
+  @ApiQuery({ name: 'sortOrder', required: false, description: 'Sort order (asc, desc)' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Excel file download',
+    headers: {
+      'Content-Type': {
+        description: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        schema: { type: 'string' }
+      },
+      'Content-Disposition': {
+        description: 'attachment; filename="assets_export_YYYY-MM-DD.xlsx"',
+        schema: { type: 'string' }
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'Bad Request - Invalid query parameters' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - User authentication required' })
+  async exportAssets(@Query() queryDto: AssetQueryDto, @Res() res: Response, @Request() req: any) {
+    if (!req.user?.id) {
+      return res.status(401).json({
+        message: 'User authentication required. Please login to export assets.',
+        statusCode: 401
+      });
+    }
+
+    try {
+      const result = await this.assetsService.exportAssets(queryDto);
+      
+      // Set response headers for file download
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${result.data.filename}"`);
+      res.setHeader('Content-Length', result.data.buffer.length);
+      
+      // Send the Excel file buffer
+      res.send(result.data.buffer);
+    } catch (error) {
+      res.status(400).json({
+        message: 'Export failed',
+        error: error.message
+      });
+    }
   }
 
   @Get('search')
@@ -225,6 +282,111 @@ export class AssetsController {
     return this.assetsService.findAvailableAssets(queryDto);
   }
 
+  @Get(':id/history')
+  @ApiOperation({ summary: 'Get complete asset history with pagination and filtering' })
+  @ApiParam({ name: 'id', description: 'Asset ID or Asset Code' })
+  @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Events per page (default: 20, max: 100)' })
+  @ApiQuery({ name: 'eventTypes', required: false, description: 'Filter by event types (comma-separated)' })
+  @ApiQuery({ name: 'dateFrom', required: false, description: 'Filter events from date (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'dateTo', required: false, description: 'Filter events to date (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'userId', required: false, description: 'Filter by user who performed action' })
+  @ApiQuery({ name: 'search', required: false, description: 'Search in event descriptions and notes' })
+  @ApiQuery({ name: 'sortBy', required: false, description: 'Sort by field (date, eventType)' })
+  @ApiQuery({ name: 'sortOrder', required: false, description: 'Sort order (asc, desc)' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Asset history retrieved successfully',
+    schema: {
+      example: {
+        message: 'Asset history retrieved successfully',
+        data: {
+          asset: {
+            id: 1,
+            assetId: 'AST-0001',
+            name: 'Laptop - Dell XPS 13',
+            currentStatus: 'ASSIGNED',
+            currentCondition: 'GOOD'
+          },
+          timeline: [
+            {
+              id: 'assigned-123',
+              type: 'ASSIGNED',
+              date: '2024-02-01T09:15:00Z',
+              title: 'Asset Assigned',
+              description: 'Assigned to John Doe (EMP-001)',
+              user: 'hr_manager',
+              details: {
+                employee: 'John Doe',
+                employeeId: 'EMP-001',
+                reason: 'New employee onboarding',
+                notes: 'Laptop for development work'
+              },
+              icon: 'fas fa-user-plus',
+              color: '#007bff'
+            }
+          ],
+          pagination: {
+            currentPage: 1,
+            totalPages: 5,
+            totalEvents: 89,
+            hasNext: true,
+            hasPrevious: false,
+            limit: 20
+          }
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Asset not found' })
+  async getAssetHistory(@Param('id') id: string, @Query() query: AssetHistoryQueryDto) {
+    return this.assetHistoryService.getAssetHistory(id, query);
+  }
+
+  @Get(':id/history/summary')
+  @ApiOperation({ summary: 'Get asset history summary with key statistics' })
+  @ApiParam({ name: 'id', description: 'Asset ID or Asset Code' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Asset history summary retrieved successfully',
+    schema: {
+      example: {
+        message: 'Asset history summary retrieved successfully',
+        data: {
+          asset: {
+            id: 1,
+            assetId: 'AST-0001',
+            name: 'Laptop - Dell XPS 13',
+            currentStatus: 'ASSIGNED',
+            currentCondition: 'GOOD'
+          },
+          summary: {
+            totalEvents: 89,
+            lastActivity: '2024-12-15T10:30:00Z',
+            currentStatus: 'ASSIGNED',
+            currentCondition: 'GOOD',
+            totalAssignments: 23,
+            totalMaintenance: 8,
+            totalStatusChanges: 12,
+            totalCost: 2500.00
+          },
+          recentEvents: [
+            // Last 5 events
+          ],
+          quickStats: {
+            avgAssignmentDuration: '45 days',
+            maintenanceFrequency: 'Every 6 months',
+            mostCommonStatus: 'ASSIGNED'
+          }
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Asset not found' })
+  async getAssetHistorySummary(@Param('id') id: string) {
+    return this.assetHistoryService.getAssetHistorySummary(id);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get asset by ID with complete details' })
   @ApiParam({ name: 'id', description: 'Asset ID' })
@@ -258,6 +420,156 @@ export class AssetsController {
   @ApiResponse({ status: 400, description: 'Cannot delete asset with active assignments or maintenance schedules' })
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.assetsService.remove(id);
+  }
+
+  @Put(':id/retire')
+  @ApiOperation({ summary: 'Retire an asset with retirement details' })
+  @ApiParam({ name: 'id', description: 'Asset ID' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Asset retired successfully',
+    schema: {
+      example: {
+        message: 'Asset retired successfully',
+        data: {
+          asset: {
+            id: 1,
+            assetId: 'AST-0001',
+            status: 'RETIRED',
+            retirementDate: '2024-12-31T00:00:00.000Z',
+            retirementReason: 'END_OF_LIFE',
+            assetType: 'Laptop',
+            brand: 'Apple',
+            model: 'MacBook Pro 16"'
+          }
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Asset not found' })
+  @ApiResponse({ status: 400, description: 'Bad Request - Asset cannot be retired (already retired, assigned, or in maintenance)' })
+  async retireAsset(
+    @Param('id', ParseIntPipe) id: number, 
+    @Body() retireAssetDto: RetireAssetDto, 
+    @Request() req: any
+  ) {
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to retire assets.');
+    }
+    const userId = req.user.id;
+    return this.assetsService.retireAsset(id, retireAssetDto, userId);
+  }
+
+  @Put(':id/reactivate')
+  @ApiOperation({ summary: 'Reactivate a retired asset' })
+  @ApiParam({ name: 'id', description: 'Asset ID' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Asset reactivated successfully',
+    schema: {
+      example: {
+        message: 'Asset reactivated successfully',
+        data: {
+          asset: {
+            id: 1,
+            assetId: 'AST-0001',
+            status: 'AVAILABLE',
+            condition: 'GOOD',
+            location: 'Warehouse A, Shelf B2',
+            reactivationDate: '2024-12-31T00:00:00.000Z',
+            reactivationReason: 'Asset repaired and ready for use',
+            assetType: 'Laptop',
+            brand: 'Apple',
+            model: 'MacBook Pro 16"'
+          }
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Asset not found' })
+  @ApiResponse({ status: 400, description: 'Bad Request - Only retired assets can be reactivated' })
+  async reactivateAsset(
+    @Param('id', ParseIntPipe) id: number, 
+    @Body() reactivateAssetDto: ReactivateAssetDto, 
+    @Request() req: any
+  ) {
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to reactivate assets.');
+    }
+    const userId = req.user.id;
+    return this.assetsService.reactivateAsset(id, reactivateAssetDto, userId);
+  }
+
+  @Post('validate-bulk-upload')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Validate bulk upload data without importing' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'File upload for validation only',
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'CSV or Excel file containing asset data'
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'File validation completed',
+    schema: {
+      example: {
+        message: 'File validation completed',
+        data: {
+          totalRows: 100,
+          validRows: 95,
+          invalidRows: 5,
+          errors: [
+            {
+              row: 5,
+              field: 'assetId',
+              message: 'Asset ID already exists in database',
+              value: 'AST-0001'
+            },
+            {
+              row: 12,
+              field: 'serialNumber',
+              message: 'Serial number already exists in database',
+              value: 'SN123456789'
+            },
+            {
+              row: 15,
+              field: 'assetId',
+              message: 'Invalid asset ID format. Expected format: AST-XXXX',
+              value: 'AST-123'
+            },
+            {
+              row: 20,
+              field: 'modelId',
+              message: 'Model ID 5 does not belong to Asset Type ID 1. Valid models for Asset Type 1: None',
+              value: '5'
+            }
+          ],
+          validationOnly: true
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'Invalid file format or validation errors' })
+  @ApiResponse({ status: 413, description: 'File size too large (max 10MB)' })
+  async validateBulkUpload(
+    @UploadedFile() file: Express.Multer.File,
+    @Request() req: any,
+  ) {
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to validate assets.');
+    }
+    const userId = req.user.id;
+    return this.assetsService.validateBulkUpload(file, userId);
   }
 
   @Post('bulk-upload')

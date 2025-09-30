@@ -468,11 +468,7 @@ export class AssignmentsService {
         };
 
         // Update asset condition based on return condition
-        if (returnAssignmentDto.returnCondition === 'DAMAGED') {
-          assetUpdateData.condition = 'DAMAGED';
-        } else if (returnAssignmentDto.returnCondition === 'POOR') {
-          assetUpdateData.condition = 'POOR';
-        }
+        assetUpdateData.condition = returnAssignmentDto.returnCondition;
 
         await prisma.asset.update({
           where: { id: assignment.assetId },
