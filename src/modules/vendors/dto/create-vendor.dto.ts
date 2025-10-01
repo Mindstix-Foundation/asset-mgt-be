@@ -1,6 +1,8 @@
-import { IsString, IsOptional, IsBoolean, IsEnum, IsEmail, MaxLength, MinLength } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsEnum, IsEmail, MaxLength, MinLength, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { VendorStatus, VendorType } from '@prisma/client';
+import { IsTitleCase, IsPanNumber, IsPhoneNumber, IsGstNumber, IsVendorName } from '../validators/custom-validators';
+import { ToTrimmedTitleCase, ToUpperCase, ToPhoneFormat, ToTrimmed } from '../validators/transformers';
 
 export class CreateVendorDto {
   @ApiProperty({
@@ -10,8 +12,10 @@ export class CreateVendorDto {
     maxLength: 100
   })
   @IsString()
-  @MinLength(2)
-  @MaxLength(100)
+  @MinLength(2, { message: 'Vendor name must be at least 2 characters long' })
+  @MaxLength(100, { message: 'Vendor name cannot exceed 100 characters' })
+  @IsVendorName({ message: 'Vendor name must be a valid business name' })
+  @ToTrimmedTitleCase()
   name: string;
 
   @ApiProperty({
@@ -33,7 +37,9 @@ export class CreateVendorDto {
   })
   @IsString()
   @IsOptional()
-  @MaxLength(100)
+  @MaxLength(100, { message: 'Contact person name cannot exceed 100 characters' })
+  @IsTitleCase({ message: 'Contact person name must be in title case (e.g., "John Smith")' })
+  @ToTrimmedTitleCase()
   contactPerson?: string;
 
   @ApiProperty({
@@ -42,9 +48,10 @@ export class CreateVendorDto {
     maxLength: 255,
     required: false
   })
-  @IsEmail()
+  @IsEmail({}, { message: 'Please provide a valid email address' })
   @IsOptional()
-  @MaxLength(255)
+  @MaxLength(255, { message: 'Email address cannot exceed 255 characters' })
+  @ToTrimmed()
   email?: string;
 
   @ApiProperty({
@@ -55,27 +62,33 @@ export class CreateVendorDto {
   })
   @IsString()
   @IsOptional()
-  @MaxLength(15)
+  @MaxLength(15, { message: 'Phone number cannot exceed 15 characters' })
+  @IsPhoneNumber({ message: 'Please provide a valid phone number' })
+  @ToPhoneFormat()
   phone?: string;
 
   @ApiProperty({
     description: 'Complete address',
     example: '1 Apple Park Way, Cupertino, CA 95014',
+    maxLength: 500,
     required: false
   })
   @IsString()
   @IsOptional()
+  @MaxLength(500, { message: 'Address cannot exceed 500 characters' })
+  @ToTrimmed()
   address?: string;
 
   @ApiProperty({
     description: 'Tax ID or GST number',
-    example: 'GSTIN12345',
+    example: '12ABCDE1234F1Z5',
     maxLength: 50,
     required: false
   })
   @IsString()
   @IsOptional()
-  @MaxLength(50)
+  @MaxLength(50, { message: 'Tax ID cannot exceed 50 characters' })
+  @ToUpperCase()
   taxId?: string;
 
   @ApiProperty({
@@ -86,16 +99,21 @@ export class CreateVendorDto {
   })
   @IsString()
   @IsOptional()
-  @MaxLength(10)
+  @MaxLength(10, { message: 'PAN number must be exactly 10 characters' })
+  @IsPanNumber({ message: 'Please provide a valid PAN number (format: ABCDE1234F)' })
+  @ToUpperCase()
   panNumber?: string;
 
   @ApiProperty({
     description: 'Additional notes',
     example: 'Premium electronics supplier with excellent service record',
+    maxLength: 1000,
     required: false
   })
   @IsString()
   @IsOptional()
+  @MaxLength(1000, { message: 'Notes cannot exceed 1000 characters' })
+  @ToTrimmed()
   notes?: string;
 
   @ApiProperty({

@@ -339,7 +339,6 @@ export class AssetHistoryService {
         isActive: true 
       },
       include: {
-        vendor: { select: { name: true } },
         createdByUser: { select: { username: true } },
         updatedByUser: { select: { username: true } }
       },
@@ -362,7 +361,6 @@ export class AssetHistoryService {
           type: maintenance.maintenanceType,
           scheduledDate: maintenance.scheduledDate.toISOString().split('T')[0],
           description: maintenance.description,
-          vendor: maintenance.vendor?.name,
           estimatedCost: maintenance.estimatedCost ? parseFloat(maintenance.estimatedCost.toString()) : null,
           status: maintenance.status
         },
@@ -382,8 +380,7 @@ export class AssetHistoryService {
           userId: maintenance.updatedBy,
           details: {
             type: maintenance.maintenanceType,
-            description: maintenance.description,
-            vendor: maintenance.vendor?.name
+            description: maintenance.description
           },
           icon: 'fas fa-tools',
           color: '#fd7e14'
@@ -403,7 +400,6 @@ export class AssetHistoryService {
           details: {
             type: maintenance.maintenanceType,
             description: maintenance.description,
-            vendor: maintenance.vendor?.name,
             actualCost: maintenance.actualCost ? parseFloat(maintenance.actualCost.toString()) : null,
             completionNotes: maintenance.completionNotes
           },

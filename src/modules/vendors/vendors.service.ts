@@ -339,6 +339,224 @@ export class VendorsService {
     };
   }
 
+  async validateBulkUpload(file: Express.Multer.File, userId: number) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    // Validate file type
+    const allowedMimeTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      'text/csv',
+    ];
+
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      throw new BadRequestException('Invalid file format. Only CSV and Excel files are allowed');
+    }
+
+    // Validate file size (10MB limit)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      throw new BadRequestException('File size too large. Maximum 10MB allowed');
+    }
+
+    try {
+      // Parse the file
+      const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const data = XLSX.utils.sheet_to_json(worksheet);
+
+      if (data.length === 0) {
+        throw new BadRequestException('File is empty or has no valid data');
+      }
+
+      // Validate required headers
+      const firstRow = data[0] as any;
+      const headers = Object.keys(firstRow).map(h => h.trim().toLowerCase());
+      const requiredHeaders = ['vendor name', 'name'];
+      
+      // Check if at least one required header exists
+      const hasRequiredHeader = requiredHeaders.some(header => 
+        headers.some(h => h === header)
+      );
+      
+      if (!hasRequiredHeader) {
+        throw new BadRequestException(`Missing required headers: ${requiredHeaders.join(', ')}`);
+      }
+
+      const errors: Array<{ row: number; field: string; message: string; value?: string }> = [];
+      const validVendors: CreateVendorDto[] = [];
+
+      // Get existing vendors for unique validation
+      const existingVendors = await this.prisma.vendor.findMany({
+        select: { name: true, email: true }
+      });
+      const existingNames = new Set(existingVendors.map(v => v.name.toLowerCase()));
+      const existingEmails = new Set(existingVendors.map(v => v.email?.toLowerCase()).filter(e => e));
+
+      // Track duplicates within the file
+      const fileNames = new Set();
+      const fileEmails = new Set();
+
+      // Validate each row
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i] as any;
+        const rowNumber = i + 2; // +2 because Excel rows start at 1 and we skip header
+
+        const vendor: CreateVendorDto = {
+          name: row['Vendor Name'] || row['name'],
+          vendorType: (row['Type'] || row['vendor_type'] || VendorType.SUPPLIER) as VendorType,
+          contactPerson: row['Contact Person'] || row['contact_person'],
+          email: row['Email'] || row['email'],
+          phone: row['Phone'] || row['phone'],
+          address: row['Address'] || row['address'],
+          status: (row['Status'] || row['status'] || VendorStatus.ACTIVE) as VendorStatus,
+          taxId: row['Tax ID'] || row['tax_id'],
+          panNumber: row['PAN Number'] || row['pan_number'],
+          notes: row['Notes'] || row['notes'],
+        };
+
+        // Validate required fields
+        if (!vendor.name || vendor.name.trim().length === 0) {
+          errors.push({
+            row: rowNumber,
+            field: 'name',
+            message: 'Vendor name is required',
+          });
+          continue;
+        }
+
+        if (vendor.name.length < 2 || vendor.name.length > 100) {
+          errors.push({
+            row: rowNumber,
+            field: 'name',
+            message: 'Vendor name must be between 2 and 100 characters',
+          });
+          continue;
+        }
+
+        // Check for duplicate names in database
+        if (existingNames.has(vendor.name.toLowerCase())) {
+          errors.push({
+            row: rowNumber,
+            field: 'name',
+            message: 'Vendor name already exists in database',
+            value: vendor.name
+          });
+          continue;
+        }
+
+        // Check for duplicate names within the file
+        if (fileNames.has(vendor.name.toLowerCase())) {
+          errors.push({
+            row: rowNumber,
+            field: 'name',
+            message: 'Duplicate vendor name within the file',
+            value: vendor.name
+          });
+          continue;
+        }
+        fileNames.add(vendor.name.toLowerCase());
+
+        // Validate email format if provided
+        if (vendor.email) {
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(vendor.email)) {
+            errors.push({
+              row: rowNumber,
+              field: 'email',
+              message: 'Invalid email format',
+              value: vendor.email
+            });
+            continue;
+          }
+
+          // Check for duplicate emails in database
+          if (existingEmails.has(vendor.email.toLowerCase())) {
+            errors.push({
+              row: rowNumber,
+              field: 'email',
+              message: 'Email already exists in database',
+              value: vendor.email
+            });
+            continue;
+          }
+
+          // Check for duplicate emails within the file
+          if (fileEmails.has(vendor.email.toLowerCase())) {
+            errors.push({
+              row: rowNumber,
+              field: 'email',
+              message: 'Duplicate email within the file',
+              value: vendor.email
+            });
+            continue;
+          }
+          fileEmails.add(vendor.email.toLowerCase());
+        }
+
+        // Validate PAN number format if provided
+        if (vendor.panNumber && vendor.panNumber.length !== 10) {
+          errors.push({
+            row: rowNumber,
+            field: 'panNumber',
+            message: 'PAN number must be exactly 10 characters',
+            value: vendor.panNumber
+          });
+          continue;
+        }
+
+        // Validate vendor type
+        const validTypes = Object.values(VendorType);
+        if (vendor.vendorType && !validTypes.includes(vendor.vendorType as VendorType)) {
+          errors.push({
+            row: rowNumber,
+            field: 'vendorType',
+            message: `Invalid vendor type. Must be one of: ${validTypes.join(', ')}`,
+            value: vendor.vendorType
+          });
+          continue;
+        }
+
+        // Validate vendor status
+        const validStatuses = Object.values(VendorStatus);
+        if (vendor.status && !validStatuses.includes(vendor.status as VendorStatus)) {
+          errors.push({
+            row: rowNumber,
+            field: 'status',
+            message: `Invalid vendor status. Must be one of: ${validStatuses.join(', ')}`,
+            value: vendor.status
+          });
+          continue;
+        }
+
+        validVendors.push(vendor);
+      }
+
+      return {
+        message: 'File validation completed',
+        data: {
+          totalRows: data.length,
+          validRows: validVendors.length,
+          invalidRows: errors.length,
+          errors,
+          summary: {
+            totalRows: data.length,
+            validRows: validVendors.length,
+            invalidRows: errors.length,
+            validationOnly: true
+          }
+        }
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to process file. Please check the file format and content');
+    }
+  }
+
   async bulkUpload(file: Express.Multer.File, userId: number, validateOnly: boolean = false) {
     if (!file) {
       throw new BadRequestException('File is required');
@@ -387,6 +605,7 @@ export class VendorsService {
           email: row['Email'] || row['email'],
           phone: row['Phone'] || row['phone'],
           address: row['Address'] || row['address'],
+          status: (row['Status'] || row['status'] || VendorStatus.ACTIVE) as VendorStatus,
           taxId: row['Tax ID'] || row['tax_id'],
           panNumber: row['PAN Number'] || row['pan_number'],
           notes: row['Notes'] || row['notes'],
@@ -438,6 +657,17 @@ export class VendorsService {
             row: rowNumber,
             field: 'vendorType',
             message: `Invalid vendor type. Must be one of: ${validTypes.join(', ')}`,
+          });
+          continue;
+        }
+
+        // Validate vendor status
+        const validStatuses = Object.values(VendorStatus);
+        if (vendor.status && !validStatuses.includes(vendor.status as VendorStatus)) {
+          errors.push({
+            row: rowNumber,
+            field: 'status',
+            message: `Invalid vendor status. Must be one of: ${validStatuses.join(', ')}`,
           });
           continue;
         }
@@ -529,4 +759,48 @@ export class VendorsService {
       throw new BadRequestException('Failed to process file. Please check the file format and content');
     }
   }
+
+  async checkVendorNameExists(name: string, excludeId?: number, userId?: number) {
+    try {
+      // Build the where clause
+      const whereClause: any = {
+        name: {
+          equals: name,
+          mode: 'insensitive' // Case-insensitive comparison
+        }
+      };
+
+      // Exclude the current vendor if editing
+      if (excludeId) {
+        whereClause.id = {
+          not: excludeId
+        };
+      }
+
+      // Check if vendor name exists
+      const existingVendor = await this.prisma.vendor.findFirst({
+        where: whereClause,
+        select: {
+          id: true,
+          name: true
+        }
+      });
+
+      const exists = !!existingVendor;
+      const available = !exists;
+
+      return {
+        message: 'Vendor name availability checked',
+        data: {
+          name: name,
+          available: available,
+          exists: exists
+        }
+      };
+    } catch (error) {
+      console.error('Error checking vendor name:', error);
+      throw new BadRequestException('Failed to check vendor name availability');
+    }
+  }
+
 }

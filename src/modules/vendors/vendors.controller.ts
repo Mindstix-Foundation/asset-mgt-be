@@ -15,6 +15,9 @@ import {
   Put,
   Request,
   UnauthorizedException,
+  BadRequestException,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -28,7 +31,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { VendorsService } from './vendors.service';
-import { CreateVendorDto, UpdateVendorDto, VendorQueryDto, VendorSearchDto, VendorStatusDto } from './dto';
+import { CreateVendorDto, UpdateVendorDto, VendorQueryDto, VendorSearchDto, VendorStatusDto, CheckVendorNameDto, VendorNameCheckResponseDto } from './dto';
 
 @ApiTags('vendors')
 @ApiBearerAuth('JWT-auth')
@@ -279,6 +282,138 @@ export class VendorsController {
     }
     const userId = req.user.id;
     return this.vendorsService.updateStatus(id, statusDto, userId);
+  }
+
+  @Post('check-name')
+  @ApiOperation({ summary: 'Check if vendor name already exists' })
+  @ApiBody({
+    description: 'Vendor name check payload',
+    type: CheckVendorNameDto,
+    schema: {
+      example: {
+        name: 'TechCorp Solutions',
+        excludeId: '123'
+      }
+    }
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Vendor name availability check completed',
+    type: VendorNameCheckResponseDto
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Invalid vendor name or validation error',
+    schema: {
+      example: {
+        message: 'Validation failed',
+        error: 'Bad Request',
+        statusCode: 400
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: 'Unauthorized - User authentication required',
+    schema: {
+      example: {
+        message: 'Unauthorized',
+        statusCode: 401
+      }
+    }
+  })
+  async checkVendorName(
+    @Body() checkVendorNameDto: CheckVendorNameDto,
+    @Request() req: any,
+  ): Promise<VendorNameCheckResponseDto> {
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to check vendor names.');
+    }
+    
+    const userId = req.user.id;
+    let excludeIdNumber: number | undefined;
+    
+    if (checkVendorNameDto.excludeId) {
+      excludeIdNumber = parseInt(checkVendorNameDto.excludeId);
+    }
+    
+    return this.vendorsService.checkVendorNameExists(
+      checkVendorNameDto.name.trim(), 
+      excludeIdNumber, 
+      userId
+    );
+  }
+
+  @Post('validate-bulk-upload')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Validate bulk upload data without importing' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'File upload for validation only',
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'CSV or Excel file containing vendor data'
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'File validation completed',
+    schema: {
+      example: {
+        message: 'File validation completed',
+        data: {
+          totalRows: 100,
+          validRows: 95,
+          invalidRows: 5,
+          errors: [
+            {
+              row: 5,
+              field: 'name',
+              message: 'Vendor name already exists in database',
+              value: 'TechCorp Solutions'
+            },
+            {
+              row: 12,
+              field: 'email',
+              message: 'Invalid email format',
+              value: 'invalid-email'
+            },
+            {
+              row: 15,
+              field: 'vendorType',
+              message: 'Invalid vendor type. Must be one of: SUPPLIER, SERVICE, MANUFACTURER, DISTRIBUTOR, CONTRACTOR, BOTH',
+              value: 'INVALID_TYPE'
+            },
+            {
+              row: 20,
+              field: 'status',
+              message: 'Invalid vendor status. Must be one of: ACTIVE, INACTIVE',
+              value: 'INVALID_STATUS'
+            }
+          ],
+          validationOnly: true
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'Invalid file format or validation errors' })
+  @ApiResponse({ status: 413, description: 'File size too large (max 10MB)' })
+  async validateBulkUpload(
+    @UploadedFile() file: Express.Multer.File,
+    @Request() req: any,
+  ) {
+    if (!req.user?.id) {
+      throw new UnauthorizedException('User authentication required. Please login to validate vendors.');
+    }
+    const userId = req.user.id;
+    return this.vendorsService.validateBulkUpload(file, userId);
   }
 
   @Post('bulk-upload')
