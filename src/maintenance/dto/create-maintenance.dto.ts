@@ -43,9 +43,5 @@ export class CreateMaintenanceDto {
   @Transform(({ value }) => value ? parseFloat(value).toFixed(2) : value)
   estimatedCost?: number;
 
-  @ApiPropertyOptional({ description: 'Vendor ID if assigned to external vendor', example: 1 })
-  @IsOptional()
-  @IsInt()
-  @Type(() => Number)
-  vendorId?: number;
+  // vendor removed from maintenance creation
 } 

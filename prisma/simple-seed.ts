@@ -161,7 +161,6 @@ async function main() {
           description: `Sample maintenance ${i + 1} - ${maintenanceTypes[i].toLowerCase()} maintenance`,
           estimatedCost: 2500 + (i * 1000),
           status: statuses[i] as any,
-          vendorId: i === 1 ? vendor.id : null, // Only second maintenance has vendor
           createdBy: adminUser.id,
           updatedBy: adminUser.id,
         },

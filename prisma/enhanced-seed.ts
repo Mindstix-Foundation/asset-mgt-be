@@ -292,7 +292,6 @@ async function main() {
           description: `Maintenance for ${maintenanceAssets[i].assetId} - ${maintenanceTypes[i % maintenanceTypes.length].toLowerCase()}`,
           estimatedCost: 1500 + (Math.random() * 3000),
           status: statuses[i % statuses.length] as any,
-          vendorId: vendors[i % vendors.length]?.id || null,
           createdBy: adminUser.id,
           updatedBy: adminUser.id,
         },

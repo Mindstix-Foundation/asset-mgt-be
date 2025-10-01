@@ -130,3 +130,58 @@ export class SearchEmployeeDto {
   @IsBoolean()
   includeInactive?: boolean = false;
 } 
+
+export type AssetEventAction = 'ASSIGNED' | 'RETURNED'
+
+export class QueryEmployeeAssetEventsDto {
+  @ApiProperty({ description: 'Filter by action', enum: ['ASSIGNED','RETURNED'], required: false })
+  @IsOptional()
+  @IsEnum(['ASSIGNED','RETURNED'] as any)
+  action?: AssetEventAction
+
+  @ApiProperty({ description: 'Filter by asset type name (contains, case-insensitive)', required: false })
+  @IsOptional()
+  @IsString()
+  assetType?: string
+
+  @ApiProperty({ description: 'Filter from date (YYYY-MM-DD)', required: false })
+  @IsOptional()
+  @IsString()
+  dateFrom?: string
+
+  @ApiProperty({ description: 'Filter to date (YYYY-MM-DD)', required: false })
+  @IsOptional()
+  @IsString()
+  dateTo?: string
+
+  @ApiProperty({ description: 'Search across asset id/brand/model', required: false })
+  @IsOptional()
+  @IsString()
+  search?: string
+
+  @ApiProperty({ description: 'Sort by field', enum: ['date','action','assetType'], default: 'date', required: false })
+  @IsOptional()
+  @IsString()
+  sortBy?: 'date' | 'action' | 'assetType' = 'date'
+
+  @ApiProperty({ description: 'Sort order', enum: ['asc','desc'], default: 'desc', required: false })
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => value?.toLowerCase())
+  sortOrder?: 'asc' | 'desc' = 'desc'
+
+  @ApiProperty({ description: 'Page number', minimum: 1, default: 1, required: false })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1
+
+  @ApiProperty({ description: 'Items per page', minimum: 1, maximum: 100, default: 20, required: false })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number = 20
+}

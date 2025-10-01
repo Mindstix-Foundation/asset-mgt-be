@@ -119,7 +119,6 @@ export class VendorsService {
           _count: {
             select: {
               assets: true,
-              maintenanceSchedules: true,
             },
           },
         },
@@ -162,18 +161,9 @@ export class VendorsService {
           },
           take: 10, // Limit to recent 10 assets
         },
-        maintenanceSchedules: {
-          select: {
-            id: true,
-            scheduledDate: true,
-            status: true,
-          },
-          take: 10, // Limit to recent 10 schedules
-        },
         _count: {
           select: {
             assets: true,
-            maintenanceSchedules: true,
           },
         },
       },
@@ -253,7 +243,6 @@ export class VendorsService {
         _count: {
           select: {
             assets: true,
-            maintenanceSchedules: true,
           },
         },
       },
@@ -264,8 +253,8 @@ export class VendorsService {
     }
 
     // Check if vendor has associated assets or maintenance schedules
-    if (vendor._count.assets > 0 || vendor._count.maintenanceSchedules > 0) {
-      throw new BadRequestException('Cannot delete vendor with associated assets or maintenance schedules');
+    if (vendor._count.assets > 0) {
+      throw new BadRequestException('Cannot delete vendor with associated assets');
     }
 
     await this.prisma.vendor.delete({

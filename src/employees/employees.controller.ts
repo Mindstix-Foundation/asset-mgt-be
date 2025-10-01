@@ -26,7 +26,7 @@ import {
 import { EmployeesService } from './employees.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
-import { QueryEmployeeDto } from './dto/query-employee.dto';
+import { QueryEmployeeDto, QueryEmployeeAssetEventsDto } from './dto/query-employee.dto';
 import {
   EmployeeListResponseDto,
   EmployeeDetailResponseDto,
@@ -216,6 +216,73 @@ export class EmployeesController {
   ): Promise<EmployeeDetailResponseDto> {
     const shouldIncludeAssets = includeAssets !== 'false';
     return this.employeesService.findOne(id, shouldIncludeAssets);
+  }
+
+  @Get(':id/asset-history')
+  @ApiOperation({ summary: 'Get complete asset history for an employee' })
+  @ApiParam({ name: 'id', description: 'Employee ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Asset history retrieved successfully',
+    schema: {
+      example: {
+        message: 'Asset history retrieved successfully',
+        data: {
+          assetHistory: [
+            {
+              id: 1,
+              assetId: 'AST001',
+              assetName: 'Laptop Dell Inspiron',
+              assetType: 'Laptop',
+              brand: 'Dell',
+              model: 'Inspiron 15',
+              action: 'RETURNED',
+              issueDate: '2024-01-15T10:30:00Z',
+              returnDate: '2024-02-15T14:30:00Z',
+              issueCondition: 'EXCELLENT',
+              returnCondition: 'GOOD',
+              issueReason: 'New employee onboarding',
+              returnReason: 'Employee resignation',
+              notes: 'Asset returned in good condition',
+              issuedBy: 'admin',
+              returnedBy: 'admin',
+              duration: 31
+            },
+            {
+              id: 2,
+              assetId: 'AST002',
+              assetName: 'Monitor Samsung 24"',
+              assetType: 'Monitor',
+              brand: 'Samsung',
+              model: '24" LED',
+              action: 'ASSIGNED',
+              issueDate: '2024-02-20T09:00:00Z',
+              issueCondition: 'EXCELLENT',
+              issueReason: 'Additional equipment needed',
+              notes: 'For home office setup',
+              issuedBy: 'admin',
+              duration: 15
+            }
+          ]
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Employee not found' })
+  async getAssetHistory(@Param('id') id: string) {
+    return this.employeesService.getAssetHistory(id);
+  }
+
+  @Get(':id/asset-events')
+  @ApiOperation({ summary: 'Get per-event asset history (ASSIGNED/RETURNED as separate events)' })
+  @ApiParam({ name: 'id', description: 'Employee ID' })
+  @ApiResponse({ status: 200, description: 'Asset events retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Employee not found' })
+  async getAssetEvents(
+    @Param('id') id: string,
+    @Query() query: QueryEmployeeAssetEventsDto,
+  ) {
+    return this.employeesService.getAssetEvents(id, query);
   }
 
   @Put(':id')

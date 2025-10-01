@@ -47,17 +47,12 @@ export class MaintenanceService {
       throw new ConflictException('Asset is already scheduled for maintenance on this date');
     }
 
-      // If vendor is specified, check if it exists
-      if (createMaintenanceDto.vendorId) {
-        const vendor = await this.prisma.vendor.findUnique({
-          where: { id: createMaintenanceDto.vendorId },
-        });
+      // vendor removed from maintenance
 
-
-        if (!vendor) {
-          throw new NotFoundException('Vendor not found');
-        }
-      }
+      const isToday = (() => {
+        const todayStr = new Date().toISOString().split('T')[0];
+        return todayStr === scheduledDate;
+      })();
 
       const maintenanceData: any = {
         maintenanceType: createMaintenanceDto.maintenanceType,
@@ -74,38 +69,38 @@ export class MaintenanceService {
         },
         scheduledDate: new Date(scheduledDate),
         estimatedCost: createMaintenanceDto.estimatedCost ? new Prisma.Decimal(createMaintenanceDto.estimatedCost) : null,
+        status: isToday ? MaintenanceStatus.IN_PROGRESS : MaintenanceStatus.SCHEDULED,
+        actualStartDate: isToday ? new Date() : null,
       };
 
-      // Handle vendor connection if provided
-      if (createMaintenanceDto.vendorId) {
-        maintenanceData.vendor = {
-          connect: { id: createMaintenanceDto.vendorId }
-        };
-      }
+      // vendor removed from maintenance
       
 
-      const maintenance = await this.prisma.maintenanceSchedule.create({
-        data: maintenanceData,
-      include: {
-        asset: {
-          select: {
-            id: true,
-            assetId: true,
-            assetType: { select: { name: true } },
-            brand: { select: { name: true } },
-            model: { select: { name: true } },
+      // Transaction: create maintenance and set asset status
+      const maintenance = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.maintenanceSchedule.create({
+          data: maintenanceData,
+          include: {
+            asset: {
+              select: {
+                id: true,
+                assetId: true,
+                assetType: { select: { name: true } },
+                brand: { select: { name: true } },
+                model: { select: { name: true } },
+              },
+            },
           },
-        },
-        vendor: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-          },
-        },
-      },
-    });
+        });
+
+        // Immediately mark the asset as in maintenance
+        await tx.asset.update({
+          where: { id: assetId },
+          data: { status: 'IN_MAINTENANCE' },
+        });
+
+        return created;
+      });
 
       return {
         message: 'Maintenance scheduled successfully',
@@ -131,8 +126,6 @@ export class MaintenanceService {
       status,
       assetId,
       maintenanceType,
-      vendorId,
-      vendorName,
       scheduledDateFrom,
       scheduledDateTo,
       sortBy = 'scheduledDate',
@@ -145,7 +138,7 @@ export class MaintenanceService {
     const latestMaintenanceSubquery = `
       SELECT DISTINCT ON (asset_id) 
         id, asset_id, maintenance_type, scheduled_date, frequency_days, description,
-        estimated_cost, vendor_id, status, actual_start_date, actual_completion_date,
+        estimated_cost, status, actual_start_date, actual_completion_date,
         actual_cost, completion_notes, cancellation_date, cancellation_reason,
         cancellation_notes, is_active, created_by, created_at, updated_by, updated_at
       FROM maintenance_schedules 
@@ -167,7 +160,8 @@ export class MaintenanceService {
     }
 
     if (status) {
-      conditions.push(`m.status = $${params.length + 1}`);
+      // Compare as text to avoid enum mismatch issues
+      conditions.push(`UPPER(m.status::text) = UPPER($${params.length + 1})`);
       params.push(status);
     }
 
@@ -177,19 +171,12 @@ export class MaintenanceService {
     }
 
     if (maintenanceType) {
-      conditions.push(`m.maintenance_type = $${params.length + 1}`);
+      // Compare as text to avoid enum mismatch issues
+      conditions.push(`UPPER(m.maintenance_type::text) = UPPER($${params.length + 1})`);
       params.push(maintenanceType);
     }
 
-    if (vendorId) {
-      conditions.push(`m.vendor_id = $${params.length + 1}`);
-      params.push(vendorId);
-    }
-
-    if (vendorName) {
-      conditions.push(`v.name ILIKE $${params.length + 1}`);
-      params.push(`%${vendorName}%`);
-    }
+    // vendor filters removed
 
     if (scheduledDateFrom) {
       conditions.push(`m.scheduled_date >= $${params.length + 1}`);
@@ -221,9 +208,6 @@ export class MaintenanceService {
       case 'estimatedCost':
         orderByClause = `ORDER BY m.estimated_cost ${sortOrder.toUpperCase()}`;
         break;
-      case 'vendorName':
-        orderByClause = `ORDER BY v.name ${sortOrder.toUpperCase()}`;
-        break;
     }
 
     // Get paginated results
@@ -234,17 +218,13 @@ export class MaintenanceService {
         a.asset_id as asset_asset_id,
         at.name as asset_type_name,
         b.name as brand_name,
-        mo.name as model_name,
-        v.id as vendor_id,
-        v.name as vendor_name,
-        v.email as vendor_email,
-        v.phone as vendor_phone
+        mo.name as model_name
       FROM latest_maintenance m
       LEFT JOIN assets a ON m.asset_id = a.id
       LEFT JOIN asset_types at ON a.asset_type_id = at.id
       LEFT JOIN brands b ON a.brand_id = b.id
       LEFT JOIN models mo ON a.model_id = mo.id
-      LEFT JOIN vendors v ON m.vendor_id = v.id
+      
       ${whereClause}
       ${orderByClause}
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
@@ -258,7 +238,6 @@ export class MaintenanceService {
       SELECT COUNT(*) as total
       FROM latest_maintenance m
       LEFT JOIN assets a ON m.asset_id = a.id
-      LEFT JOIN vendors v ON m.vendor_id = v.id
       ${whereClause}
     `;
 
@@ -280,8 +259,7 @@ export class MaintenanceService {
       maintenanceTypeId: row.maintenance_type,
       maintenanceTypeName: row.maintenance_type,
       status: row.status,
-      vendorName: row.vendor_name,
-      assignedTo: row.vendor_name || 'Internal Team',
+      assignedTo: 'Internal Team',
       scheduledDate: row.scheduled_date,
       estimatedCost: row.estimated_cost ? Number(row.estimated_cost) : null,
       actualCost: row.actual_cost ? Number(row.actual_cost) : null,
@@ -318,14 +296,6 @@ export class MaintenanceService {
             assetType: { select: { name: true } },
             brand: { select: { name: true } },
             model: { select: { name: true } },
-          },
-        },
-        vendor: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
           },
         },
       },
@@ -398,28 +368,40 @@ export class MaintenanceService {
       updateData.actualCost = updateMaintenanceDto.actualCost ? new Prisma.Decimal(updateMaintenanceDto.actualCost) : null;
     }
 
-    const maintenance = await this.prisma.maintenanceSchedule.update({
-      where: { id },
-      data: updateData,
-      include: {
-        asset: {
-          select: {
-            id: true,
-            assetId: true,
-            assetType: { select: { name: true } },
-            brand: { select: { name: true } },
-            model: { select: { name: true } },
+    // If the user updates the scheduled date to today, move to IN_PROGRESS on the server side
+    let shouldStartToday = false;
+    if (updateMaintenanceDto.scheduledDate) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (updateMaintenanceDto.scheduledDate === todayStr) {
+        shouldStartToday = true;
+        updateData.status = MaintenanceStatus.IN_PROGRESS;
+        updateData.actualStartDate = new Date();
+      }
+    }
+
+    const maintenance = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.maintenanceSchedule.update({
+        where: { id },
+        data: updateData,
+        include: {
+          asset: {
+            select: {
+              id: true,
+              assetId: true,
+              assetType: { select: { name: true } },
+              brand: { select: { name: true } },
+              model: { select: { name: true } },
+            },
           },
         },
-        vendor: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-          },
-        },
-      },
+      });
+
+      // If starting today, ensure the asset status is IN_MAINTENANCE
+      if (shouldStartToday) {
+        await tx.asset.update({ where: { id: updated.assetId }, data: { status: 'IN_MAINTENANCE' } });
+      }
+
+      return updated;
     });
 
     return {
@@ -454,9 +436,7 @@ export class MaintenanceService {
   }
 
   async completeMaintenance(id: number, actualCost: number, completionNotes?: string, userId?: number) {
-    const maintenance = await this.prisma.maintenanceSchedule.findUnique({
-      where: { id },
-    });
+    const maintenance = await this.prisma.maintenanceSchedule.findUnique({ where: { id } });
 
     if (!maintenance) {
       throw new NotFoundException('Maintenance not found');
@@ -466,46 +446,53 @@ export class MaintenanceService {
       throw new BadRequestException('Only scheduled or in-progress maintenance can be completed');
     }
 
-    const updatedMaintenance = await this.prisma.maintenanceSchedule.update({
-      where: { id },
-      data: {
-        status: MaintenanceStatus.COMPLETED,
-        actualCompletionDate: new Date(),
-        actualCost: new Prisma.Decimal(actualCost),
-        completionNotes,
-        updatedBy: userId || maintenance.updatedBy,
-      },
-      include: {
-        asset: {
-          select: {
-            id: true,
-            assetId: true,
-            assetType: { select: { name: true } },
-            brand: { select: { name: true } },
-            model: { select: { name: true } },
+    const result = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.maintenanceSchedule.update({
+        where: { id },
+        data: {
+          status: MaintenanceStatus.COMPLETED,
+          actualCompletionDate: new Date(),
+          actualCost: new Prisma.Decimal(actualCost),
+          completionNotes,
+          updatedBy: userId || maintenance.updatedBy,
+        },
+        include: {
+          asset: {
+            select: {
+              id: true,
+              assetId: true,
+              assetType: { select: { name: true } },
+              brand: { select: { name: true } },
+              model: { select: { name: true } },
+            },
           },
         },
-        vendor: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-          },
+      });
+
+      // If no other active SCHEDULED/IN_PROGRESS maintenances exist for the asset, mark it AVAILABLE
+      const stillActive = await tx.maintenanceSchedule.count({
+        where: {
+          isActive: true,
+          assetId: updated.assetId,
+          status: { in: [MaintenanceStatus.SCHEDULED, MaintenanceStatus.IN_PROGRESS] },
         },
-      },
+      });
+
+      if (stillActive === 0) {
+        await tx.asset.update({ where: { id: updated.assetId }, data: { status: 'AVAILABLE' } });
+      }
+
+      return updated;
     });
 
     return {
       message: 'Maintenance completed successfully',
-      data: { maintenance: this.formatMaintenanceResponse(updatedMaintenance) },
+      data: { maintenance: this.formatMaintenanceResponse(result) },
     };
   }
 
-  async cancelMaintenance(id: number, cancelDate: string, cancelNotes: string, userId?: number) {
-    const maintenance = await this.prisma.maintenanceSchedule.findUnique({
-      where: { id },
-    });
+  async cancelMaintenance(id: number, _cancelDate: string | undefined, cancelNotes: string, userId?: number) {
+    const maintenance = await this.prisma.maintenanceSchedule.findUnique({ where: { id } });
 
     if (!maintenance) {
       throw new NotFoundException('Maintenance not found');
@@ -515,38 +502,48 @@ export class MaintenanceService {
       throw new BadRequestException('Cannot cancel completed or already cancelled maintenance');
     }
 
-    const updatedMaintenance = await this.prisma.maintenanceSchedule.update({
-      where: { id },
-      data: {
-        status: MaintenanceStatus.CANCELLED,
-        cancellationDate: new Date(cancelDate),
-        cancellationNotes: cancelNotes,
-        updatedBy: userId || maintenance.updatedBy,
-      },
-      include: {
-        asset: {
-          select: {
-            id: true,
-            assetId: true,
-            assetType: { select: { name: true } },
-            brand: { select: { name: true } },
-            model: { select: { name: true } },
+    const result = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.maintenanceSchedule.update({
+        where: { id },
+        data: {
+          status: MaintenanceStatus.CANCELLED,
+          // Default to now; ignore client-sent date per new requirement
+          cancellationDate: new Date(),
+          cancellationNotes: cancelNotes,
+          updatedBy: userId || maintenance.updatedBy,
+        },
+        include: {
+          asset: {
+            select: {
+              id: true,
+              assetId: true,
+              assetType: { select: { name: true } },
+              brand: { select: { name: true } },
+              model: { select: { name: true } },
+            },
           },
         },
-        vendor: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-          },
+      });
+
+      // If there are no other active SCHEDULED/IN_PROGRESS maintenances for this asset, set it AVAILABLE
+      const stillActive = await tx.maintenanceSchedule.count({
+        where: {
+          isActive: true,
+          assetId: updated.assetId,
+          status: { in: [MaintenanceStatus.SCHEDULED, MaintenanceStatus.IN_PROGRESS] },
         },
-      },
+      });
+
+      if (stillActive === 0) {
+        await tx.asset.update({ where: { id: updated.assetId }, data: { status: 'AVAILABLE' } });
+      }
+
+      return updated;
     });
 
     return {
       message: 'Maintenance cancelled successfully',
-      data: { maintenance: this.formatMaintenanceResponse(updatedMaintenance) },
+      data: { maintenance: this.formatMaintenanceResponse(result) },
     };
   }
 
@@ -625,14 +622,6 @@ export class MaintenanceService {
               model: { select: { name: true } },
             },
           },
-          vendor: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phone: true,
-            },
-          },
         },
         orderBy: {
           createdAt: 'desc',
@@ -674,6 +663,130 @@ export class MaintenanceService {
     };
   }
 
+  async getHistoryEvents(
+    assetIdParam: string,
+    query: { status?: string; type?: string; search?: string; dateFrom?: string; dateTo?: string; sortBy?: 'date' | 'status' | 'type'; sortOrder?: 'asc' | 'desc'; page?: number; limit?: number }
+  ) {
+    // Resolve asset
+    let asset: any
+    const isNumeric = /^\d+$/.test(assetIdParam)
+    if (isNumeric) {
+      asset = await this.prisma.asset.findUnique({ where: { id: parseInt(assetIdParam) }, select: { id: true } })
+    } else {
+      asset = await this.prisma.asset.findUnique({ where: { assetId: assetIdParam }, select: { id: true } })
+    }
+    if (!asset) throw new NotFoundException('Asset not found')
+
+    const page = Math.max(query.page || 1, 1)
+    const limit = Math.min(query.limit || 20, 100)
+
+    // Base where
+    const where: any = { assetId: asset.id, isActive: true }
+
+    // Filters - Don't filter by status at database level since we create events based on status
+    // if (query.status) where.status = query.status as any
+    if (query.type) where.maintenanceType = query.type as any
+
+    if (query.search) {
+      where.OR = [
+        { description: { contains: query.search, mode: 'insensitive' } },
+        { completionNotes: { contains: query.search, mode: 'insensitive' } },
+        { cancellationNotes: { contains: query.search, mode: 'insensitive' } },
+      ]
+    }
+
+    // Date range applies to timeline date (actualStart when IN_PROGRESS, scheduled otherwise; completion/cancellation when set)
+    const from = query.dateFrom ? new Date(query.dateFrom) : undefined
+    const to = query.dateTo ? new Date(query.dateTo) : undefined
+
+    // We will fetch and expand to events (SCHEDULED/IN_PROGRESS/COMPLETED/CANCELLED) and then filter/sort/paginate in memory for simplicity
+    const schedules = await this.prisma.maintenanceSchedule.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: { asset: { select: { id: true } } },
+    })
+
+
+    type EventRow = { id: number; description: string; maintenanceTypeName: string; status: string; date: Date; scheduledDateOnly: string; actualCost?: number | null; estimatedCost?: number | null; completionNotes?: string | null; cancellationNotes?: string | null; scheduledDate?: Date | null; actualStartDate?: Date | null; actualCompletionDate?: Date | null; cancellationDate?: Date | null }
+    const events: EventRow[] = []
+
+    for (const s of schedules) {
+      const scheduledOnly = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(s.scheduledDate)
+      const base = {
+        id: s.id,
+        description: s.description,
+        maintenanceTypeName: s.maintenanceType,
+        actualCost: s.actualCost ? parseFloat(s.actualCost.toString()) : null,
+        estimatedCost: s.estimatedCost ? parseFloat(s.estimatedCost.toString()) : null,
+        completionNotes: s.completionNotes || null,
+        cancellationNotes: s.cancellationNotes || null,
+        scheduledDate: s.scheduledDate,
+        actualStartDate: s.actualStartDate,
+        actualCompletionDate: s.actualCompletionDate,
+        cancellationDate: s.cancellationDate,
+        scheduledDateOnly: scheduledOnly,
+      }
+
+      // Scheduled event
+      // date (top-right) = createdAt (scheduled at time), scheduledDateOnly = scheduled date
+      events.push({ ...base, status: 'SCHEDULED', date: s.createdAt })
+      // Do not include IN_PROGRESS in the event stream per UX requirements
+      // Completed event
+      if (s.actualCompletionDate) events.push({ ...base, status: 'COMPLETED', date: s.actualCompletionDate })
+      // Cancelled event
+      if (s.cancellationDate) events.push({ ...base, status: 'CANCELLED', date: s.cancellationDate })
+    }
+
+    // Date filtering
+    let filtered = events
+    if (from) filtered = filtered.filter(e => e.date >= from)
+    if (to) {
+      const toEnd = new Date(to); toEnd.setHours(23,59,59,999)
+      filtered = filtered.filter(e => e.date <= toEnd)
+    }
+    if (query.status) filtered = filtered.filter(e => e.status === query.status)
+    if (query.type) filtered = filtered.filter(e => e.maintenanceTypeName === query.type)
+    if (query.search) {
+      const q = query.search.toLowerCase()
+      filtered = filtered.filter(e => e.description.toLowerCase().includes(q) || (e.completionNotes||'').toLowerCase().includes(q) || (e.cancellationNotes||'').toLowerCase().includes(q))
+    }
+
+    const sortBy = query.sortBy || 'date'
+    const order = (query.sortOrder || 'desc') === 'asc' ? 1 : -1
+    filtered.sort((a,b) => {
+      let cmp = 0
+      if (sortBy === 'status') cmp = a.status.localeCompare(b.status)
+      else if (sortBy === 'type') cmp = a.maintenanceTypeName.localeCompare(b.maintenanceTypeName)
+      else cmp = a.date.getTime() - b.date.getTime()
+      return cmp * order
+    })
+
+    const totalCount = filtered.length
+    const totalPages = Math.max(1, Math.ceil(totalCount / limit))
+    const currentPage = Math.min(page, totalPages)
+    const start = (currentPage - 1) * limit
+    const pageItems = filtered.slice(start, start + limit).map(e => ({
+      id: e.id,
+      description: e.description,
+      maintenanceTypeName: e.maintenanceTypeName,
+      status: e.status,
+      date: e.date.toISOString(),
+      scheduledDateOnly: e.scheduledDateOnly,
+      estimatedCost: e.estimatedCost,
+      actualCost: e.actualCost,
+      completionNotes: e.completionNotes,
+      cancellationNotes: e.cancellationNotes,
+    }))
+
+    return {
+      message: 'Maintenance events retrieved successfully',
+      data: {
+        events: pageItems,
+        pagination: { totalCount, currentPage, totalPages, hasNext: currentPage < totalPages, hasPrevious: currentPage > 1 }
+      }
+    }
+  }
+
   private getMaintenanceTypeDescription(type: MaintenanceTypeEnum): string {
     switch (type) {
       case MaintenanceTypeEnum.PREVENTIVE:
@@ -701,19 +814,17 @@ export class MaintenanceService {
       assetModel: maintenance.asset?.model?.name || '',
       maintenanceTypeId: maintenance.maintenanceType,
       maintenanceTypeName: maintenance.maintenanceType.charAt(0) + maintenance.maintenanceType.slice(1).toLowerCase().replace('_', ' '),
-      scheduledDate: maintenance.scheduledDate.toISOString().split('T')[0],
+      scheduledDate: maintenance.scheduledDate.toISOString(),
       frequencyDays: maintenance.frequencyDays,
       description: maintenance.description,
       estimatedCost: maintenance.estimatedCost ? parseFloat(maintenance.estimatedCost.toString()) : null,
-      vendorId: maintenance.vendorId,
-      vendorName: maintenance.vendor?.name || null,
       assignedTo: maintenance.assignedTo,
       status: maintenance.status,
-      actualStartDate: maintenance.actualStartDate ? maintenance.actualStartDate.toISOString().split('T')[0] : null,
-      actualCompletionDate: maintenance.actualCompletionDate ? maintenance.actualCompletionDate.toISOString().split('T')[0] : null,
+      actualStartDate: maintenance.actualStartDate ? maintenance.actualStartDate.toISOString() : null,
+      actualCompletionDate: maintenance.actualCompletionDate ? maintenance.actualCompletionDate.toISOString() : null,
       actualCost: maintenance.actualCost ? parseFloat(maintenance.actualCost.toString()) : null,
       completionNotes: maintenance.completionNotes,
-      cancellationDate: maintenance.cancellationDate ? maintenance.cancellationDate.toISOString().split('T')[0] : null,
+      cancellationDate: maintenance.cancellationDate ? maintenance.cancellationDate.toISOString() : null,
       cancellationReason: maintenance.cancellationReason,
       cancellationNotes: maintenance.cancellationNotes,
       createdAt: maintenance.createdAt.toISOString(),

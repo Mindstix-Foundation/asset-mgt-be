@@ -45,16 +45,7 @@ export class MaintenanceQueryDto {
   @IsEnum(MaintenanceTypeEnum)
   maintenanceType?: MaintenanceTypeEnum;
 
-  @ApiPropertyOptional({ description: 'Filter by vendor ID', example: 1 })
-  @IsOptional()
-  @IsInt()
-  @Type(() => Number)
-  vendorId?: number;
-
-  @ApiPropertyOptional({ description: 'Filter by vendor name', example: 'TechFix Solutions' })
-  @IsOptional()
-  @IsString()
-  vendorName?: string;
+  // vendor filters removed
 
   @ApiPropertyOptional({ description: 'Filter by scheduled date from', example: '2024-01-01' })
   @IsOptional()
@@ -69,7 +60,7 @@ export class MaintenanceQueryDto {
   @ApiPropertyOptional({ 
     description: 'Sort by field', 
     example: 'scheduledDate',
-    enum: ['scheduledDate', 'createdAt', 'status', 'maintenanceType', 'estimatedCost', 'vendorName']
+    enum: ['scheduledDate', 'createdAt', 'status', 'maintenanceType', 'estimatedCost']
   })
   @IsOptional()
   @IsString()

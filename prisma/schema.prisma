@@ -205,7 +205,6 @@ model Vendor {
   updatedBy            Int                   @map("updated_by")
   updatedAt            DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   assets               Asset[]
-  maintenanceSchedules MaintenanceSchedule[]
   createdByUser        User                  @relation("VendorCreatedBy", fields: [createdBy], references: [id])
   updatedByUser        User                  @relation("VendorUpdatedBy", fields: [updatedBy], references: [id])
   user                 User?                 @relation(fields: [userId], references: [id])
@@ -327,17 +326,16 @@ model MaintenanceSchedule {
   id                   Int                 @id @default(autoincrement())
   assetId              Int                 @map("asset_id")
   maintenanceType      MaintenanceTypeEnum @map("maintenance_type")
-  scheduledDate        DateTime            @map("scheduled_date") @db.Date
+  scheduledDate        DateTime            @map("scheduled_date") @db.Timestamptz(6)
   frequencyDays        Int?                @map("frequency_days")
   description          String
   estimatedCost        Decimal?            @map("estimated_cost") @db.Decimal(10, 2)
-  vendorId             Int?                @map("vendor_id")
   status               MaintenanceStatus   @default(SCHEDULED)
-  actualStartDate      DateTime?           @map("actual_start_date") @db.Date
-  actualCompletionDate DateTime?           @map("actual_completion_date") @db.Date
+  actualStartDate      DateTime?           @map("actual_start_date") @db.Timestamptz(6)
+  actualCompletionDate DateTime?           @map("actual_completion_date") @db.Timestamptz(6)
   actualCost           Decimal?            @map("actual_cost") @db.Decimal(10, 2)
   completionNotes      String?             @map("completion_notes")
-  cancellationDate     DateTime?           @map("cancellation_date") @db.Date
+  cancellationDate     DateTime?           @map("cancellation_date") @db.Timestamptz(6)
   cancellationReason   String?             @map("cancellation_reason")
   cancellationNotes    String?             @map("cancellation_notes")
   isActive             Boolean             @default(true) @map("is_active")
@@ -348,11 +346,9 @@ model MaintenanceSchedule {
   asset                Asset               @relation(fields: [assetId], references: [id])
   createdByUser        User                @relation("MaintenanceScheduleCreatedBy", fields: [createdBy], references: [id])
   updatedByUser        User                @relation("MaintenanceScheduleUpdatedBy", fields: [updatedBy], references: [id])
-  vendor               Vendor?             @relation(fields: [vendorId], references: [id])
 
   @@index([assetId])
   @@index([maintenanceType])
-  @@index([vendorId])
   @@index([scheduledDate])
   @@index([status])
   @@index([isActive])

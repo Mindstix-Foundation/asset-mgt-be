@@ -21,6 +21,9 @@ export class AssignedAssetDto {
   assetName: string;
   assignedDate: string;
   status: string;
+  assetType?: string;
+  brand?: string;
+  model?: string;
 }
 
 export class PaginationDto {

@@ -64,6 +64,26 @@ export class MaintenanceController {
     return this.maintenanceService.getMaintenanceHistory(assetId);
   }
 
+  @Get('asset/:assetId/history-events')
+  @ApiOperation({ summary: 'Get per-event maintenance history for an asset (server-side filters/sort/pagination)' })
+  @ApiResponse({ status: 200, description: 'Events retrieved successfully' })
+  getHistoryEvents(
+    @Param('assetId') assetId: string,
+    @Query('status') status?: string,
+    @Query('type') type?: string,
+    @Query('search') search?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('sortBy') sortBy: 'date' | 'status' | 'type' = 'date',
+    @Query('sortOrder') sortOrder: 'asc' | 'desc' = 'desc',
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+  ) {
+    return this.maintenanceService.getHistoryEvents(assetId, {
+      status, type, search, dateFrom, dateTo, sortBy, sortOrder, page: Number(page), limit: Number(limit)
+    })
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a specific maintenance schedule by ID' })
   @ApiResponse({ status: 200, description: 'Maintenance retrieved successfully' })
@@ -111,12 +131,12 @@ export class MaintenanceController {
   @ApiResponse({ status: 404, description: 'Maintenance not found' })
   cancelMaintenance(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { cancelDate: string; cancelNotes: string },
+    @Body() body: { cancelNotes: string },
     @Req() req: any,
   ) {
     return this.maintenanceService.cancelMaintenance(
       id,
-      body.cancelDate,
+      undefined, // cancelDate - not used anymore
       body.cancelNotes,
       req.user.userId,
     );

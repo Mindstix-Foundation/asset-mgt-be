@@ -7,7 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
-import { QueryEmployeeDto } from './dto/query-employee.dto';
+import { QueryEmployeeDto, QueryEmployeeAssetEventsDto, AssetEventAction } from './dto/query-employee.dto';
 import {
   EmployeeResponseDto,
   EmployeeListResponseDto,
@@ -469,6 +469,9 @@ export class EmployeesService {
           assetName: `${issue.asset.brand.name} ${issue.asset.model.name}`,
           assignedDate: issue.issueDate.toISOString().split('T')[0],
           status: 'ASSIGNED',
+          assetType: issue.asset.assetType?.name,
+          brand: issue.asset.brand?.name,
+          model: issue.asset.model?.name,
         }));
     }
 
@@ -614,6 +617,275 @@ export class EmployeesService {
     return `EMP-${next.toString().padStart(4, '0')}`;
   }
 
+  async getAssetHistory(employeeId: string): Promise<{
+    message: string;
+    data: {
+      assetHistory: Array<{
+        id: number;
+        assetId: string;
+        assetName: string;
+        assetType: string;
+        brand: string;
+        model: string;
+        action: 'RETURNED';
+        issueDate: string;
+        returnDate: string;
+        issueCondition: string;
+        returnCondition?: string;
+        issueReason?: string;
+        returnReason?: string;
+        notes?: string;
+        issuedBy: string;
+        returnedBy?: string;
+        duration: number; // in days
+      }>;
+    };
+  }> {
+    const employee = await this.prisma.employee.findUnique({
+      where: { employeeId },
+      select: { id: true, employeeId: true, firstName: true, lastName: true }
+    });
+
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    // Get only completed asset assignments (assigned and returned) for this employee
+    const assetIssues = await this.prisma.assetIssue.findMany({
+      where: { 
+        employeeId: employee.id,
+        returnDate: { not: null } // Only show completed assignments (returned assets)
+      },
+      include: {
+        asset: {
+          include: {
+            assetType: { select: { name: true } },
+            brand: { select: { name: true } },
+            model: { select: { name: true } },
+          },
+        },
+        issuedByUser: { select: { username: true } },
+        updatedByUser: { select: { username: true } },
+      },
+      orderBy: { issueDate: 'desc' },
+    });
+
+    const assetHistory = assetIssues.map((issue) => {
+      // Since we only fetch returned assets, duration is always calculated from return date
+      const duration = Math.ceil((new Date(issue.returnDate!).getTime() - new Date(issue.issueDate).getTime()) / (1000 * 60 * 60 * 24));
+
+      return {
+        id: issue.id,
+        assetId: issue.asset.assetId,
+        assetName: `${issue.asset.brand.name} ${issue.asset.model.name}`,
+        assetType: issue.asset.assetType.name,
+        brand: issue.asset.brand.name,
+        model: issue.asset.model.name,
+        action: 'RETURNED' as const, // All items in history are completed (returned)
+        issueDate: issue.issueDate.toISOString(),
+        returnDate: issue.returnDate!.toISOString(), // We know returnDate exists since we filtered for it
+        issueCondition: issue.issueCondition || 'UNKNOWN',
+        returnCondition: issue.returnCondition || undefined,
+        issueReason: issue.issueReason || undefined,
+        returnReason: issue.returnReason || undefined,
+        notes: issue.notes || undefined,
+        issuedBy: issue.issuedByUser.username,
+        returnedBy: issue.updatedByUser?.username,
+        duration,
+      };
+    });
+
+    return {
+      message: 'Asset history retrieved successfully',
+      data: { assetHistory },
+    };
+  }
+
+  async getAssetEvents(
+    employeeId: string,
+    query: QueryEmployeeAssetEventsDto,
+  ): Promise<{
+    message: string;
+    data: {
+      assetEvents: Array<{
+        id: number; // assetIssue id
+        assetId: string;
+        assetName: string;
+        assetType: string;
+        brand: string;
+        model: string;
+        action: AssetEventAction;
+        date: string; // ISO date for the action
+        condition?: string;
+        reason?: string;
+        notes?: string;
+        performedBy: string;
+      }>;
+      pagination: { totalCount: number; currentPage: number; totalPages: number; hasNext: boolean; hasPrevious: boolean };
+    };
+  }> {
+    const employee = await this.prisma.employee.findUnique({
+      where: { employeeId },
+      select: { id: true },
+    });
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    const page = query.page ?? 1;
+    const limit = Math.min(query.limit ?? 20, 100);
+    const skip = (page - 1) * limit;
+
+    // Base where for issues belonging to employee
+    const where: any = { employeeId: employee.id };
+
+    // Date filtering will be applied per-action; but we can narrow by overall issueDate/returnDate ranges if provided
+    // For simplicity, we will fetch candidate rows with include and filter/expand in memory with pagination post-expand
+
+    const issues = await this.prisma.assetIssue.findMany({
+      where,
+      include: {
+        asset: {
+          include: {
+            assetType: { select: { name: true } },
+            brand: { select: { name: true } },
+            model: { select: { name: true } },
+          },
+        },
+        issuedByUser: { select: { username: true } },
+        updatedByUser: { select: { username: true } },
+      },
+      orderBy: { issueDate: 'desc' },
+    });
+
+    // Expand issues into events
+    type EventRow = {
+      id: number;
+      assetId: string;
+      assetName: string;
+      assetType: string;
+      brand: string;
+      model: string;
+      action: AssetEventAction;
+      date: Date;
+      condition?: string;
+      reason?: string;
+      notes?: string;
+      performedBy: string;
+    };
+
+    const expanded: EventRow[] = [];
+
+    for (const issue of issues) {
+      // Assigned event
+      expanded.push({
+        id: issue.id,
+        assetId: issue.asset.assetId,
+        assetName: `${issue.asset.brand.name} ${issue.asset.model.name}`,
+        assetType: issue.asset.assetType.name,
+        brand: issue.asset.brand.name,
+        model: issue.asset.model.name,
+        action: 'ASSIGNED',
+        date: new Date(issue.issueDate),
+        condition: issue.issueCondition || undefined,
+        reason: issue.issueReason || undefined,
+        notes: issue.notes || undefined,
+        performedBy: issue.issuedByUser.username,
+      });
+
+      // Returned event (if applicable)
+      if (issue.returnDate) {
+        expanded.push({
+          id: issue.id,
+          assetId: issue.asset.assetId,
+          assetName: `${issue.asset.brand.name} ${issue.asset.model.name}`,
+          assetType: issue.asset.assetType.name,
+          brand: issue.asset.brand.name,
+          model: issue.asset.model.name,
+          action: 'RETURNED',
+          date: new Date(issue.returnDate),
+          condition: issue.returnCondition || undefined,
+          reason: issue.returnReason || undefined,
+          notes: issue.notes || undefined,
+          performedBy: issue.updatedByUser?.username || issue.issuedByUser.username,
+        });
+      }
+    }
+
+    // Apply filters
+    let filtered = expanded;
+    if (query.action) {
+      filtered = filtered.filter((e) => e.action === query.action);
+    }
+    if (query.assetType) {
+      const q = query.assetType.toLowerCase();
+      filtered = filtered.filter((e) => e.assetType.toLowerCase().includes(q));
+    }
+    if (query.search) {
+      const q = query.search.toLowerCase();
+      filtered = filtered.filter((e) =>
+        e.assetId.toLowerCase().includes(q) ||
+        e.assetName.toLowerCase().includes(q) ||
+        e.brand.toLowerCase().includes(q) ||
+        e.model.toLowerCase().includes(q)
+      );
+    }
+    if (query.dateFrom) {
+      const from = new Date(query.dateFrom);
+      filtered = filtered.filter((e) => e.date >= from);
+    }
+    if (query.dateTo) {
+      const to = new Date(query.dateTo);
+      // include whole day
+      to.setHours(23, 59, 59, 999);
+      filtered = filtered.filter((e) => e.date <= to);
+    }
+
+    // Sort
+    const sortBy = query.sortBy ?? 'date';
+    const sortOrder = (query.sortOrder ?? 'desc') === 'asc' ? 1 : -1;
+    filtered.sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === 'action') cmp = a.action.localeCompare(b.action);
+      else if (sortBy === 'assetType') cmp = a.assetType.localeCompare(b.assetType);
+      else cmp = a.date.getTime() - b.date.getTime();
+      return cmp * sortOrder;
+    });
+
+    const totalCount = filtered.length;
+    const totalPages = Math.ceil(totalCount / limit) || 1;
+    const pageSafe = Math.min(Math.max(page, 1), totalPages);
+    const start = (pageSafe - 1) * limit;
+    const end = start + limit;
+    const pageItems = filtered.slice(start, end).map((e) => ({
+      id: e.id,
+      assetId: e.assetId,
+      assetName: e.assetName,
+      assetType: e.assetType,
+      brand: e.brand,
+      model: e.model,
+      action: e.action,
+      date: e.date.toISOString(),
+      condition: e.condition,
+      reason: e.reason,
+      notes: e.notes,
+      performedBy: e.performedBy,
+    }));
+
+    return {
+      message: 'Asset events retrieved successfully',
+      data: {
+        assetEvents: pageItems,
+        pagination: {
+          totalCount,
+          currentPage: pageSafe,
+          totalPages,
+          hasNext: pageSafe < totalPages,
+          hasPrevious: pageSafe > 1,
+        },
+      },
+    };
+  }
   private mapToResponseDto(employee: any): EmployeeResponseDto {
     return {
       id: employee.id.toString(),
