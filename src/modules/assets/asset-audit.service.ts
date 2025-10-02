@@ -11,6 +11,18 @@ export interface AssetChangeData {
   changedBy: number;
   ipAddress?: string;
   userAgent?: string;
+  notes?: string;
+}
+
+export interface GroupedAssetChangeData {
+  assetId: number;
+  changes: AssetChangeData[];
+  changeReason?: string;
+  changedBy: number;
+  ipAddress?: string;
+  userAgent?: string;
+  notes?: string;
+  timestamp?: Date;
 }
 
 @Injectable()
@@ -36,6 +48,7 @@ export class AssetAuditService {
           changedBy: changeData.changedBy,
           ipAddress: changeData.ipAddress,
           userAgent: changeData.userAgent,
+          notes: changeData.notes,
         },
       });
     } catch (error) {
@@ -67,6 +80,7 @@ export class AssetAuditService {
         changedBy: change.changedBy,
         ipAddress: change.ipAddress,
         userAgent: change.userAgent,
+        notes: change.notes,
       }));
 
       await this.prisma.assetAuditLog.createMany({
@@ -77,6 +91,55 @@ export class AssetAuditService {
         error: error.message,
         assetId,
         changes,
+        timestamp: new Date().toISOString()
+      });
+      // Don't throw error to avoid breaking the main operation
+    }
+  }
+
+  /**
+   * Log grouped asset changes as a single event
+   * This creates one audit log entry that represents multiple field changes
+   */
+  async logGroupedAssetChanges(
+    groupedChangeData: GroupedAssetChangeData
+  ): Promise<void> {
+    try {
+      const { assetId, changes, changeReason, changedBy, ipAddress, userAgent, notes, timestamp } = groupedChangeData;
+      
+      if (changes.length === 0) {
+        return; // No changes to log
+      }
+
+      // Create a single audit log entry for the grouped changes
+      const auditLog = {
+        assetId,
+        fieldName: 'MULTIPLE_FIELDS', // Special field name to indicate grouped changes
+        oldValue: JSON.stringify(changes.map(c => ({ field: c.fieldName, oldValue: c.oldValue }))),
+        newValue: JSON.stringify(changes.map(c => ({ field: c.fieldName, newValue: c.newValue }))),
+        changeType: 'BULK_UPDATE' as AuditChangeType,
+        changeReason,
+        changedBy,
+        ipAddress,
+        userAgent,
+        notes,
+        createdAt: timestamp || new Date(),
+      };
+
+      await this.prisma.assetAuditLog.create({
+        data: auditLog,
+      });
+
+      console.log('✅ Grouped asset changes logged:', {
+        assetId,
+        changesCount: changes.length,
+        fields: changes.map(c => c.fieldName),
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('❌ Error logging grouped asset changes:', {
+        error: error.message,
+        groupedChangeData,
         timestamp: new Date().toISOString()
       });
       // Don't throw error to avoid breaking the main operation
@@ -197,6 +260,121 @@ export class AssetAuditService {
       ipAddress,
       userAgent,
     });
+  }
+
+  /**
+   * Log asset field update with specific change type
+   */
+  async logFieldUpdate(
+    assetId: number,
+    fieldName: string,
+    oldValue: string | null,
+    newValue: string | null,
+    changedBy: number,
+    changeReason?: string,
+    notes?: string,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<void> {
+    let changeType: AuditChangeType = AuditChangeType.FIELD_UPDATE;
+    
+    // Map specific field names to change types
+    switch (fieldName.toLowerCase()) {
+      case 'assetid':
+      case 'asset_id':
+        changeType = AuditChangeType.ASSET_ID_CHANGE;
+        break;
+      case 'serialnumber':
+      case 'serial_number':
+        changeType = AuditChangeType.SERIAL_NUMBER_CHANGE;
+        break;
+      case 'purchasedate':
+      case 'purchase_date':
+        changeType = AuditChangeType.PURCHASE_DATE_CHANGE;
+        break;
+      case 'purchasecost':
+      case 'purchase_cost':
+        changeType = AuditChangeType.PURCHASE_COST_CHANGE;
+        break;
+      case 'warrantystartdate':
+      case 'warranty_start_date':
+        changeType = AuditChangeType.WARRANTY_START_CHANGE;
+        break;
+      case 'warrantyenddate':
+      case 'warranty_end_date':
+        changeType = AuditChangeType.WARRANTY_END_CHANGE;
+        break;
+      case 'vendorid':
+      case 'vendor_id':
+        changeType = AuditChangeType.VENDOR_CHANGE;
+        break;
+      case 'brandid':
+      case 'brand_id':
+        changeType = AuditChangeType.BRAND_CHANGE;
+        break;
+      case 'modelid':
+      case 'model_id':
+        changeType = AuditChangeType.MODEL_CHANGE;
+        break;
+      case 'assettypeid':
+      case 'asset_type_id':
+        changeType = AuditChangeType.ASSET_TYPE_CHANGE;
+        break;
+      case 'notes':
+        changeType = AuditChangeType.NOTES_CHANGE;
+        break;
+      case 'qrcode':
+      case 'qr_code':
+        changeType = AuditChangeType.QR_CODE_CHANGE;
+        break;
+      case 'imageurl':
+      case 'image_url':
+        changeType = AuditChangeType.IMAGE_UPLOAD;
+        break;
+    }
+
+    await this.logAssetChange(assetId, {
+      fieldName,
+      oldValue,
+      newValue,
+      changeType,
+      changeReason,
+      changedBy,
+      ipAddress,
+      userAgent,
+      notes,
+    });
+  }
+
+  /**
+   * Log bulk asset updates
+   */
+  async logBulkUpdate(
+    assetId: number,
+    changes: Array<{
+      fieldName: string;
+      oldValue: string | null;
+      newValue: string | null;
+    }>,
+    changedBy: number,
+    changeReason?: string,
+    notes?: string,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<void> {
+    const auditChanges = changes.map(change => ({
+      fieldName: change.fieldName,
+      oldValue: change.oldValue,
+      newValue: change.newValue,
+      changeType: AuditChangeType.BULK_UPDATE,
+      changeReason,
+      changedBy,
+      ipAddress,
+      userAgent,
+      notes,
+    }));
+
+    await this.logAssetChanges(assetId, auditChanges);
   }
 
   /**

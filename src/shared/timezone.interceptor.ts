@@ -17,27 +17,68 @@ function toISTString(value: Date): string {
   return formatter.format(value);
 }
 
-function convertDatesToIST(data: any): any {
+// Only convert audit timestamp fields to IST
+const AUDIT_TIMESTAMP_FIELDS = [
+  'createdAt',
+  'updatedAt', 
+  'changedAt',
+  'assignedAt',
+  'lastLogin'
+];
+
+// Business date fields that should NOT be converted
+const BUSINESS_DATE_FIELDS = [
+  'purchaseDate',
+  'warrantyStartDate',
+  'warrantyEndDate',
+  'issueDate',
+  'returnDate',
+  'retirementDate',
+  'reactivationDate',
+  'scheduledDate',
+  'actualStartDate',
+  'actualCompletionDate',
+  'cancellationDate',
+  'dateOfBirth'
+];
+
+function convertAuditTimestampsToIST(data: any): any {
   if (data === null || data === undefined) return data;
+  
   if (data instanceof Date) {
     return toISTString(data);
   }
+  
   if (Array.isArray(data)) {
-    return data.map((item) => convertDatesToIST(item));
+    return data.map((item) => convertAuditTimestampsToIST(item));
   }
+  
   if (typeof data === 'object') {
     const result: any = Array.isArray(data) ? [] : {};
+    
     for (const [key, value] of Object.entries(data)) {
-      // Also attempt to convert ISO date strings
-      if (typeof value === 'string' && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) {
-        const parsed = new Date(value);
-        result[key] = isNaN(parsed.getTime()) ? value : toISTString(parsed);
+      // Only convert audit timestamp fields
+      if (AUDIT_TIMESTAMP_FIELDS.includes(key)) {
+        if (typeof value === 'string' && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) {
+          const parsed = new Date(value);
+          result[key] = isNaN(parsed.getTime()) ? value : toISTString(parsed);
+        } else if (value instanceof Date) {
+          result[key] = toISTString(value);
+        } else {
+          result[key] = value;
+        }
+      } else if (BUSINESS_DATE_FIELDS.includes(key)) {
+        // Keep business dates as-is (don't convert)
+        result[key] = value;
       } else {
-        result[key] = convertDatesToIST(value);
+        // Recursively process nested objects
+        result[key] = convertAuditTimestampsToIST(value);
       }
     }
+    
     return result;
   }
+  
   return data;
 }
 
@@ -45,7 +86,7 @@ function convertDatesToIST(data: any): any {
 export class TimezoneInterceptor implements NestInterceptor {
   intercept(_context: ExecutionContext, next: CallHandler): Observable<any> {
     return next.handle().pipe(
-      map((data) => convertDatesToIST(data)),
+      map((data) => convertAuditTimestampsToIST(data)),
     );
   }
 }

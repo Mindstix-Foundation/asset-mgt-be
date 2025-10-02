@@ -392,13 +392,15 @@ export class AssetsService {
   }
 
   /**
-   * Log asset changes for audit trail
+   * Log asset changes for audit trail - now groups all changes into a single event
    */
   private async logAssetChanges(
     assetId: number,
     currentAsset: any,
     updateData: UpdateAssetDto,
-    userId: number
+    userId: number,
+    changeReason?: string,
+    notes?: string
   ): Promise<void> {
     const changes: any[] = [];
 
@@ -408,8 +410,10 @@ export class AssetsService {
         fieldName: 'status',
         oldValue: currentAsset.status,
         newValue: updateData.status,
-        changeType: 'STATUS_CHANGE',
+        changeType: 'STATUS_CHANGE' as any,
+        changeReason,
         changedBy: userId,
+        notes
       });
     }
 
@@ -419,8 +423,10 @@ export class AssetsService {
         fieldName: 'condition',
         oldValue: currentAsset.condition,
         newValue: updateData.condition,
-        changeType: 'CONDITION_CHANGE',
+        changeType: 'CONDITION_CHANGE' as any,
+        changeReason,
         changedBy: userId,
+        notes
       });
     }
 
@@ -430,32 +436,54 @@ export class AssetsService {
         fieldName: 'location',
         oldValue: currentAsset.location,
         newValue: updateData.location,
-        changeType: 'LOCATION_CHANGE',
+        changeType: 'LOCATION_CHANGE' as any,
+        changeReason,
         changedBy: userId,
+        notes
       });
     }
 
     // Check for other field changes
     const fieldsToTrack = [
-      'assetId', 'serialNumber', 'purchaseDate', 'purchaseCost',
-      'warrantyStartDate', 'warrantyEndDate', 'notes'
+      { field: 'assetId', dbField: 'assetId', changeType: 'ASSET_ID_CHANGE' },
+      { field: 'serialNumber', dbField: 'serialNumber', changeType: 'SERIAL_NUMBER_CHANGE' },
+      { field: 'purchaseDate', dbField: 'purchaseDate', changeType: 'PURCHASE_DATE_CHANGE' },
+      { field: 'purchaseCost', dbField: 'purchaseCost', changeType: 'PURCHASE_COST_CHANGE' },
+      { field: 'warrantyStartDate', dbField: 'warrantyStartDate', changeType: 'WARRANTY_START_CHANGE' },
+      { field: 'warrantyEndDate', dbField: 'warrantyEndDate', changeType: 'WARRANTY_END_CHANGE' },
+      { field: 'notes', dbField: 'notes', changeType: 'NOTES_CHANGE' },
+      { field: 'vendorId', dbField: 'vendorId', changeType: 'VENDOR_CHANGE' },
+      { field: 'brandId', dbField: 'brandId', changeType: 'BRAND_CHANGE' },
+      { field: 'modelId', dbField: 'modelId', changeType: 'MODEL_CHANGE' },
+      { field: 'assetTypeId', dbField: 'assetTypeId', changeType: 'ASSET_TYPE_CHANGE' },
+      { field: 'qrCode', dbField: 'qrCode', changeType: 'QR_CODE_CHANGE' },
+      { field: 'imageUrl', dbField: 'imageUrl', changeType: 'IMAGE_UPLOAD' }
     ];
 
-    for (const field of fieldsToTrack) {
-      if (updateData[field] !== undefined && updateData[field] !== currentAsset[field]) {
+    for (const { field, dbField, changeType } of fieldsToTrack) {
+      if (updateData[field] !== undefined && updateData[field] !== currentAsset[dbField]) {
         changes.push({
           fieldName: field,
-          oldValue: currentAsset[field]?.toString() || null,
+          oldValue: currentAsset[dbField]?.toString() || null,
           newValue: updateData[field]?.toString() || null,
-          changeType: 'FIELD_UPDATE',
+          changeType: changeType as any,
+          changeReason,
           changedBy: userId,
+          notes
         });
       }
     }
 
-    // Log all changes
+    // If we have changes, log them as a grouped event
     if (changes.length > 0) {
-      await this.assetAuditService.logAssetChanges(assetId, changes);
+      await this.assetAuditService.logGroupedAssetChanges({
+        assetId,
+        changes,
+        changeReason,
+        changedBy: userId,
+        notes,
+        timestamp: new Date()
+      });
     }
   }
 

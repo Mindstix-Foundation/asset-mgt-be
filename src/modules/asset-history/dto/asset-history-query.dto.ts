@@ -8,6 +8,7 @@ export enum AssetEventType {
   STATUS_CHANGED = 'STATUS_CHANGED',
   CONDITION_CHANGED = 'CONDITION_CHANGED',
   LOCATION_CHANGED = 'LOCATION_CHANGED',
+  LOCATION_UPDATED = 'LOCATION_UPDATED',
   ASSIGNED = 'ASSIGNED',
   RETURNED = 'RETURNED',
   MAINTENANCE_SCHEDULED = 'MAINTENANCE_SCHEDULED',
@@ -15,7 +16,15 @@ export enum AssetEventType {
   MAINTENANCE_COMPLETED = 'MAINTENANCE_COMPLETED',
   MAINTENANCE_CANCELLED = 'MAINTENANCE_CANCELLED',
   RETIRED = 'RETIRED',
-  REACTIVATED = 'REACTIVATED'
+  REACTIVATED = 'REACTIVATED',
+  WARRANTY_EXPIRED = 'WARRANTY_EXPIRED',
+  WARRANTY_RENEWED = 'WARRANTY_RENEWED',
+  WARRANTY_ACTIVE = 'WARRANTY_ACTIVE',
+  QR_CODE_GENERATED = 'QR_CODE_GENERATED',
+  IMAGE_UPLOADED = 'IMAGE_UPLOADED',
+  SERIAL_NUMBER_UPDATED = 'SERIAL_NUMBER_UPDATED',
+  PURCHASE_INFO_UPDATED = 'PURCHASE_INFO_UPDATED',
+  VENDOR_CHANGED = 'VENDOR_CHANGED'
 }
 
 export class AssetHistoryQueryDto {
@@ -33,14 +42,14 @@ export class AssetHistoryQueryDto {
   @ApiPropertyOptional({
     description: 'Number of events per page',
     minimum: 1,
-    maximum: 100,
+    maximum: 500,
     default: 20
   })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(500)
   limit?: number = 20;
 
   @ApiPropertyOptional({
@@ -105,4 +114,13 @@ export class AssetHistoryQueryDto {
   })
   @IsOptional()
   search?: string;
+
+  @ApiPropertyOptional({
+    description: 'Cache busting parameter (timestamp)',
+    type: Number
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  _t?: number;
 }

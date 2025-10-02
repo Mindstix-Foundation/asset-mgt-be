@@ -19,6 +19,7 @@ import { ReportsModule } from './reports/reports.module';
 import { MaintenanceModule } from './maintenance/maintenance.module';
 
 import { AssetsModule } from './modules/assets/assets.module';
+import { AssetHistoryModule } from './modules/asset-history/asset-history.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { AssetsModule } from './modules/assets/assets.module';
     ReportsModule,
     MaintenanceModule,
     AssetsModule,
+    AssetHistoryModule,
   ],
   controllers: [AppController],
   providers: [

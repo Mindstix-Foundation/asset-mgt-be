@@ -4,8 +4,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { AssetsService } from './assets.service';
 import { AssetIdService } from './asset-id.service';
-import { AssetHistoryService } from './asset-history.service';
-import { CreateAssetDto, UpdateAssetDto, AssetQueryDto, AssetHistoryQueryDto, RetireAssetDto, ReactivateAssetDto } from './dto';
+import { CreateAssetDto, UpdateAssetDto, AssetQueryDto, RetireAssetDto, ReactivateAssetDto } from './dto';
 
 @ApiTags('assets')
 @ApiBearerAuth('JWT-auth')
@@ -13,8 +12,7 @@ import { CreateAssetDto, UpdateAssetDto, AssetQueryDto, AssetHistoryQueryDto, Re
 export class AssetsController {
   constructor(
     private readonly assetsService: AssetsService,
-    private readonly assetIdService: AssetIdService,
-    private readonly assetHistoryService: AssetHistoryService
+    private readonly assetIdService: AssetIdService
   ) {}
 
   @Get('generate-id')
@@ -282,110 +280,6 @@ export class AssetsController {
     return this.assetsService.findAvailableAssets(queryDto);
   }
 
-  @Get(':id/history')
-  @ApiOperation({ summary: 'Get complete asset history with pagination and filtering' })
-  @ApiParam({ name: 'id', description: 'Asset ID or Asset Code' })
-  @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Events per page (default: 20, max: 100)' })
-  @ApiQuery({ name: 'eventTypes', required: false, description: 'Filter by event types (comma-separated)' })
-  @ApiQuery({ name: 'dateFrom', required: false, description: 'Filter events from date (YYYY-MM-DD)' })
-  @ApiQuery({ name: 'dateTo', required: false, description: 'Filter events to date (YYYY-MM-DD)' })
-  @ApiQuery({ name: 'userId', required: false, description: 'Filter by user who performed action' })
-  @ApiQuery({ name: 'search', required: false, description: 'Search in event descriptions and notes' })
-  @ApiQuery({ name: 'sortBy', required: false, description: 'Sort by field (date, eventType)' })
-  @ApiQuery({ name: 'sortOrder', required: false, description: 'Sort order (asc, desc)' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Asset history retrieved successfully',
-    schema: {
-      example: {
-        message: 'Asset history retrieved successfully',
-        data: {
-          asset: {
-            id: 1,
-            assetId: 'AST-0001',
-            name: 'Laptop - Dell XPS 13',
-            currentStatus: 'ASSIGNED',
-            currentCondition: 'GOOD'
-          },
-          timeline: [
-            {
-              id: 'assigned-123',
-              type: 'ASSIGNED',
-              date: '2024-02-01T09:15:00Z',
-              title: 'Asset Assigned',
-              description: 'Assigned to John Doe (EMP-001)',
-              user: 'hr_manager',
-              details: {
-                employee: 'John Doe',
-                employeeId: 'EMP-001',
-                reason: 'New employee onboarding',
-                notes: 'Laptop for development work'
-              },
-              icon: 'fas fa-user-plus',
-              color: '#007bff'
-            }
-          ],
-          pagination: {
-            currentPage: 1,
-            totalPages: 5,
-            totalEvents: 89,
-            hasNext: true,
-            hasPrevious: false,
-            limit: 20
-          }
-        }
-      }
-    }
-  })
-  @ApiResponse({ status: 404, description: 'Asset not found' })
-  async getAssetHistory(@Param('id') id: string, @Query() query: AssetHistoryQueryDto) {
-    return this.assetHistoryService.getAssetHistory(id, query);
-  }
-
-  @Get(':id/history/summary')
-  @ApiOperation({ summary: 'Get asset history summary with key statistics' })
-  @ApiParam({ name: 'id', description: 'Asset ID or Asset Code' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Asset history summary retrieved successfully',
-    schema: {
-      example: {
-        message: 'Asset history summary retrieved successfully',
-        data: {
-          asset: {
-            id: 1,
-            assetId: 'AST-0001',
-            name: 'Laptop - Dell XPS 13',
-            currentStatus: 'ASSIGNED',
-            currentCondition: 'GOOD'
-          },
-          summary: {
-            totalEvents: 89,
-            lastActivity: '2024-12-15T10:30:00Z',
-            currentStatus: 'ASSIGNED',
-            currentCondition: 'GOOD',
-            totalAssignments: 23,
-            totalMaintenance: 8,
-            totalStatusChanges: 12,
-            totalCost: 2500.00
-          },
-          recentEvents: [
-            // Last 5 events
-          ],
-          quickStats: {
-            avgAssignmentDuration: '45 days',
-            maintenanceFrequency: 'Every 6 months',
-            mostCommonStatus: 'ASSIGNED'
-          }
-        }
-      }
-    }
-  })
-  @ApiResponse({ status: 404, description: 'Asset not found' })
-  async getAssetHistorySummary(@Param('id') id: string) {
-    return this.assetHistoryService.getAssetHistorySummary(id);
-  }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get asset by ID with complete details' })

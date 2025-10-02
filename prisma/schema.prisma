@@ -303,14 +303,15 @@ model AssetAuditLog {
   id            Int           @id @default(autoincrement())
   assetId       Int           @map("asset_id")
   fieldName     String        @map("field_name") @db.VarChar(50)
-  oldValue      String?       @map("old_value") @db.VarChar(255)
-  newValue      String?       @map("new_value") @db.VarChar(255)
+  oldValue      String?       @map("old_value") @db.VarChar(500)
+  newValue      String?       @map("new_value") @db.VarChar(500)
   changeType    AuditChangeType @map("change_type")
-  changeReason  String?       @map("change_reason") @db.VarChar(255)
+  changeReason  String?       @map("change_reason") @db.VarChar(500)
   changedBy     Int           @map("changed_by")
   changedAt     DateTime      @default(now()) @map("changed_at") @db.Timestamptz(6)
   ipAddress     String?       @map("ip_address") @db.VarChar(45)
   userAgent     String?       @map("user_agent") @db.VarChar(500)
+  notes         String?       @db.Text
   asset         Asset         @relation(fields: [assetId], references: [id], onDelete: Cascade)
   changedByUser User          @relation("AssetAuditChangedBy", fields: [changedBy], references: [id])
 
@@ -381,6 +382,20 @@ enum AuditChangeType {
   FIELD_UPDATE
   RETIREMENT
   REACTIVATION
+  ASSET_ID_CHANGE
+  SERIAL_NUMBER_CHANGE
+  PURCHASE_DATE_CHANGE
+  PURCHASE_COST_CHANGE
+  WARRANTY_START_CHANGE
+  WARRANTY_END_CHANGE
+  VENDOR_CHANGE
+  BRAND_CHANGE
+  MODEL_CHANGE
+  ASSET_TYPE_CHANGE
+  NOTES_CHANGE
+  QR_CODE_CHANGE
+  IMAGE_UPLOAD
+  BULK_UPDATE
 }
 
 enum MaintenanceStatus {
