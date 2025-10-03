@@ -3,7 +3,6 @@ import {
   Get,
   Post,
   Body,
-  Put,
   Param,
   Delete,
   Query,
@@ -22,7 +21,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { BrandsService } from './brands.service';
-import { CreateBrandDto, UpdateBrandDto, BrandQueryDto } from './dto';
+import { CreateBrandDto, BrandQueryDto } from './dto';
 
 @ApiTags('brands')
 @ApiBearerAuth('JWT-auth')
@@ -173,39 +172,6 @@ export class BrandsController {
     return this.brandsService.findOne(id);
   }
 
-  @Put(':id')
-  @ApiOperation({ summary: 'Update brand by ID' })
-  @ApiParam({ name: 'id', description: 'Brand ID' })
-  @ApiResponse({
-    status: 200,
-    description: 'Brand updated successfully',
-    schema: {
-      example: {
-        message: 'Brand updated successfully',
-        data: {
-          brand: {
-            id: 1,
-            name: 'Updated Apple',
-            description: 'Updated description',
-            updatedAt: '2024-01-15T11:30:00Z'
-          }
-        }
-      }
-    }
-  })
-  @ApiResponse({ status: 404, description: 'Brand not found' })
-  @ApiResponse({ status: 409, description: 'Conflict - Brand name already exists' })
-  async update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() updateBrandDto: UpdateBrandDto,
-    @Request() req: any,
-  ) {
-    if (!req.user?.id) {
-      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
-    }
-    const userId = req.user.id;
-    return this.brandsService.update(id, updateBrandDto, userId);
-  }
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
@@ -226,39 +192,4 @@ export class BrandsController {
     return this.brandsService.remove(id);
   }
 
-  @Post(':sourceId/merge/:targetId')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Merge two brands by transferring all references from source to target' })
-  @ApiParam({ name: 'sourceId', description: 'Source brand ID (will be deleted after merge)' })
-  @ApiParam({ name: 'targetId', description: 'Target brand ID (will receive all references)' })
-  @ApiResponse({
-    status: 200,
-    description: 'Brands merged successfully',
-    schema: {
-      example: {
-        message: 'Brands merged successfully',
-        data: {
-          mergeOperation: {
-            sourceBrand: 'Appale',
-            targetBrand: 'Apple',
-            transferredModels: 8,
-            transferredAssets: 45
-          }
-        }
-      }
-    }
-  })
-  @ApiResponse({ status: 404, description: 'Source or target brand not found' })
-  @ApiResponse({ status: 400, description: 'Cannot merge brand with itself' })
-  async mergeBrands(
-    @Param('sourceId', ParseIntPipe) sourceId: number,
-    @Param('targetId', ParseIntPipe) targetId: number,
-    @Request() req: any,
-  ) {
-    if (!req.user?.id) {
-      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
-    }
-    const userId = req.user.id;
-    return this.brandsService.mergeBrands(sourceId, targetId, userId);
-  }
 } 
