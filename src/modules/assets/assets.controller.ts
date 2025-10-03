@@ -26,6 +26,28 @@ export class AssetsController {
     };
   }
 
+  @Get('check-serial-unique')
+  @ApiOperation({ summary: 'Check if serial number is unique' })
+  @ApiQuery({ name: 'serialNumber', required: true, description: 'Serial number to check' })
+  @ApiQuery({ name: 'excludeAssetId', required: false, description: 'Asset ID to exclude from check (for edit mode)' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Serial number uniqueness check completed',
+    schema: {
+      example: {
+        message: 'Serial number check completed',
+        data: {
+          isUnique: true,
+          serialNumber: 'SN123456789'
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'Bad Request - Serial number is required' })
+  async checkSerialNumberUnique(@Query('serialNumber') serialNumber: string, @Query('excludeAssetId') excludeAssetId?: string) {
+    return this.assetsService.checkSerialNumberUnique(serialNumber, excludeAssetId);
+  }
+
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new asset' })

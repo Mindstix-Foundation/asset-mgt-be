@@ -106,12 +106,12 @@ export class CreateAssetDto {
   @ApiPropertyOptional({
     description: 'Condition of the asset',
     example: 'NEW',
-    enum: ['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED'],
+    enum: ['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED', 'REFURBISHED'],
     default: 'NEW',
   })
   @IsOptional()
-  @IsEnum(['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED'])
-  condition?: 'NEW' | 'GOOD' | 'FAIR' | 'POOR' | 'DAMAGED' = 'NEW';
+  @IsEnum(['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED', 'REFURBISHED'])
+  condition?: 'NEW' | 'GOOD' | 'FAIR' | 'POOR' | 'DAMAGED' | 'REFURBISHED';
 
   @ApiPropertyOptional({
     description: 'Status of the asset',
@@ -121,7 +121,7 @@ export class CreateAssetDto {
   })
   @IsOptional()
   @IsEnum(['AVAILABLE', 'ASSIGNED', 'IN_MAINTENANCE', 'RETIRED', 'LOST'])
-  status?: 'AVAILABLE' | 'ASSIGNED' | 'IN_MAINTENANCE' | 'RETIRED' | 'LOST' = 'AVAILABLE';
+  status?: 'AVAILABLE' | 'ASSIGNED' | 'IN_MAINTENANCE' | 'RETIRED' | 'LOST';
 
   @ApiPropertyOptional({
     description: 'Additional notes about the asset',

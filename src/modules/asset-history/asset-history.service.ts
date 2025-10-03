@@ -327,29 +327,92 @@ export class AssetHistoryService {
 
   /**
    * Get asset status and condition at the time of event
-   * Since we don't have AssetStatusHistory and AssetConditionHistory tables,
-   * we'll derive the status/condition from the event metadata or use current values
+   * Reconstructs the asset state by looking at all events up to that point
    */
   private async getAssetStateAtEvent(assetId: number, eventDate: Date, event?: any): Promise<{ status: string; condition: string }> {
-    // If we have event metadata with status/condition info, use that
-    if (event?.metadata) {
-      const status = event.metadata.newStatus || event.metadata.status || event.metadata.previousStatus;
-      const condition = event.metadata.newCondition || event.metadata.condition || event.metadata.previousCondition;
-      
-      if (status && condition) {
-        return { status, condition };
+    // Get the asset's current state (fallback)
+    const asset = await this.prisma.asset.findUnique({
+      where: { id: assetId },
+      select: { 
+        status: true, 
+        condition: true,
+        createdAt: true
+      }
+    });
+
+    if (!asset) {
+      return { status: 'UNKNOWN', condition: 'UNKNOWN' };
+    }
+
+    // Start with the asset's initial state from creation
+    let currentStatus = 'AVAILABLE'; // default initial status
+    let currentCondition = 'NEW'; // default initial condition
+
+    // Get the first ASSET_CREATED event to get initial values
+    const creationEvent = await this.prisma.assetEvent.findFirst({
+      where: {
+        assetId: assetId,
+        eventType: 'ASSET_CREATED'
+      },
+      orderBy: { eventDate: 'asc' },
+      select: { metadata: true }
+    });
+
+    if (creationEvent?.metadata) {
+      // Extract initial values from creation event metadata
+      const metadata = creationEvent.metadata as any;
+      if (metadata.status) {
+        currentStatus = metadata.status;
+      }
+      if (metadata.condition) {
+        currentCondition = metadata.condition;
       }
     }
 
-    // Fallback: Get current asset status and condition
-    const asset = await this.prisma.asset.findUnique({
-      where: { id: assetId },
-      select: { status: true, condition: true }
+    // Get all events for this asset up to the specified event date (excluding the current event)
+    const eventsUpToDate = await this.prisma.assetEvent.findMany({
+      where: {
+        assetId: assetId,
+        eventDate: {
+          lt: eventDate // Use lt instead of lte to exclude the current event
+        }
+      },
+      orderBy: { eventDate: 'asc' },
+      select: {
+        eventType: true,
+        eventDate: true,
+        metadata: true
+      }
     });
 
+    // Apply each event's changes chronologically to reconstruct the state
+    for (const historicalEvent of eventsUpToDate) {
+      const metadata = historicalEvent.metadata as any;
+      
+      // Check for status changes in the metadata.changes array
+      if (metadata?.changes) {
+        for (const change of metadata.changes) {
+          if (change.fieldName === 'status' && change.newValue) {
+            currentStatus = change.newValue;
+          }
+          if (change.fieldName === 'condition' && change.newValue) {
+            currentCondition = change.newValue;
+          }
+        }
+      }
+
+      // Also check for direct status/condition in metadata (for events like ASSET_ISSUED, ASSET_COLLECTED)
+      if (metadata?.newStatus) {
+        currentStatus = metadata.newStatus;
+      }
+      if (metadata?.newCondition) {
+        currentCondition = metadata.newCondition;
+      }
+    }
+
     return {
-      status: asset?.status || 'UNKNOWN',
-      condition: asset?.condition || 'UNKNOWN'
+      status: currentStatus,
+      condition: currentCondition
     };
   }
 
@@ -423,6 +486,7 @@ export class AssetHistoryService {
       if (statusChange) {
         statusDisplay = `${statusChange.oldValue} → ${statusChange.newValue}`;
       } else {
+        // No status change occurred, show current status at that point
         statusDisplay = assetState.status;
       }
     } else if (event.eventType === AssetEventType.ASSET_RETIRED) {
@@ -494,6 +558,7 @@ export class AssetHistoryService {
       if (conditionChange) {
         conditionDisplay = `${conditionChange.oldValue} → ${conditionChange.newValue}`;
       } else {
+        // No condition change occurred, show current condition at that point
         conditionDisplay = assetState.condition;
       }
     } else if (event.eventType === AssetEventType.ASSET_REACTIVATED) {

@@ -87,11 +87,11 @@ export class AssetQueryDto {
   @ApiPropertyOptional({
     description: 'Filter by asset condition',
     example: 'GOOD',
-    enum: ['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED'],
+    enum: ['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED', 'REFURBISHED'],
   })
   @IsOptional()
-  @IsEnum(['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED'])
-  condition?: 'NEW' | 'GOOD' | 'FAIR' | 'POOR' | 'DAMAGED';
+  @IsEnum(['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED', 'REFURBISHED'])
+  condition?: 'NEW' | 'GOOD' | 'FAIR' | 'POOR' | 'DAMAGED' | 'REFURBISHED';
 
   @ApiPropertyOptional({
     description: 'Filter by location',

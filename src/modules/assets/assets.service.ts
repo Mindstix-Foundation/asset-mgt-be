@@ -11,6 +11,38 @@ export class AssetsService {
     private assetIdService: AssetIdService
   ) {}
 
+  async checkSerialNumberUnique(serialNumber: string, excludeAssetId?: string) {
+    if (!serialNumber || !serialNumber.trim()) {
+      throw new BadRequestException('Serial number is required');
+    }
+
+    const where: any = {
+      serialNumber: serialNumber.trim()
+    };
+
+    // If excludeAssetId is provided (for edit mode), exclude that asset from the check
+    if (excludeAssetId) {
+      where.id = { not: parseInt(excludeAssetId) };
+    }
+
+    const existingAsset = await this.prisma.asset.findFirst({
+      where,
+      select: { id: true, assetId: true, serialNumber: true }
+    });
+
+    return {
+      message: 'Serial number check completed',
+      data: {
+        isUnique: !existingAsset,
+        serialNumber: serialNumber.trim(),
+        existingAsset: existingAsset ? {
+          id: existingAsset.id,
+          assetId: existingAsset.assetId
+        } : null
+      }
+    };
+  }
+
   async create(createAssetDto: CreateAssetDto, userId: number) {
     try {
       // Generate sequential asset ID if not provided
@@ -55,6 +87,8 @@ export class AssetsService {
         data: {
           ...createAssetDto,
           assetId, // Use generated or validated asset ID
+          status: createAssetDto.status || 'AVAILABLE', // Default to AVAILABLE if not provided
+          condition: createAssetDto.condition || 'NEW', // Default to NEW if not provided
           purchaseDate: createAssetDto.purchaseDate ? new Date(createAssetDto.purchaseDate) : null,
           warrantyStartDate: createAssetDto.warrantyStartDate ? new Date(createAssetDto.warrantyStartDate) : null,
           warrantyEndDate: createAssetDto.warrantyEndDate ? new Date(createAssetDto.warrantyEndDate) : null,
@@ -343,6 +377,14 @@ export class AssetsService {
           warrantyStartDate: true,
           warrantyEndDate: true,
           notes: true,
+          vendorId: true,
+          brandId: true,
+          modelId: true,
+          assetTypeId: true,
+          vendor: { select: { name: true } },
+          brand: { select: { name: true } },
+          model: { select: { name: true } },
+          assetType: { select: { name: true } },
           assetIssues: {
             select: {
               returnDate: true
