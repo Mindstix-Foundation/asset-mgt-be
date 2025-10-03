@@ -263,6 +263,7 @@ async function main() {
           employeeId: employees[i].id,
           issuedBy: adminUser.id,
           issueDate: new Date(2024, Math.floor(Math.random() * 6), Math.floor(Math.random() * 28) + 1),
+          issueTimestamp: new Date(2024, Math.floor(Math.random() * 6), Math.floor(Math.random() * 28) + 1),
           issueCondition: 'GOOD',
           issueReason: 'Work assignment',
           createdBy: adminUser.id,

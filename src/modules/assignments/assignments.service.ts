@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateAssignmentDto, ReturnAssignmentDto, AssignmentQueryDto } from './dto';
+import { AssetEventType } from '@prisma/client';
 
 @Injectable()
 export class AssignmentsService {
@@ -47,7 +48,8 @@ export class AssignmentsService {
             assetId: createAssignmentDto.assetId,
             employeeId: createAssignmentDto.employeeId,
             issuedBy: userId,
-            issueDate: new Date(createAssignmentDto.issueDate),
+            issueDate: new Date(createAssignmentDto.issueDate), // Business date
+            issueTimestamp: new Date(), // Audit timestamp (current UTC time)
             issueCondition: createAssignmentDto.issueCondition,
             issueReason: createAssignmentDto.issueReason,
             notes: createAssignmentDto.notes,
@@ -88,6 +90,30 @@ export class AssignmentsService {
             status: 'ASSIGNED',
             updatedBy: userId,
           },
+        });
+
+        // Log asset issue event
+        await prisma.assetEvent.create({
+          data: {
+            assetId: createAssignmentDto.assetId,
+            eventType: AssetEventType.ASSET_ISSUED,
+            eventDate: new Date(),
+            performedBy: userId,
+            metadata: {
+              assignmentId: assignment.id,
+              employeeId: assignment.employee.employeeId,
+              employeeName: `${assignment.employee.firstName} ${assignment.employee.lastName}`,
+              employeeEmail: assignment.employee.email,
+              issuedBy: assignment.issuedByUser.username,
+              issueDate: assignment.issueDate,
+              issueCondition: assignment.issueCondition,
+              issueReason: assignment.issueReason,
+              notes: assignment.notes,
+              previousStatus: 'AVAILABLE',
+              newStatus: 'ASSIGNED',
+              issuedVia: 'IssueAssetView'
+            }
+          }
         });
 
         return assignment;
@@ -425,7 +451,8 @@ export class AssignmentsService {
         const updatedAssignment = await prisma.assetIssue.update({
           where: { id },
           data: {
-            returnDate: new Date(returnAssignmentDto.returnDate),
+            returnDate: new Date(returnAssignmentDto.returnDate), // Business date
+            returnTimestamp: new Date(), // Audit timestamp (current UTC time)
             returnCondition: returnAssignmentDto.returnCondition,
             returnReason: returnAssignmentDto.returnReason,
             notes: returnAssignmentDto.notes || assignment.notes,
@@ -473,6 +500,32 @@ export class AssignmentsService {
         await prisma.asset.update({
           where: { id: assignment.assetId },
           data: assetUpdateData,
+        });
+
+        // Log asset collection event
+        await prisma.assetEvent.create({
+          data: {
+            assetId: assignment.assetId,
+            eventType: AssetEventType.ASSET_COLLECTED,
+            eventDate: new Date(),
+            performedBy: userId,
+            metadata: {
+              assignmentId: updatedAssignment.id,
+              employeeId: updatedAssignment.employee.employeeId,
+              employeeName: `${updatedAssignment.employee.firstName} ${updatedAssignment.employee.lastName}`,
+              employeeEmail: updatedAssignment.employee.email,
+              collectedBy: updatedAssignment.updatedByUser.username,
+              returnDate: updatedAssignment.returnDate,
+              returnCondition: updatedAssignment.returnCondition,
+              returnReason: updatedAssignment.returnReason,
+              notes: updatedAssignment.notes,
+              previousStatus: 'ASSIGNED',
+              newStatus: 'AVAILABLE',
+              previousCondition: updatedAssignment.asset.condition,
+              newCondition: returnAssignmentDto.returnCondition,
+              collectedVia: 'CollectAssetView'
+            }
+          }
         });
 
         return updatedAssignment;

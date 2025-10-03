@@ -22,7 +22,7 @@ export class CreateAssignmentDto {
   employeeId: number;
 
   @ApiProperty({
-    description: 'Issue date in ISO format',
+    description: 'Issue date (business date only)',
     example: '2024-09-18',
   })
   @IsDateString()

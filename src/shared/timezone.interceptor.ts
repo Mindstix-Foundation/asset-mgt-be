@@ -23,7 +23,9 @@ const AUDIT_TIMESTAMP_FIELDS = [
   'updatedAt', 
   'changedAt',
   'assignedAt',
-  'lastLogin'
+  'lastLogin',
+  'issueTimestamp',
+  'returnTimestamp'
 ];
 
 // Business date fields that should NOT be converted

@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateMaintenanceDto } from './dto/create-maintenance.dto';
 import { UpdateMaintenanceDto } from './dto/update-maintenance.dto';
 import { MaintenanceQueryDto } from './dto/maintenance-query.dto';
-import { MaintenanceStatus, MaintenanceTypeEnum, Prisma } from '@prisma/client';
+import { MaintenanceStatus, MaintenanceTypeEnum, Prisma, AssetEventType } from '@prisma/client';
 
 @Injectable()
 export class MaintenanceService {
@@ -100,6 +100,31 @@ export class MaintenanceService {
         });
 
         return created;
+      });
+
+      // Log maintenance scheduled event
+      await this.prisma.assetEvent.create({
+        data: {
+          assetId: assetId,
+          eventType: AssetEventType.MAINTENANCE_SCHEDULED,
+          eventDate: new Date(),
+          performedBy: userId,
+          metadata: {
+            maintenanceId: maintenance.id,
+            maintenanceType: createMaintenanceDto.maintenanceType,
+            scheduledDate: createMaintenanceDto.scheduledDate, // Already in yyyy-mm-dd format from DTO
+            estimatedCost: createMaintenanceDto.estimatedCost,
+            description: createMaintenanceDto.description,
+            frequencyDays: createMaintenanceDto.frequencyDays,
+            assetId: maintenance.asset.assetId,
+            assetType: maintenance.asset.assetType.name,
+            brand: maintenance.asset.brand.name,
+            model: maintenance.asset.model.name,
+            previousStatus: 'AVAILABLE',
+            newStatus: 'IN_MAINTENANCE',
+            scheduledVia: 'ScheduleMaintenanceView'
+          }
+        }
       });
 
       return {
@@ -404,6 +429,59 @@ export class MaintenanceService {
       return updated;
     });
 
+    // Log maintenance updated event
+    await this.prisma.assetEvent.create({
+      data: {
+        assetId: maintenance.assetId,
+        eventType: AssetEventType.MAINTENANCE_UPDATED,
+        eventDate: new Date(),
+        performedBy: userId,
+          metadata: {
+            maintenanceId: maintenance.id,
+            maintenanceType: maintenance.maintenanceType,
+            scheduledDate: maintenance.scheduledDate.toISOString().split('T')[0], // Format as yyyy-mm-dd
+            estimatedCost: maintenance.estimatedCost,
+            description: maintenance.description,
+            frequencyDays: maintenance.frequencyDays,
+            assetId: maintenance.asset.assetId,
+            assetType: maintenance.asset.assetType.name,
+            brand: maintenance.asset.brand.name,
+            model: maintenance.asset.model.name,
+            status: maintenance.status,
+            changes: Object.keys(updateMaintenanceDto)
+              .filter(key => {
+                // Only include meaningful fields that can be updated
+                const meaningfulFields = [
+                  'maintenanceType',
+                  'scheduledDate', 
+                  'estimatedCost',
+                  'description',
+                  'frequencyDays'
+                ];
+                return meaningfulFields.includes(key);
+              })
+              .filter(key => {
+                // Only include fields that actually changed
+                let oldValue = this.formatValueForComparison(existingMaintenance[key]);
+                let newValue = this.formatValueForComparison(updateMaintenanceDto[key]);
+                
+                return oldValue !== newValue;
+              })
+              .map(key => {
+                // Format values properly for display
+                const oldValue = this.formatValueForDisplay(existingMaintenance[key]);
+                const newValue = this.formatValueForDisplay(updateMaintenanceDto[key]);
+                
+                return {
+                  fieldName: key,
+                  oldValue: oldValue,
+                  newValue: newValue
+                };
+              })
+          }
+      }
+    });
+
     return {
       message: 'Maintenance updated successfully',
       data: { maintenance: this.formatMaintenanceResponse(maintenance) },
@@ -485,6 +563,32 @@ export class MaintenanceService {
       return updated;
     });
 
+    // Log maintenance completed event
+    await this.prisma.assetEvent.create({
+      data: {
+        assetId: result.assetId,
+        eventType: AssetEventType.MAINTENANCE_COMPLETED,
+        eventDate: new Date(),
+        performedBy: userId || maintenance.updatedBy,
+          metadata: {
+            maintenanceId: result.id,
+            maintenanceType: result.maintenanceType,
+            scheduledDate: result.scheduledDate.toISOString().split('T')[0], // Format as yyyy-mm-dd
+            actualCompletionDate: result.actualCompletionDate?.toISOString().split('T')[0] || null, // Format as yyyy-mm-dd
+            estimatedCost: result.estimatedCost,
+            actualCost: result.actualCost,
+            description: result.description,
+            completionNotes: result.completionNotes,
+            assetId: result.asset.assetId,
+            assetType: result.asset.assetType.name,
+            brand: result.asset.brand.name,
+            model: result.asset.model.name,
+            previousStatus: 'IN_MAINTENANCE',
+            newStatus: 'AVAILABLE'
+          }
+      }
+    });
+
     return {
       message: 'Maintenance completed successfully',
       data: { maintenance: this.formatMaintenanceResponse(result) },
@@ -539,6 +643,31 @@ export class MaintenanceService {
       }
 
       return updated;
+    });
+
+    // Log maintenance cancelled event
+    await this.prisma.assetEvent.create({
+      data: {
+        assetId: result.assetId,
+        eventType: AssetEventType.MAINTENANCE_CANCELLED,
+        eventDate: new Date(),
+        performedBy: userId || maintenance.updatedBy,
+          metadata: {
+            maintenanceId: result.id,
+            maintenanceType: result.maintenanceType,
+            scheduledDate: result.scheduledDate.toISOString().split('T')[0], // Format as yyyy-mm-dd
+            cancellationDate: result.cancellationDate?.toISOString().split('T')[0] || null, // Format as yyyy-mm-dd
+            estimatedCost: result.estimatedCost,
+            description: result.description,
+            cancellationNotes: result.cancellationNotes,
+            assetId: result.asset.assetId,
+            assetType: result.asset.assetType.name,
+            brand: result.asset.brand.name,
+            model: result.asset.model.name,
+            previousStatus: 'IN_MAINTENANCE',
+            newStatus: 'AVAILABLE'
+          }
+      }
     });
 
     return {
@@ -830,5 +959,35 @@ export class MaintenanceService {
       createdAt: maintenance.createdAt.toISOString(),
       updatedAt: maintenance.updatedAt.toISOString(),
     };
+  }
+
+  /**
+   * Format value for comparison (used in filter)
+   */
+  private formatValueForComparison(value: any): string | null {
+    if (value === null || value === undefined) return null;
+    
+    // Handle Date objects only (not strings that look like dates)
+    if (value instanceof Date) {
+      return value.toISOString().split('T')[0]; // yyyy-mm-dd format
+    }
+    
+    // Return as-is for all other values (strings, numbers, etc.)
+    return value.toString();
+  }
+
+  /**
+   * Format value for display (used in map)
+   */
+  private formatValueForDisplay(value: any): string | null {
+    if (value === null || value === undefined) return null;
+    
+    // Handle Date objects only (not strings that look like dates)
+    if (value instanceof Date) {
+      return value.toISOString().split('T')[0]; // yyyy-mm-dd format
+    }
+    
+    // Return as-is for all other values (strings, numbers, etc.)
+    return value.toString();
   }
 } 

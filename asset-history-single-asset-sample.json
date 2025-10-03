@@ -1,0 +1,222 @@
+{
+  "timestamp": "2025-01-30T12:00:00.000Z",
+  "description": "Single asset sample response showing one example of each event type",
+  "asset": {
+    "id": 1,
+    "assetId": "AST-0001",
+    "name": "Laptop - Dell XPS 13",
+    "currentStatus": "ASSIGNED",
+    "currentCondition": "GOOD"
+  },
+  "summary": {
+    "totalEvents": 10,
+    "lastActivity": "2025-01-30T10:30:00.000Z",
+    "currentStatus": "ASSIGNED",
+    "currentCondition": "GOOD",
+    "totalAssignments": 2,
+    "totalMaintenance": 4,
+    "totalStatusChanges": 2,
+    "totalCost": 1250.00,
+    "eventCounts": {
+      "ASSET_CREATED": 1,
+      "ASSET_UPDATED": 1,
+      "ASSET_ISSUED": 1,
+      "ASSET_COLLECTED": 1,
+      "MAINTENANCE_SCHEDULED": 1,
+      "MAINTENANCE_UPDATED": 1,
+      "MAINTENANCE_COMPLETED": 1,
+      "MAINTENANCE_CANCELLED": 1,
+      "ASSET_RETIRED": 1,
+      "ASSET_REACTIVATED": 1
+    }
+  },
+  "timeline": [
+    {
+      "id": "event-10-asset_issued",
+      "type": "ASSET_ISSUED",
+      "dateIST": "30/01/2025, 16:00:00",
+      "description": "issue to John Doe (EMP-001)",
+      "userDisplayName": "Jane Smith",
+      "details": {
+        "employee": "John Doe",
+        "employeeId": "EMP-001",
+        "businessDate": "2025-01-30",
+        "reason": "New employee onboarding",
+        "notes": "Laptop for development work"
+      },
+      "icon": "fas fa-user-plus",
+      "color": "#007bff",
+      "status": "AVAILABLE → ASSIGNED",
+      "condition": "GOOD"
+    },
+    {
+      "id": "event-9-maintenance_completed",
+      "type": "MAINTENANCE_COMPLETED",
+      "dateIST": "29/01/2025, 14:30:00",
+      "description": "Maintenance completed successfully",
+      "userDisplayName": "Mike Johnson",
+      "details": {
+        "maintenanceType": "PREVENTIVE",
+        "actualCost": 150.00,
+        "completionNotes": "Replaced keyboard and cleaned fans"
+      },
+      "icon": "fas fa-check-circle",
+      "color": "#28a745",
+      "status": "IN_MAINTENANCE → AVAILABLE",
+      "condition": "GOOD"
+    },
+    {
+      "id": "event-8-maintenance_cancelled",
+      "type": "MAINTENANCE_CANCELLED",
+      "dateIST": "28/01/2025, 11:15:00",
+      "description": "Maintenance cancelled",
+      "userDisplayName": "Sarah Wilson",
+      "details": {
+        "maintenanceType": "CORRECTIVE",
+        "cancellationNotes": "Asset no longer needed for this maintenance"
+      },
+      "icon": "fas fa-times-circle",
+      "color": "#dc3545",
+      "status": "SCHEDULED → AVAILABLE",
+      "condition": "GOOD"
+    },
+    {
+      "id": "event-7-maintenance_updated",
+      "type": "MAINTENANCE_UPDATED",
+      "dateIST": "27/01/2025, 09:45:00",
+      "description": "Maintenance schedule updated",
+      "userDisplayName": "Tom Brown",
+      "details": {
+        "maintenanceType": "PREVENTIVE",
+        "changes": [
+          {
+            "field": "scheduledDate",
+            "change": "2025-01-25 → 2025-01-29"
+          },
+          {
+            "field": "estimatedCost",
+            "change": "100.00 → 150.00"
+          }
+        ],
+        "totalChanges": 2
+      },
+      "icon": "fas fa-edit",
+      "color": "#007bff",
+      "status": "SCHEDULED",
+      "condition": "GOOD"
+    },
+    {
+      "id": "event-6-maintenance_scheduled",
+      "type": "MAINTENANCE_SCHEDULED",
+      "dateIST": "25/01/2025, 13:20:00",
+      "description": "Maintenance scheduled",
+      "userDisplayName": "Lisa Davis",
+      "details": {
+        "maintenanceType": "PREVENTIVE",
+        "scheduledDate": "2025-01-29",
+        "estimatedCost": 100.00,
+        "description": "Regular preventive maintenance"
+      },
+      "icon": "fas fa-calendar-plus",
+      "color": "#ffc107",
+      "status": "AVAILABLE → IN_MAINTENANCE",
+      "condition": "GOOD"
+    },
+    {
+      "id": "event-5-asset_collected",
+      "type": "ASSET_COLLECTED",
+      "dateIST": "24/01/2025, 17:30:00",
+      "description": "collected from Alice Johnson (EMP-002)",
+      "userDisplayName": "Bob Miller",
+      "details": {
+        "employee": "Alice Johnson",
+        "employeeId": "EMP-002",
+        "businessDate": "2025-01-24",
+        "returnReason": "Employee leaving company",
+        "notes": "Asset returned in good condition"
+      },
+      "icon": "fas fa-user-minus",
+      "color": "#6c757d",
+      "status": "ASSIGNED → AVAILABLE",
+      "condition": "GOOD"
+    },
+    {
+      "id": "event-4-asset_reactivated",
+      "type": "ASSET_REACTIVATED",
+      "dateIST": "23/01/2025, 10:00:00",
+      "description": "Asset reactivated",
+      "userDisplayName": "Admin User",
+      "details": {
+        "reactivationDate": "2025-01-23",
+        "reactivationReason": "Asset needed for new project"
+      },
+      "icon": "fas fa-redo",
+      "color": "#17a2b8",
+      "status": "RETIRED → AVAILABLE",
+      "condition": "POOR → GOOD"
+    },
+    {
+      "id": "event-3-asset_retired",
+      "type": "ASSET_RETIRED",
+      "dateIST": "22/01/2025, 15:45:00",
+      "description": "Asset retired",
+      "userDisplayName": "Admin User",
+      "details": {
+        "retirementDate": "2025-01-22",
+        "retirementReason": "End of lifecycle",
+        "retirementNotes": "Asset has reached end of useful life"
+      },
+      "icon": "fas fa-ban",
+      "color": "#dc3545",
+      "status": "AVAILABLE → RETIRED",
+      "condition": "POOR"
+    },
+    {
+      "id": "event-2-asset_updated",
+      "type": "ASSET_UPDATED",
+      "dateIST": "21/01/2025, 14:15:00",
+      "description": "Asset details updated",
+      "userDisplayName": "John Admin",
+      "details": {
+        "changes": [
+          {
+            "field": "location",
+            "change": "Office A → Office B"
+          },
+          {
+            "field": "condition",
+            "change": "FAIR → GOOD"
+          }
+        ],
+        "totalChanges": 2
+      },
+      "icon": "fas fa-edit",
+      "color": "#007bff",
+      "status": "AVAILABLE",
+      "condition": "FAIR → GOOD"
+    },
+    {
+      "id": "event-1-asset_created",
+      "type": "ASSET_CREATED",
+      "dateIST": "18/01/2025, 08:00:00",
+      "description": "Asset created with ID AST-0001",
+      "userDisplayName": "System Admin",
+      "details": {
+        "assetId": "AST-0001",
+        "assetType": "Laptop",
+        "brand": "Dell",
+        "model": "XPS 13",
+        "serialNumber": "DLXPS13001",
+        "condition": "NEW",
+        "status": "AVAILABLE",
+        "location": "Office A",
+        "purchaseCost": 1200.00,
+        "vendor": "Dell Technologies"
+      },
+      "icon": "fas fa-plus-circle",
+      "color": "#28a745",
+      "status": "AVAILABLE",
+      "condition": "NEW"
+    }
+  ]
+}

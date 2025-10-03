@@ -3,7 +3,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ReturnAssignmentDto {
   @ApiProperty({
-    description: 'Return date in ISO format',
+    description: 'Return date (business date only)',
     example: '2024-09-20',
   })
   @IsDateString()

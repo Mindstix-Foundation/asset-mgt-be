@@ -46,7 +46,9 @@ model User {
   updatedUsers                User[]                @relation("UserUpdatedBy")
   createdVendors              Vendor[]              @relation("VendorCreatedBy")
   updatedVendors              Vendor[]              @relation("VendorUpdatedBy")
-  assetAuditLogs              AssetAuditLog[]       @relation("AssetAuditChangedBy")
+  assetEvents                 AssetEvent[]          @relation("AssetEventPerformedBy")
+  assetStatusHistory          AssetStatusHistory[]  @relation("AssetStatusSetBy")
+  assetConditionHistory       AssetConditionHistory[] @relation("AssetConditionSetBy")
   vendor                      Vendor?
 
   @@index([isActive, lastLogin])
@@ -246,7 +248,9 @@ model Asset {
   updatedBy            Int                   @map("updated_by")
   updatedAt            DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   assetIssues          AssetIssue[]
-  assetAuditLogs       AssetAuditLog[]
+  assetEvents          AssetEvent[]          @relation("AssetEvents")
+  assetStatusHistory   AssetStatusHistory[]  @relation("AssetStatusHistory")
+  assetConditionHistory AssetConditionHistory[] @relation("AssetConditionHistory")
   assetType            AssetType             @relation(fields: [assetTypeId], references: [id])
   brand                Brand                 @relation(fields: [brandId], references: [id])
   createdByUser        User                  @relation("AssetCreatedBy", fields: [createdBy], references: [id])
@@ -274,8 +278,10 @@ model AssetIssue {
   employeeId      Int              @map("employee_id")
   issuedBy        Int              @map("issued_by")
   issueDate       DateTime         @map("issue_date") @db.Date
+  issueTimestamp  DateTime         @default(now()) @map("issue_timestamp") @db.Timestamptz(6)
   issueCondition  AssetCondition?  @map("issue_condition")
   returnDate      DateTime?        @map("return_date") @db.Date
+  returnTimestamp DateTime?        @map("return_timestamp") @db.Timestamptz(6)
   returnCondition ReturnCondition? @map("return_condition")
   issueReason     String?          @map("issue_reason") @db.VarChar(100)
   returnReason    String?          @map("return_reason") @db.VarChar(100)
@@ -294,34 +300,16 @@ model AssetIssue {
   @@index([employeeId])
   @@index([issuedBy])
   @@index([issueDate])
+  @@index([issueTimestamp])
+  @@index([returnDate])
+  @@index([returnTimestamp])
   @@index([issueCondition])
   @@index([returnCondition])
   @@map("asset_issues")
 }
 
-model AssetAuditLog {
-  id            Int           @id @default(autoincrement())
-  assetId       Int           @map("asset_id")
-  fieldName     String        @map("field_name") @db.VarChar(50)
-  oldValue      String?       @map("old_value") @db.VarChar(500)
-  newValue      String?       @map("new_value") @db.VarChar(500)
-  changeType    AuditChangeType @map("change_type")
-  changeReason  String?       @map("change_reason") @db.VarChar(500)
-  changedBy     Int           @map("changed_by")
-  changedAt     DateTime      @default(now()) @map("changed_at") @db.Timestamptz(6)
-  ipAddress     String?       @map("ip_address") @db.VarChar(45)
-  userAgent     String?       @map("user_agent") @db.VarChar(500)
-  notes         String?       @db.Text
-  asset         Asset         @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  changedByUser User          @relation("AssetAuditChangedBy", fields: [changedBy], references: [id])
-
-  @@index([assetId])
-  @@index([changedBy])
-  @@index([changedAt])
-  @@index([fieldName])
-  @@index([changeType])
-  @@map("asset_audit_logs")
-}
+// REMOVED: AssetAuditLog - Redundant with AssetEvent
+// AssetEvent now handles all audit logging with better structure
 
 model MaintenanceSchedule {
   id                   Int                 @id @default(autoincrement())
@@ -375,28 +363,7 @@ enum AssetStatus {
   LOST
 }
 
-enum AuditChangeType {
-  STATUS_CHANGE
-  CONDITION_CHANGE
-  LOCATION_CHANGE
-  FIELD_UPDATE
-  RETIREMENT
-  REACTIVATION
-  ASSET_ID_CHANGE
-  SERIAL_NUMBER_CHANGE
-  PURCHASE_DATE_CHANGE
-  PURCHASE_COST_CHANGE
-  WARRANTY_START_CHANGE
-  WARRANTY_END_CHANGE
-  VENDOR_CHANGE
-  BRAND_CHANGE
-  MODEL_CHANGE
-  ASSET_TYPE_CHANGE
-  NOTES_CHANGE
-  QR_CODE_CHANGE
-  IMAGE_UPLOAD
-  BULK_UPDATE
-}
+// Consolidated into AssetEventType - no longer needed
 
 enum MaintenanceStatus {
   SCHEDULED
@@ -439,3 +406,98 @@ enum MaintenanceTypeEnum {
   EMERGENCY
   UPGRADE
 }
+
+// Actual Asset Events - Only events that can be triggered from specific pages/modals
+enum AssetEventType {
+  // === ASSET LIFECYCLE EVENTS ===
+  ASSET_CREATED           // @AddAssetView.vue or Bulk Upload in @AssetsView.vue
+  ASSET_UPDATED           // @EditAssetView.vue
+  ASSET_RETIRED           // Retirement modal in @AssetsView.vue
+  ASSET_REACTIVATED       // Reactivation modal in @AssetsView.vue
+  
+  // === ASSIGNMENT EVENTS ===
+  ASSET_ISSUED            // @IssueAssetView.vue
+  ASSET_COLLECTED         // @CollectAssetView.vue
+  
+  // === MAINTENANCE EVENTS ===
+  MAINTENANCE_SCHEDULED   // @ScheduleMaintenanceView.vue
+  MAINTENANCE_UPDATED     // @EditMaintenanceView.vue
+  MAINTENANCE_COMPLETED   // Completion modal in @MaintenanceView.vue
+  MAINTENANCE_CANCELLED   // Cancellation modal in @MaintenanceView.vue
+}
+
+// Consolidated Asset Event & Audit Table - Single source of truth
+model AssetEvent {
+  id            Int           @id @default(autoincrement())
+  assetId       Int           @map("asset_id")
+  eventType     AssetEventType @map("event_type")
+  eventDate     DateTime      @map("event_date") @db.Timestamptz(6)
+  performedBy   Int           @map("performed_by")
+  
+  // Audit fields (from old AssetAuditLog)
+  fieldName     String?       @map("field_name") @db.VarChar(50)      // What field changed
+  oldValue      String?       @map("old_value") @db.VarChar(500)      // Previous value
+  newValue      String?       @map("new_value") @db.VarChar(500)      // New value
+  
+  // Event details
+  metadata      Json?         // Store event-specific data (flexible)
+  
+  // Technical tracking
+  ipAddress     String?       @map("ip_address") @db.VarChar(45)
+  userAgent     String?       @map("user_agent") @db.VarChar(500)
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  
+  // Relations
+  asset         Asset         @relation("AssetEvents", fields: [assetId], references: [id], onDelete: Cascade)
+  performedByUser User        @relation("AssetEventPerformedBy", fields: [performedBy], references: [id])
+  
+  @@index([assetId])
+  @@index([eventType])
+  @@index([eventDate])
+  @@index([performedBy])
+  @@index([fieldName])
+  @@map("asset_events")
+}
+
+// Current Asset Status Tracking
+model AssetStatusHistory {
+  id            Int           @id @default(autoincrement())
+  assetId       Int           @map("asset_id")
+  status        AssetStatus   @map("status")
+  effectiveFrom DateTime      @map("effective_from") @db.Timestamptz(6)
+  effectiveTo   DateTime?     @map("effective_to") @db.Timestamptz(6)
+  setBy         Int           @map("set_by")
+  reason        String?       @db.VarChar(500)
+  notes         String?       @db.Text
+  
+  // Relations
+  asset         Asset         @relation("AssetStatusHistory", fields: [assetId], references: [id])
+  setByUser     User          @relation("AssetStatusSetBy", fields: [setBy], references: [id])
+  
+  @@index([assetId])
+  @@index([status])
+  @@index([effectiveFrom])
+  @@map("asset_status_history")
+}
+
+// Current Asset Condition Tracking
+model AssetConditionHistory {
+  id            Int           @id @default(autoincrement())
+  assetId       Int           @map("asset_id")
+  condition     AssetCondition @map("condition")
+  effectiveFrom DateTime      @map("effective_from") @db.Timestamptz(6)
+  effectiveTo   DateTime?     @map("effective_to") @db.Timestamptz(6)
+  setBy         Int           @map("set_by")
+  reason        String?       @db.VarChar(500)
+  notes         String?       @db.Text
+  
+  // Relations
+  asset         Asset         @relation("AssetConditionHistory", fields: [assetId], references: [id])
+  setByUser     User          @relation("AssetConditionSetBy", fields: [setBy], references: [id])
+  
+  @@index([assetId])
+  @@index([condition])
+  @@index([effectiveFrom])
+  @@map("asset_condition_history")
+}
+

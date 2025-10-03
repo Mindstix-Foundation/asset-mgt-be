@@ -1,15 +1,14 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssetIdService } from './asset-id.service';
-import { AssetAuditService } from './asset-audit.service';
 import { CreateAssetDto, UpdateAssetDto, AssetQueryDto, RetireAssetDto, ReactivateAssetDto } from './dto';
+import { AssetEventType } from '@prisma/client';
 
 @Injectable()
 export class AssetsService {
   constructor(
     private prisma: PrismaService,
-    private assetIdService: AssetIdService,
-    private assetAuditService: AssetAuditService
+    private assetIdService: AssetIdService
   ) {}
 
   async create(createAssetDto: CreateAssetDto, userId: number) {
@@ -76,6 +75,28 @@ export class AssetsService {
           createdByUser: { select: { id: true, username: true } },
           _count: { select: { assetIssues: true } }
         },
+      });
+
+      // Log asset creation event
+      await this.prisma.assetEvent.create({
+        data: {
+          assetId: asset.id,
+          eventType: AssetEventType.ASSET_CREATED,
+          eventDate: new Date(),
+          performedBy: userId,
+          metadata: {
+            assetId: asset.assetId,
+            assetType: assetType.name,
+            brand: brand.name,
+            model: model.name,
+            serialNumber: asset.serialNumber,
+            condition: asset.condition,
+            status: asset.status,
+            location: asset.location,
+            purchaseCost: asset.purchaseCost,
+            vendor: vendor?.name || null
+          }
+        }
       });
 
       return {
@@ -464,25 +485,92 @@ export class AssetsService {
       if (updateData[field] !== undefined && updateData[field] !== currentAsset[dbField]) {
         changes.push({
           fieldName: field,
-          oldValue: currentAsset[dbField]?.toString() || null,
-          newValue: updateData[field]?.toString() || null,
+          oldValue: this.formatValueForDisplay(currentAsset[dbField]),
+          newValue: this.formatValueForDisplay(updateData[field]),
           changeType: changeType as any,
           changeReason,
           changedBy: userId,
-          notes
+          notes,
+          // Store relation data for later resolution
+          oldVendor: field === 'vendorId' ? currentAsset.vendor?.name : undefined,
+          oldBrand: field === 'brandId' ? currentAsset.brand?.name : undefined,
+          oldModel: field === 'modelId' ? currentAsset.model?.name : undefined,
+          oldAssetType: field === 'assetTypeId' ? currentAsset.assetType?.name : undefined,
+          newVendorId: field === 'vendorId' ? updateData[field] : undefined,
+          newBrandId: field === 'brandId' ? updateData[field] : undefined,
+          newModelId: field === 'modelId' ? updateData[field] : undefined,
+          newAssetTypeId: field === 'assetTypeId' ? updateData[field] : undefined,
         });
       }
     }
 
     // If we have changes, log them as a grouped event
     if (changes.length > 0) {
-      await this.assetAuditService.logGroupedAssetChanges({
-        assetId,
-        changes,
-        changeReason,
-        changedBy: userId,
-        notes,
-        timestamp: new Date()
+      // Get asset details for metadata
+      const asset = await this.prisma.asset.findUnique({
+        where: { id: assetId },
+        include: {
+          assetType: { select: { name: true } },
+          brand: { select: { name: true } },
+          model: { select: { name: true } },
+          vendor: { select: { name: true } }
+        }
+      });
+
+      // Resolve relation names for new IDs
+      const resolvedChanges = await Promise.all(changes.map(async (change) => {
+        let oldValue = change.oldValue;
+        let newValue = change.newValue;
+        
+        // Use stored old names if available
+        if (change.oldVendor) oldValue = change.oldVendor;
+        if (change.oldBrand) oldValue = change.oldBrand;
+        if (change.oldModel) oldValue = change.oldModel;
+        if (change.oldAssetType) oldValue = change.oldAssetType;
+        
+        // Fetch new names for relation fields
+        if (change.newVendorId) {
+          const vendor = await this.prisma.vendor.findUnique({ where: { id: change.newVendorId }, select: { name: true } });
+          newValue = vendor?.name || newValue;
+        }
+        if (change.newBrandId) {
+          const brand = await this.prisma.brand.findUnique({ where: { id: change.newBrandId }, select: { name: true } });
+          newValue = brand?.name || newValue;
+        }
+        if (change.newModelId) {
+          const model = await this.prisma.model.findUnique({ where: { id: change.newModelId }, select: { name: true } });
+          newValue = model?.name || newValue;
+        }
+        if (change.newAssetTypeId) {
+          const assetType = await this.prisma.assetType.findUnique({ where: { id: change.newAssetTypeId }, select: { name: true } });
+          newValue = assetType?.name || newValue;
+        }
+        
+        return {
+          fieldName: change.fieldName,
+          oldValue,
+          newValue
+        };
+      }));
+
+      // Create a single ASSET_UPDATED event with all changes in metadata
+      await this.prisma.assetEvent.create({
+        data: {
+          assetId: assetId,
+          eventType: AssetEventType.ASSET_UPDATED,
+          eventDate: new Date(),
+          performedBy: userId,
+          metadata: {
+            changes: resolvedChanges,
+            assetId: asset?.assetId,
+            assetType: asset?.assetType?.name,
+            brand: asset?.brand?.name,
+            model: asset?.model?.name,
+            vendor: asset?.vendor?.name,
+            totalChanges: changes.length,
+            updatedVia: 'EditAssetView'
+          }
+        }
       });
     }
   }
@@ -1355,10 +1443,34 @@ export class AssetsService {
           }
 
           // Create asset
-          await this.prisma.asset.create({
+          const asset = await this.prisma.asset.create({
             data: {
               ...createData,
               purchaseDate: createData.purchaseDate ? new Date(createData.purchaseDate) : null,
+            }
+          });
+
+          // Log asset creation event for bulk upload
+          await this.prisma.assetEvent.create({
+            data: {
+              assetId: asset.id,
+              eventType: AssetEventType.ASSET_CREATED,
+              eventDate: new Date(),
+              performedBy: userId,
+              metadata: {
+                assetId: asset.assetId,
+                assetType: assetType.name,
+                brand: brand.name,
+                model: model.name,
+                serialNumber: asset.serialNumber,
+                condition: asset.condition,
+                status: asset.status,
+                location: asset.location,
+                purchaseCost: asset.purchaseCost,
+                vendor: vendor?.name || null,
+                bulkUpload: true,
+                rowNumber: rowNumber
+              }
             }
           });
 
@@ -1443,12 +1555,27 @@ export class AssetsService {
         }
       });
 
-      // Log the retirement in audit trail
-      await this.assetAuditService.logRetirement(
-        assetId,
-        retireAssetDto.retirementReason,
-        userId
-      );
+      // Log asset retirement event
+      await this.prisma.assetEvent.create({
+        data: {
+          assetId: assetId,
+          eventType: AssetEventType.ASSET_RETIRED,
+          eventDate: new Date(),
+          performedBy: userId,
+          metadata: {
+            assetId: asset.assetId,
+            assetType: asset.assetType.name,
+            brand: asset.brand.name,
+            model: asset.model.name,
+            retirementDate: retireAssetDto.retirementDate,
+            retirementReason: retireAssetDto.retirementReason,
+            retirementNotes: retireAssetDto.retirementNotes || null,
+            previousStatus: asset.status,
+            newStatus: 'RETIRED',
+            retiredVia: 'AssetsView'
+          }
+        }
+      });
 
       return {
         message: 'Asset retired successfully',
@@ -1514,12 +1641,30 @@ export class AssetsService {
         }
       });
 
-      // Log the reactivation in audit trail
-      await this.assetAuditService.logReactivation(
-        assetId,
-        reactivateAssetDto.reactivationReason,
-        userId
-      );
+      // Log asset reactivation event
+      await this.prisma.assetEvent.create({
+        data: {
+          assetId: assetId,
+          eventType: AssetEventType.ASSET_REACTIVATED,
+          eventDate: new Date(),
+          performedBy: userId,
+          metadata: {
+            assetId: asset.assetId,
+            assetType: asset.assetType.name,
+            brand: asset.brand.name,
+            model: asset.model.name,
+            reactivationDate: reactivateAssetDto.reactivationDate,
+            reactivationReason: reactivateAssetDto.reactivationReason,
+            previousStatus: asset.status,
+            newStatus: reactivateAssetDto.status,
+            previousCondition: asset.condition,
+            newCondition: reactivateAssetDto.condition,
+            previousLocation: asset.location,
+            newLocation: reactivateAssetDto.location,
+            reactivatedVia: 'AssetsView'
+          }
+        }
+      });
 
       return {
         message: 'Asset reactivated successfully',
@@ -1748,5 +1893,20 @@ export class AssetsService {
     } catch (error) {
       throw new BadRequestException(`Export failed: ${error.message}`);
     }
+  }
+
+  /**
+   * Format value for display in changes array
+   */
+  private formatValueForDisplay(value: any): string | null {
+    if (value === null || value === undefined) return null;
+    
+    // Handle Date objects only (not strings that look like dates)
+    if (value instanceof Date) {
+      return value.toISOString().split('T')[0]; // yyyy-mm-dd format
+    }
+    
+    // Return as-is for all other values (strings, numbers, etc.)
+    return value.toString();
   }
 } 
