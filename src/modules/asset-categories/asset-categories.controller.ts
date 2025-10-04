@@ -3,7 +3,6 @@ import {
   Get,
   Post,
   Body,
-  Put,
   Param,
   Delete,
   Query,
@@ -22,7 +21,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { AssetCategoriesService } from './asset-categories.service';
-import { CreateAssetCategoryDto, UpdateAssetCategoryDto, AssetCategoryQueryDto } from './dto';
+import { CreateAssetCategoryDto, AssetCategoryQueryDto } from './dto';
 
 @ApiTags('asset-categories')
 @ApiBearerAuth('JWT-auth')
@@ -159,39 +158,6 @@ export class AssetCategoriesController {
     return this.assetCategoriesService.findOne(id);
   }
 
-  @Put(':id')
-  @ApiOperation({ summary: 'Update asset category by ID' })
-  @ApiParam({ name: 'id', description: 'Asset Category ID' })
-  @ApiResponse({
-    status: 200,
-    description: 'Asset category updated successfully',
-    schema: {
-      example: {
-        message: 'Asset category updated successfully',
-        data: {
-          assetCategory: {
-            id: 1,
-            name: 'Updated Electronics',
-            description: 'Updated description',
-            updatedAt: '2024-01-15T11:30:00Z'
-          }
-        }
-      }
-    }
-  })
-  @ApiResponse({ status: 404, description: 'Asset category not found' })
-  @ApiResponse({ status: 409, description: 'Conflict - Category name already exists' })
-  async update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() updateAssetCategoryDto: UpdateAssetCategoryDto,
-    @Request() req: any,
-  ) {
-    if (!req.user?.id) {
-      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
-    }
-    const userId = req.user.id;
-    return this.assetCategoriesService.update(id, updateAssetCategoryDto, userId);
-  }
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
@@ -212,39 +178,4 @@ export class AssetCategoriesController {
     return this.assetCategoriesService.remove(id);
   }
 
-  @Post(':sourceId/merge/:targetId')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Merge two asset categories by transferring all references from source to target' })
-  @ApiParam({ name: 'sourceId', description: 'Source category ID (will be deleted after merge)' })
-  @ApiParam({ name: 'targetId', description: 'Target category ID (will receive all references)' })
-  @ApiResponse({
-    status: 200,
-    description: 'Categories merged successfully',
-    schema: {
-      example: {
-        message: 'Categories merged successfully',
-        data: {
-          mergeOperation: {
-            sourceCategory: 'Electroncs',
-            targetCategory: 'Electronics',
-            transferredAssetTypes: 3,
-            transferredAssets: 15
-          }
-        }
-      }
-    }
-  })
-  @ApiResponse({ status: 404, description: 'Source or target category not found' })
-  @ApiResponse({ status: 400, description: 'Cannot merge category with itself' })
-  async mergeCategories(
-    @Param('sourceId', ParseIntPipe) sourceId: number,
-    @Param('targetId', ParseIntPipe) targetId: number,
-    @Request() req: any,
-  ) {
-    if (!req.user?.id) {
-      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
-    }
-    const userId = req.user.id;
-    return this.assetCategoriesService.mergeCategories(sourceId, targetId, userId);
-  }
 } 
