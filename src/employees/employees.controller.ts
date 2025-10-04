@@ -13,6 +13,8 @@ import {
   HttpCode,
   UploadedFile,
   UseInterceptors,
+  Res,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -173,6 +175,58 @@ export class EmployeesController {
     return this.employeesService.findAllForDropdowns(status);
   }
 
+  @Get('test-route')
+  async testRoute() {
+    return { message: 'Test route working' };
+  }
+
+  @Get('non-admin-dropdown')
+  @ApiOperation({ summary: 'Get active employees excluding admins for dropdown selection' })
+  @ApiResponse({ status: 200, description: 'Active non-admin employees retrieved successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  async getNonAdminEmployeesForDropdown() {
+    return this.employeesService.getNonAdminEmployeesForDropdown();
+  }
+
+  @Get('export')
+  @ApiOperation({ summary: 'Export employees to Excel with asset details' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Excel file generated successfully',
+    content: {
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+        schema: {
+          type: 'string',
+          format: 'binary'
+        }
+      }
+    }
+  })
+  async exportEmployeesToExcel(
+    @Query() queryDto: QueryEmployeeDto,
+    @Res() res: any,
+  ) {
+    try {
+      const excelBuffer = await this.employeesService.exportEmployeesToExcel(queryDto);
+      
+      // Set response headers
+      const filename = `employees_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', excelBuffer.length);
+      
+      // Send the Excel file
+      res.send(excelBuffer);
+    } catch (error) {
+      console.error('Error exporting employees:', error);
+      res.status(500).json({ 
+        message: 'Failed to export employees', 
+        error: error.message 
+      });
+    }
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get employee by ID' })
   @ApiParam({ name: 'id', description: 'Employee ID' })
@@ -318,6 +372,44 @@ export class EmployeesController {
     return this.employeesService.update(id, updateEmployeeDto, req.user.id);
   }
 
+  @Post('bulk-upload/validate')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Validate bulk upload file for employees' })
+  @ApiBody({
+    description: 'File upload for validation only',
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary', description: 'CSV or Excel file containing employee data' }
+      }
+    }
+  })
+  @ApiResponse({ status: 200, description: 'File validation completed' })
+  @ApiResponse({ status: 400, description: 'Invalid file format or validation errors' })
+  async validateBulkUpload(
+    @UploadedFile() file: Express.Multer.File,
+    @Request() req: any,
+  ) {
+    console.log('EmployeesController.validateBulkUpload: Received validation request')
+    console.log('EmployeesController.validateBulkUpload: File details:', {
+      fieldname: file?.fieldname,
+      originalname: file?.originalname,
+      mimetype: file?.mimetype,
+      size: file?.size,
+      buffer: file?.buffer ? `Buffer(${file.buffer.length} bytes)` : 'undefined'
+    })
+    console.log('EmployeesController.validateBulkUpload: User ID:', req.user?.id || 1)
+    
+    if (!file) {
+      console.error('EmployeesController.validateBulkUpload: No file received')
+      throw new BadRequestException('File is required')
+    }
+    
+    const userId = req.user?.id || 1
+    return this.employeesService.bulkUpload(file, userId, true)
+  }
+
   @Post('bulk-upload')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(FileInterceptor('file'))
@@ -328,7 +420,7 @@ export class EmployeesController {
       type: 'object',
       properties: {
         file: { type: 'string', format: 'binary', description: 'CSV or Excel file containing employee data' },
-        validate_only: { type: 'string', enum: ['true', 'false'], description: 'Validate only without inserting', example: 'false' }
+        validateOnly: { type: 'string', enum: ['true', 'false'], description: 'Validate only without inserting', example: 'false' }
       }
     }
   })
@@ -336,7 +428,7 @@ export class EmployeesController {
   @ApiResponse({ status: 400, description: 'Invalid file format or validation errors' })
   async bulkUpload(
     @UploadedFile() file: Express.Multer.File,
-    @Body('validate_only') validateOnly: string,
+    @Body('validateOnly') validateOnly: string,
     @Request() req: any,
   ) {
     const userId = req.user?.id || 1
@@ -388,4 +480,5 @@ export class EmployeesController {
   ): Promise<EmployeeDetailResponseDto> {
     return this.employeesService.remove(id, req.user.id, reassignAssetsTo);
   }
+
 } 

@@ -3,6 +3,7 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
 import { TimezoneInterceptor } from './shared/timezone.interceptor';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { GlobalAuthGuard } from './auth/guards/global-auth.guard';
@@ -20,6 +21,7 @@ import { MaintenanceModule } from './maintenance/maintenance.module';
 
 import { AssetsModule } from './modules/assets/assets.module';
 import { AssetHistoryModule } from './modules/asset-history/asset-history.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -27,6 +29,12 @@ import { AssetHistoryModule } from './modules/asset-history/asset-history.module
       isGlobal: true,
       envFilePath: '.env',
     }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000, // 1 minute
+        limit: 100, // 100 requests per minute
+      },
+    ]),
     PrismaModule,
     AuthModule,
     EmployeesModule,
@@ -40,10 +48,15 @@ import { AssetHistoryModule } from './modules/asset-history/asset-history.module
     MaintenanceModule,
     AssetsModule,
     AssetHistoryModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: GlobalAuthGuard,

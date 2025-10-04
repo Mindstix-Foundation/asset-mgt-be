@@ -3,7 +3,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateMaintenanceDto } from './dto/create-maintenance.dto';
 import { UpdateMaintenanceDto } from './dto/update-maintenance.dto';
 import { MaintenanceQueryDto } from './dto/maintenance-query.dto';
+import { MaintenanceExportQueryDto } from './dto/maintenance-export-query.dto';
 import { MaintenanceStatus, MaintenanceTypeEnum, Prisma, AssetEventType } from '@prisma/client';
+import * as XLSX from 'xlsx';
 
 @Injectable()
 export class MaintenanceService {
@@ -102,31 +104,6 @@ export class MaintenanceService {
         return created;
       });
 
-      // Log maintenance scheduled event
-      await this.prisma.assetEvent.create({
-        data: {
-          assetId: assetId,
-          eventType: AssetEventType.MAINTENANCE_SCHEDULED,
-          eventDate: new Date(),
-          performedBy: userId,
-          metadata: {
-            maintenanceId: maintenance.id,
-            maintenanceType: createMaintenanceDto.maintenanceType,
-            scheduledDate: createMaintenanceDto.scheduledDate, // Already in yyyy-mm-dd format from DTO
-            estimatedCost: createMaintenanceDto.estimatedCost,
-            description: createMaintenanceDto.description,
-            frequencyDays: createMaintenanceDto.frequencyDays,
-            assetId: maintenance.asset.assetId,
-            assetType: maintenance.asset.assetType.name,
-            brand: maintenance.asset.brand.name,
-            model: maintenance.asset.model.name,
-            previousStatus: 'AVAILABLE',
-            newStatus: 'IN_MAINTENANCE',
-            scheduledVia: 'ScheduleMaintenanceView'
-          }
-        }
-      });
-
       return {
         message: 'Maintenance scheduled successfully',
         data: { maintenance: this.formatMaintenanceResponse(maintenance) },
@@ -153,6 +130,7 @@ export class MaintenanceService {
       maintenanceType,
       scheduledDateFrom,
       scheduledDateTo,
+      assetType,
       sortBy = 'scheduledDate',
       sortOrder = 'desc',
     } = query;
@@ -213,6 +191,11 @@ export class MaintenanceService {
       params.push(new Date(scheduledDateTo));
     }
 
+    if (assetType) {
+      conditions.push(`at.name ILIKE $${params.length + 1}`);
+      params.push(`%${assetType}%`);
+    }
+
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     // Build order by clause
@@ -263,6 +246,7 @@ export class MaintenanceService {
       SELECT COUNT(*) as total
       FROM latest_maintenance m
       LEFT JOIN assets a ON m.asset_id = a.id
+      LEFT JOIN asset_types at ON a.asset_type_id = at.id
       ${whereClause}
     `;
 
@@ -429,59 +413,6 @@ export class MaintenanceService {
       return updated;
     });
 
-    // Log maintenance updated event
-    await this.prisma.assetEvent.create({
-      data: {
-        assetId: maintenance.assetId,
-        eventType: AssetEventType.MAINTENANCE_UPDATED,
-        eventDate: new Date(),
-        performedBy: userId,
-          metadata: {
-            maintenanceId: maintenance.id,
-            maintenanceType: maintenance.maintenanceType,
-            scheduledDate: maintenance.scheduledDate.toISOString().split('T')[0], // Format as yyyy-mm-dd
-            estimatedCost: maintenance.estimatedCost,
-            description: maintenance.description,
-            frequencyDays: maintenance.frequencyDays,
-            assetId: maintenance.asset.assetId,
-            assetType: maintenance.asset.assetType.name,
-            brand: maintenance.asset.brand.name,
-            model: maintenance.asset.model.name,
-            status: maintenance.status,
-            changes: Object.keys(updateMaintenanceDto)
-              .filter(key => {
-                // Only include meaningful fields that can be updated
-                const meaningfulFields = [
-                  'maintenanceType',
-                  'scheduledDate', 
-                  'estimatedCost',
-                  'description',
-                  'frequencyDays'
-                ];
-                return meaningfulFields.includes(key);
-              })
-              .filter(key => {
-                // Only include fields that actually changed
-                let oldValue = this.formatValueForComparison(existingMaintenance[key]);
-                let newValue = this.formatValueForComparison(updateMaintenanceDto[key]);
-                
-                return oldValue !== newValue;
-              })
-              .map(key => {
-                // Format values properly for display
-                const oldValue = this.formatValueForDisplay(existingMaintenance[key]);
-                const newValue = this.formatValueForDisplay(updateMaintenanceDto[key]);
-                
-                return {
-                  fieldName: key,
-                  oldValue: oldValue,
-                  newValue: newValue
-                };
-              })
-          }
-      }
-    });
-
     return {
       message: 'Maintenance updated successfully',
       data: { maintenance: this.formatMaintenanceResponse(maintenance) },
@@ -563,32 +494,6 @@ export class MaintenanceService {
       return updated;
     });
 
-    // Log maintenance completed event
-    await this.prisma.assetEvent.create({
-      data: {
-        assetId: result.assetId,
-        eventType: AssetEventType.MAINTENANCE_COMPLETED,
-        eventDate: new Date(),
-        performedBy: userId || maintenance.updatedBy,
-          metadata: {
-            maintenanceId: result.id,
-            maintenanceType: result.maintenanceType,
-            scheduledDate: result.scheduledDate.toISOString().split('T')[0], // Format as yyyy-mm-dd
-            actualCompletionDate: result.actualCompletionDate?.toISOString().split('T')[0] || null, // Format as yyyy-mm-dd
-            estimatedCost: result.estimatedCost,
-            actualCost: result.actualCost,
-            description: result.description,
-            completionNotes: result.completionNotes,
-            assetId: result.asset.assetId,
-            assetType: result.asset.assetType.name,
-            brand: result.asset.brand.name,
-            model: result.asset.model.name,
-            previousStatus: 'IN_MAINTENANCE',
-            newStatus: 'AVAILABLE'
-          }
-      }
-    });
-
     return {
       message: 'Maintenance completed successfully',
       data: { maintenance: this.formatMaintenanceResponse(result) },
@@ -643,31 +548,6 @@ export class MaintenanceService {
       }
 
       return updated;
-    });
-
-    // Log maintenance cancelled event
-    await this.prisma.assetEvent.create({
-      data: {
-        assetId: result.assetId,
-        eventType: AssetEventType.MAINTENANCE_CANCELLED,
-        eventDate: new Date(),
-        performedBy: userId || maintenance.updatedBy,
-          metadata: {
-            maintenanceId: result.id,
-            maintenanceType: result.maintenanceType,
-            scheduledDate: result.scheduledDate.toISOString().split('T')[0], // Format as yyyy-mm-dd
-            cancellationDate: result.cancellationDate?.toISOString().split('T')[0] || null, // Format as yyyy-mm-dd
-            estimatedCost: result.estimatedCost,
-            description: result.description,
-            cancellationNotes: result.cancellationNotes,
-            assetId: result.asset.assetId,
-            assetType: result.asset.assetType.name,
-            brand: result.asset.brand.name,
-            model: result.asset.model.name,
-            previousStatus: 'IN_MAINTENANCE',
-            newStatus: 'AVAILABLE'
-          }
-      }
     });
 
     return {
@@ -961,33 +841,218 @@ export class MaintenanceService {
     };
   }
 
-  /**
-   * Format value for comparison (used in filter)
-   */
-  private formatValueForComparison(value: any): string | null {
-    if (value === null || value === undefined) return null;
-    
-    // Handle Date objects only (not strings that look like dates)
-    if (value instanceof Date) {
-      return value.toISOString().split('T')[0]; // yyyy-mm-dd format
-    }
-    
-    // Return as-is for all other values (strings, numbers, etc.)
-    return value.toString();
-  }
+  // Export maintenance records to Excel
+  async exportMaintenanceToExcel(queryDto: MaintenanceExportQueryDto) {
+    try {
+      const {
+        search,
+        status,
+        assetId,
+        maintenanceType,
+        scheduledDateFrom,
+        scheduledDateTo,
+        fromDate,
+        toDate,
+        sortBy = 'id',
+        sortOrder = 'desc',
+      } = queryDto;
 
-  /**
-   * Format value for display (used in map)
-   */
-  private formatValueForDisplay(value: any): string | null {
-    if (value === null || value === undefined) return null;
-    
-    // Handle Date objects only (not strings that look like dates)
-    if (value instanceof Date) {
-      return value.toISOString().split('T')[0]; // yyyy-mm-dd format
+      // Build where clause
+      const where: Prisma.MaintenanceScheduleWhereInput = {
+        isActive: true
+      };
+
+      if (search) {
+        where.OR = [
+          { description: { contains: search, mode: 'insensitive' } },
+          { completionNotes: { contains: search, mode: 'insensitive' } },
+          { cancellationNotes: { contains: search, mode: 'insensitive' } },
+          { asset: { assetId: { contains: search, mode: 'insensitive' } } }
+        ];
+      }
+
+      if (status) {
+        where.status = status;
+      }
+
+      if (assetId) {
+        where.assetId = assetId;
+      }
+
+      if (maintenanceType) {
+        where.maintenanceType = maintenanceType;
+      }
+
+      const dateFrom = scheduledDateFrom || fromDate;
+      const dateTo = scheduledDateTo || toDate;
+      if (dateFrom || dateTo) {
+        const start = dateFrom ? new Date(dateFrom) : undefined;
+        const end = dateTo ? new Date(dateTo) : undefined;
+        if (end) end.setHours(23, 59, 59, 999);
+
+        const buildRange = (field: 'scheduledDate' | 'actualStartDate' | 'actualCompletionDate' | 'cancellationDate') => ({
+          [field]: {
+            ...(start ? { gte: start } : {}),
+            ...(end ? { lte: end } : {}),
+          },
+        });
+
+        // Include records whose scheduled OR lifecycle dates fall in range (covers CANCELLED as well)
+        (where as any).AND = [
+          {
+            OR: [
+              buildRange('scheduledDate'),
+              buildRange('actualStartDate'),
+              buildRange('actualCompletionDate'),
+              buildRange('cancellationDate'),
+            ],
+          },
+        ];
+      }
+
+      // Build orderBy clause
+      const orderBy: any = {};
+      switch (sortBy) {
+        case 'scheduledDate':
+          orderBy.scheduledDate = sortOrder;
+          break;
+        case 'createdAt':
+          orderBy.createdAt = sortOrder;
+          break;
+        case 'status':
+          orderBy.status = sortOrder;
+          break;
+        case 'maintenanceType':
+          orderBy.maintenanceType = sortOrder;
+          break;
+        case 'estimatedCost':
+          orderBy.estimatedCost = sortOrder;
+          break;
+        case 'id':
+          orderBy.id = sortOrder;
+          break;
+        default:
+          orderBy.id = 'desc'; // Default to maintenance ID descending (bigger to smaller)
+      }
+
+      // Get all maintenance records with related data
+      const maintenanceRecords = await this.prisma.maintenanceSchedule.findMany({
+        where,
+        include: {
+          asset: {
+            include: {
+              assetType: { select: { name: true } },
+              brand: { select: { name: true } },
+              model: { select: { name: true } },
+            }
+          },
+          createdByUser: { select: { id: true, username: true } },
+          updatedByUser: { select: { id: true, username: true } },
+        },
+        orderBy
+      });
+
+      // Filter to only include COMPLETED records (has completion date, no cancellation date, and status is COMPLETED)
+      const completedRecords = maintenanceRecords.filter(record => {
+        const isCompleted = record.status === 'COMPLETED';
+        const hasCompletionDate = !!record.actualCompletionDate;
+        const hasNoCancellationDate = !record.cancellationDate;
+        
+        return isCompleted && hasCompletionDate && hasNoCancellationDate;
+      });
+
+      // Prepare data for Excel export
+      const exportData = completedRecords.map(record => [
+        record.id.toString(),
+        record.asset.assetId,
+        record.asset.assetType.name,
+        record.asset.brand.name,
+        record.asset.model.name,
+        record.asset.serialNumber,
+        record.maintenanceType,
+        record.description,
+        record.scheduledDate.toISOString().replace('T', ' ').split('.')[0],
+        record.actualStartDate ? record.actualStartDate.toISOString().replace('T', ' ').split('.')[0] : '',
+        record.actualCompletionDate ? record.actualCompletionDate.toISOString().replace('T', ' ').split('.')[0] : '',
+        record.cancellationDate ? record.cancellationDate.toISOString().replace('T', ' ').split('.')[0] : '',
+        record.status,
+        record.frequencyDays || '',
+        record.estimatedCost ? Number(record.estimatedCost).toFixed(2) : '',
+        record.actualCost ? Number(record.actualCost).toFixed(2) : '',
+        record.completionNotes || '',
+        record.cancellationNotes || '',
+        record.createdByUser?.username || 'System',
+        record.updatedByUser?.username || 'System',
+        record.createdAt.toISOString().replace('T', ' ').split('.')[0],
+        record.updatedAt.toISOString().replace('T', ' ').split('.')[0]
+      ]);
+
+      const headers = [
+        'Maintenance ID',
+        'Asset ID',
+        'Asset Type',
+        'Asset Brand',
+        'Asset Model',
+        'Serial Number',
+        'Maintenance Type',
+        'Description',
+        'Scheduled Date',
+        'Actual Start Date',
+        'Actual Completion Date',
+        'Cancellation Date',
+        'Status',
+        'Frequency (Days)',
+        'Estimated Cost',
+        'Actual Cost',
+        'Completion Notes',
+        'Cancellation Notes',
+        'Created By',
+        'Updated By',
+        'Created At',
+        'Updated At'
+      ];
+
+      // Create workbook and worksheet
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...exportData]);
+
+      // Set column widths
+      const columnWidths = [
+        { wch: 15 }, // Maintenance ID
+        { wch: 12 }, // Asset ID
+        { wch: 15 }, // Asset Type
+        { wch: 15 }, // Asset Brand
+        { wch: 15 }, // Asset Model
+        { wch: 20 }, // Serial Number
+        { wch: 15 }, // Maintenance Type
+        { wch: 40 }, // Description
+        { wch: 12 }, // Scheduled Date
+        { wch: 12 }, // Actual Start Date
+        { wch: 12 }, // Actual Completion Date
+        { wch: 12 }, // Cancellation Date
+        { wch: 12 }, // Status
+        { wch: 12 }, // Frequency
+        { wch: 12 }, // Estimated Cost
+        { wch: 12 }, // Actual Cost
+        { wch: 40 }, // Completion Notes
+        { wch: 40 }, // Cancellation Notes
+        { wch: 15 }, // Created By
+        { wch: 15 }, // Updated By
+        { wch: 12 }, // Created At
+        { wch: 12 }, // Updated At
+      ];
+      worksheet['!cols'] = columnWidths;
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Completed Maintenance Report');
+
+      // Generate Excel file
+      const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      
+      return excelBuffer;
+    } catch (error) {
+      console.error('Error exporting maintenance to Excel:', error);
+      throw new Error('Failed to export maintenance to Excel');
     }
-    
-    // Return as-is for all other values (strings, numbers, etc.)
-    return value.toString();
   }
 } 

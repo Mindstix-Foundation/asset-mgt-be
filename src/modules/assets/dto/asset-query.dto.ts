@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsInt, Min, Max, IsIn, IsEnum } from 'class-validator';
+import { IsOptional, IsString, IsInt, Min, Max, IsIn, IsEnum, IsDateString } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -46,6 +46,14 @@ export class AssetQueryDto {
   assetTypeId?: number;
 
   @ApiPropertyOptional({
+    description: 'Filter by asset type name (for custom reports)',
+    example: 'Laptop',
+  })
+  @IsOptional()
+  @IsString()
+  assetType?: string;
+
+  @ApiPropertyOptional({
     description: 'Filter by brand ID',
     example: 1,
   })
@@ -85,6 +93,14 @@ export class AssetQueryDto {
   status?: 'AVAILABLE' | 'ASSIGNED' | 'IN_MAINTENANCE' | 'RETIRED' | 'LOST';
 
   @ApiPropertyOptional({
+    description: 'Filter by asset status (for custom reports)',
+    example: 'AVAILABLE',
+  })
+  @IsOptional()
+  @IsString()
+  assetStatus?: string;
+
+  @ApiPropertyOptional({
     description: 'Filter by asset condition',
     example: 'GOOD',
     enum: ['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED', 'REFURBISHED'],
@@ -100,6 +116,22 @@ export class AssetQueryDto {
   @IsOptional()
   @IsString()
   location?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter assets created on/after this date (YYYY-MM-DD)',
+    example: '2024-01-01',
+  })
+  @IsOptional()
+  @IsDateString()
+  fromDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter assets created on/before this date (YYYY-MM-DD)',
+    example: '2024-12-31',
+  })
+  @IsOptional()
+  @IsDateString()
+  toDate?: string;
 
   @ApiPropertyOptional({
     description: 'Field to sort by',

@@ -53,6 +53,22 @@ export class AuthResponseDto {
   access_token: string;
 
   @ApiProperty({
+    description: 'Refresh token for obtaining new access tokens',
+    example: 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6',
+    type: 'string',
+    required: false
+  })
+  refresh_token?: string;
+
+  @ApiProperty({
+    description: 'Token expiration time in seconds',
+    example: 900,
+    type: 'number',
+    required: false
+  })
+  expires_in?: number;
+
+  @ApiProperty({
     description: 'Authenticated user information',
     type: UserDto
   })

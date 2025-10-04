@@ -11,13 +11,16 @@ import {
   UseGuards,
   Req,
   Put,
+  Res,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { MaintenanceService } from './maintenance.service';
 import { CreateMaintenanceDto } from './dto/create-maintenance.dto';
 import { UpdateMaintenanceDto } from './dto/update-maintenance.dto';
 import { MaintenanceQueryDto } from './dto/maintenance-query.dto';
+import { MaintenanceExportQueryDto } from './dto/maintenance-export-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Public } from '../auth/decorators/public.decorator';
 
 @ApiTags('maintenance')
 @ApiBearerAuth()
@@ -54,6 +57,44 @@ export class MaintenanceController {
   ) {
     const excludeId = excludeMaintenanceId ? parseInt(excludeMaintenanceId) : undefined;
     return this.maintenanceService.checkAssetAvailability(assetId, scheduledDate, excludeId);
+  }
+
+  @Get('export')
+  @ApiOperation({ summary: 'Export completed maintenance records to Excel' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Excel file with completed maintenance records generated successfully',
+    content: {
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+        schema: {
+          type: 'string',
+          format: 'binary'
+        }
+      }
+    }
+  })
+  async exportMaintenanceToExcel(
+    @Query() queryDto: MaintenanceExportQueryDto,
+    @Res() res: any,
+  ) {
+    try {
+      const excelBuffer = await this.maintenanceService.exportMaintenanceToExcel(queryDto);
+      
+      // Set response headers
+      const filename = `completed_maintenance_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', excelBuffer.length);
+      
+      // Send the Excel file
+      res.send(excelBuffer);
+    } catch (error) {
+      console.error('Error exporting maintenance:', error);
+      res.status(500).json({ 
+        message: 'Failed to export maintenance', 
+        error: error.message 
+      });
+    }
   }
 
   @Get('asset/:assetId/history')

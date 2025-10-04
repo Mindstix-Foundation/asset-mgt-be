@@ -22,7 +22,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      // Extract JWT from both Authorization header AND cookies
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        (request: any) => {
+          return request?.cookies?.access_token || null;
+        },
+      ]),
       ignoreExpiration: false,
       secretOrKey: jwtSecret,
     });
@@ -34,13 +40,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       include: {
         employee: true,
         userRoles: {
-          include: {
-            role: true,
-          },
           where: {
-            isActive: true,
+            isActive: true
           },
-        },
+          include: {
+            role: true
+          }
+        }
       },
     });
 
@@ -48,12 +54,22 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException();
     }
 
+    // Check if user has ADMIN role
+    const hasAdminRole = user.userRoles.some(
+      userRole => userRole.role.roleName === 'ADMIN' && userRole.isActive
+    );
+
+    if (!hasAdminRole) {
+      throw new UnauthorizedException('Access denied. Admin role required.');
+    }
+
     return {
       id: user.id,
       username: user.username,
       employeeId: user.employeeId,
       employee: user.employee,
-      roles: user.userRoles.map((userRole) => userRole.role.roleName),
+      // Derive roles from UserRole mapping (source of truth)
+      roles: (user.userRoles || []).map((ur) => ur.role.roleName),
     };
   }
 } 

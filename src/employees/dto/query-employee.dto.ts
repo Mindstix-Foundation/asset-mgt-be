@@ -93,6 +93,16 @@ export class QueryEmployeeDto {
   @IsString()
   @Transform(({ value }) => value?.toLowerCase())
   sortOrder?: 'asc' | 'desc' = 'asc';
+
+  @ApiProperty({ description: 'Filter employees created on/after this date (YYYY-MM-DD)', required: false })
+  @IsOptional()
+  @IsString()
+  fromDate?: string
+
+  @ApiProperty({ description: 'Filter employees created on/before this date (YYYY-MM-DD)', required: false })
+  @IsOptional()
+  @IsString()
+  toDate?: string
 }
 
 export class SearchEmployeeDto {

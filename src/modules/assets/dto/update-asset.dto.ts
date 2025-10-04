@@ -39,4 +39,23 @@ export class UpdateAssetDto extends PartialType(CreateAssetDto) {
   @IsOptional()
   @IsString()
   reactivationReason?: string;
+
+  // Override defaults from CreateAssetDto to avoid applying create-time defaults during updates
+  @ApiPropertyOptional({
+    description: 'Condition of the asset',
+    example: 'GOOD',
+    enum: ['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED'],
+  })
+  @IsOptional()
+  @IsEnum(['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED'])
+  condition?: 'NEW' | 'GOOD' | 'FAIR' | 'POOR' | 'DAMAGED';
+
+  @ApiPropertyOptional({
+    description: 'Status of the asset',
+    example: 'IN_MAINTENANCE',
+    enum: ['AVAILABLE', 'ASSIGNED', 'IN_MAINTENANCE', 'RETIRED', 'LOST'],
+  })
+  @IsOptional()
+  @IsEnum(['AVAILABLE', 'ASSIGNED', 'IN_MAINTENANCE', 'RETIRED', 'LOST'])
+  status?: 'AVAILABLE' | 'ASSIGNED' | 'IN_MAINTENANCE' | 'RETIRED' | 'LOST';
 } 

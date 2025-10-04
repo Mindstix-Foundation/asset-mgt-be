@@ -12,8 +12,13 @@ model User {
   employeeId                  Int                   @unique @map("employee_id")
   username                    String                @unique @db.VarChar(50)
   passwordHash                String                @map("password_hash") @db.VarChar(255)
+  roles                       String[]              @default([])
   isActive                    Boolean               @default(true) @map("is_active")
   lastLogin                   DateTime?             @map("last_login") @db.Timestamptz(6)
+  refreshToken                String?               @map("refresh_token") @db.VarChar(500)
+  refreshTokenExpires         DateTime?             @map("refresh_token_expires") @db.Timestamptz(6)
+  failedLoginAttempts         Int                   @default(0) @map("failed_login_attempts")
+  lockedUntil                 DateTime?             @map("locked_until") @db.Timestamptz(6)
   createdBy                   Int                   @map("created_by")
   createdAt                   DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedBy                   Int                   @map("updated_by")
@@ -50,9 +55,50 @@ model User {
   assetStatusHistory          AssetStatusHistory[]  @relation("AssetStatusSetBy")
   assetConditionHistory       AssetConditionHistory[] @relation("AssetConditionSetBy")
   vendor                      Vendor?
+  passwordResets              PasswordReset[]       @relation("PasswordResetUser")
+  refreshSessions             RefreshSession[]      @relation("UserRefreshSessions")
 
   @@index([isActive, lastLogin])
   @@map("users")
+}
+
+model PasswordReset {
+  id         Int      @id @default(autoincrement())
+  token      String   @unique @db.VarChar(500)
+  userId     Int      @map("user_id")
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
+  used       Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user       User     @relation("PasswordResetUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token, used, expiresAt])
+  @@map("password_resets")
+}
+
+model BlacklistedToken {
+  id         Int      @id @default(autoincrement())
+  token      String   @unique @db.VarChar(500)
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([token, expiresAt])
+  @@map("blacklisted_tokens")
+}
+
+model RefreshSession {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  token     String   @unique @db.VarChar(500)
+  deviceId  String?  @map("device_id") @db.VarChar(255)
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  userAgent String?  @map("user_agent") @db.VarChar(500)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user      User     @relation("UserRefreshSessions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([token, expiresAt])
+  @@map("refresh_sessions")
 }
 
 model Role {

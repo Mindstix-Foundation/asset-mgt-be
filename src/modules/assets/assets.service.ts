@@ -151,7 +151,7 @@ export class AssetsService {
   }
 
   async findAll(queryDto: AssetQueryDto) {
-    const { page = 1, limit = 10, search, assetTypeId, brandId, modelId, vendorId, status, condition, location, sortBy = 'assetId', sortOrder = 'asc' } = queryDto;
+    const { page = 1, limit = 10, search, assetTypeId, brandId, modelId, vendorId, status, condition, location, fromDate, toDate, assetType, assetStatus, sortBy = 'assetId', sortOrder = 'asc' } = queryDto;
     const skip = (page - 1) * limit;
 
     const where: any = {};
@@ -171,6 +171,25 @@ export class AssetsService {
     if (status) where.status = status;
     if (condition) where.condition = condition;
     if (location) where.location = { contains: location, mode: 'insensitive' as const };
+
+    // Handle string-based filters for custom reports
+    if (assetType) {
+      where.assetType = { name: { contains: assetType, mode: 'insensitive' as const } };
+    }
+    if (assetStatus) {
+      where.status = assetStatus;
+    }
+
+    // Date range filter (createdAt)
+    if (fromDate || toDate) {
+      where.createdAt = {} as any
+      if (fromDate) (where.createdAt as any).gte = new Date(fromDate)
+      if (toDate) {
+        const end = new Date(toDate)
+        end.setHours(23,59,59,999)
+        ;(where.createdAt as any).lte = end
+      }
+    }
 
     const orderBy = { [sortBy]: sortOrder } as any;
 

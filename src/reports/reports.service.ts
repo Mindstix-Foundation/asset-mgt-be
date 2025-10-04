@@ -52,9 +52,6 @@ export class ReportsService {
     const now = new Date();
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-    // Activities older than 2 hours don't need real-time updates
-    const needsRealTimeUpdate = diffInSeconds < 7200; // 2 hours
-
     if (diffInSeconds < 60) {
       return { timeAgo: 'Just now', needsRealTimeUpdate: true };
     }
@@ -63,7 +60,7 @@ export class ReportsService {
     if (diffInMinutes < 60) {
       return {
         timeAgo: diffInMinutes === 1 ? '1 minute ago' : `${diffInMinutes} minutes ago`,
-        needsRealTimeUpdate: true
+        needsRealTimeUpdate: true // All activities less than 1 hour need real-time updates
       };
     }
 
@@ -71,7 +68,7 @@ export class ReportsService {
     if (diffInHours < 24) {
       return {
         timeAgo: diffInHours === 1 ? '1 hour ago' : `${diffInHours} hours ago`,
-        needsRealTimeUpdate: diffInHours < 2 // Only first 2 hours need real-time updates
+        needsRealTimeUpdate: false // Activities 1 hour or older don't need real-time updates
       };
     }
 
@@ -624,7 +621,12 @@ export class ReportsService {
   }
 
   async getMaintenanceReport(filters?: ReportFilters) {
-    const whereClause: any = {};
+    const whereClause: any = {
+      // Only include COMPLETED records (has completion date, no cancellation date, and status is COMPLETED)
+      status: 'COMPLETED',
+      actualCompletionDate: { not: null },
+      cancellationDate: null,
+    };
     
     if (filters?.fromDate && filters?.toDate) {
       whereClause.scheduledDate = {
@@ -645,7 +647,7 @@ export class ReportsService {
         },
       },
       orderBy: {
-        scheduledDate: 'desc',
+        id: 'desc', // Sort by maintenance ID descending (bigger to smaller)
       },
     });
 

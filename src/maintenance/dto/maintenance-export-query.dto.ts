@@ -3,19 +3,7 @@ import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { MaintenanceStatus, MaintenanceTypeEnum } from '@prisma/client';
 
-export class MaintenanceQueryDto {
-  @ApiPropertyOptional({ description: 'Page number for pagination', example: 1, default: 1 })
-  @IsOptional()
-  @IsInt()
-  @Type(() => Number)
-  page?: number = 1;
-
-  @ApiPropertyOptional({ description: 'Number of items per page', example: 10, default: 10 })
-  @IsOptional()
-  @IsInt()
-  @Type(() => Number)
-  limit?: number = 10;
-
+export class MaintenanceExportQueryDto {
   @ApiPropertyOptional({ description: 'Search term for maintenance description or asset', example: 'laptop' })
   @IsOptional()
   @IsString()
@@ -45,16 +33,6 @@ export class MaintenanceQueryDto {
   @IsEnum(MaintenanceTypeEnum)
   maintenanceType?: MaintenanceTypeEnum;
 
-  @ApiPropertyOptional({
-    description: 'Filter by asset type name (for custom reports)',
-    example: 'Laptop',
-  })
-  @IsOptional()
-  @IsString()
-  assetType?: string;
-
-  // vendor filters removed
-
   @ApiPropertyOptional({ description: 'Filter by scheduled date from', example: '2024-01-01' })
   @IsOptional()
   @IsDateString()
@@ -65,14 +43,25 @@ export class MaintenanceQueryDto {
   @IsDateString()
   scheduledDateTo?: string;
 
+  // Aliases to align with frontend filters (assets/employees)
+  @ApiPropertyOptional({ description: 'Alias of scheduledDateFrom', example: '2024-01-01' })
+  @IsOptional()
+  @IsDateString()
+  fromDate?: string;
+
+  @ApiPropertyOptional({ description: 'Alias of scheduledDateTo', example: '2024-12-31' })
+  @IsOptional()
+  @IsDateString()
+  toDate?: string;
+
   @ApiPropertyOptional({ 
     description: 'Sort by field', 
-    example: 'scheduledDate',
-    enum: ['scheduledDate', 'createdAt', 'status', 'maintenanceType', 'estimatedCost']
+    example: 'id',
+    enum: ['id', 'scheduledDate', 'createdAt', 'status', 'maintenanceType', 'estimatedCost']
   })
   @IsOptional()
   @IsString()
-  sortBy?: string = 'scheduledDate';
+  sortBy?: string = 'id';
 
   @ApiPropertyOptional({ 
     description: 'Sort order', 
@@ -81,5 +70,5 @@ export class MaintenanceQueryDto {
   })
   @IsOptional()
   @IsString()
-  sortOrder?: 'asc' | 'desc' = 'desc';
-} 
+  sortOrder?: string = 'desc';
+}

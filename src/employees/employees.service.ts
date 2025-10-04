@@ -46,8 +46,8 @@ export class EmployeesService {
       const employee = await this.prisma.employee.create({
         data: {
           employeeId,
-          firstName: createEmployeeDto.firstName,
-          lastName: createEmployeeDto.lastName,
+          firstName: this.formatName(createEmployeeDto.firstName),
+          lastName: this.formatName(createEmployeeDto.lastName),
           email: createEmployeeDto.email,
           phone: createEmployeeDto.phone,
           dateOfBirth,
@@ -81,8 +81,8 @@ export class EmployeesService {
               const employee = await this.prisma.employee.create({
                 data: {
                   employeeId,
-                  firstName: createEmployeeDto.firstName,
-                  lastName: createEmployeeDto.lastName,
+                  firstName: this.formatName(createEmployeeDto.firstName),
+                  lastName: this.formatName(createEmployeeDto.lastName),
                   email: createEmployeeDto.email,
                   phone: createEmployeeDto.phone,
                   dateOfBirth,
@@ -166,6 +166,17 @@ export class EmployeesService {
       default:
         orderBy.firstName = 'asc';
         break;
+    }
+
+    // Date range by createdAt
+    if ((query as any).fromDate || (query as any).toDate) {
+      (where as any).createdAt = {} as any
+      if ((query as any).fromDate) (where as any).createdAt.gte = new Date((query as any).fromDate)
+      if ((query as any).toDate) {
+        const end = new Date((query as any).toDate)
+        end.setHours(23,59,59,999)
+        ;(where as any).createdAt.lte = end
+      }
     }
 
     // Get total count
@@ -298,9 +309,34 @@ export class EmployeesService {
     };
   }
 
+  // Helper function to format names in proper case (e.g., "nishant bondre" -> "Nishant Bondre")
+  private formatName(name: string): string {
+    if (!name) return name;
+    return name
+      .toLowerCase()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+
   async bulkUpload(file: Express.Multer.File, userId: number, validateOnly: boolean = false) {
     if (!file) {
-      throw new BadRequestException('File is required')
+      if (validateOnly) {
+        return { 
+          message: 'Validation completed with errors', 
+          data: { 
+            errors: [{ row: 0, field: 'file', message: 'File is required' }], 
+            totalRows: 0,
+            summary: { 
+              totalRows: 0, 
+              successfulImports: 0, 
+              failedImports: 1 
+            } 
+          } 
+        }
+      } else {
+        throw new BadRequestException('File is required')
+      }
     }
 
     const allowedMimeTypes = [
@@ -309,11 +345,41 @@ export class EmployeesService {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     ]
     if (!allowedMimeTypes.includes(file.mimetype)) {
-      throw new BadRequestException('Invalid file format. Only CSV and Excel files are allowed')
+      if (validateOnly) {
+        return { 
+          message: 'Validation completed with errors', 
+          data: { 
+            errors: [{ row: 0, field: 'file', message: 'Invalid file format. Only CSV and Excel files are allowed' }], 
+            totalRows: 0,
+            summary: { 
+              totalRows: 0, 
+              successfulImports: 0, 
+              failedImports: 1 
+            } 
+          } 
+        }
+      } else {
+        throw new BadRequestException('Invalid file format. Only CSV and Excel files are allowed')
+      }
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      throw new BadRequestException('File size too large. Maximum 10MB allowed')
+      if (validateOnly) {
+        return { 
+          message: 'Validation completed with errors', 
+          data: { 
+            errors: [{ row: 0, field: 'file', message: 'File size too large. Maximum 10MB allowed' }], 
+            totalRows: 0,
+            summary: { 
+              totalRows: 0, 
+              successfulImports: 0, 
+              failedImports: 1 
+            } 
+          } 
+        }
+      } else {
+        throw new BadRequestException('File size too large. Maximum 10MB allowed')
+      }
     }
 
     // Parse file
@@ -321,18 +387,54 @@ export class EmployeesService {
     if (file.mimetype === 'text/csv' || file.mimetype === 'application/vnd.ms-excel') {
       const csv = file.buffer.toString('utf-8')
       const lines = csv.split(/\r?\n/).filter(l => l.trim().length > 0)
-      if (lines.length < 2) throw new BadRequestException('File must contain header and at least one row')
+      if (lines.length < 2) {
+        if (validateOnly) {
+          return { 
+            message: 'Validation completed with errors', 
+            data: { 
+              errors: [{ row: 0, field: 'file', message: 'File must contain header and at least one row' }], 
+              totalRows: 0,
+              summary: { 
+                totalRows: 0, 
+                successfulImports: 0, 
+                failedImports: 1 
+              } 
+            } 
+          }
+        } else {
+          throw new BadRequestException('File must contain header and at least one row')
+        }
+      }
       const headers = lines[0].split(',').map(h => h.trim())
       const headerMap: Record<string, number> = {}
       headers.forEach((h, i) => headerMap[h.toLowerCase()] = i)
       const required = ['first name','last name','email']
       const missing = required.filter(h => !(h in headerMap))
-      if (missing.length) throw new BadRequestException(`Missing required headers: ${missing.join(', ')}`)
+      if (missing.length) {
+        if (validateOnly) {
+          return { 
+            message: 'Validation completed with errors', 
+            data: { 
+              errors: [{ row: 0, field: 'file', message: `Missing required headers: ${missing.join(', ')}` }], 
+              totalRows: 0,
+              summary: { 
+                totalRows: 0, 
+                successfulImports: 0, 
+                failedImports: 1 
+              } 
+            } 
+          }
+        } else {
+          throw new BadRequestException(`Missing required headers: ${missing.join(', ')}`)
+        }
+      }
       rows = lines.slice(1).map(line => {
         const cols = line.split(',')
+        const firstName = cols[headerMap['first name']]?.trim()
+        const lastName = cols[headerMap['last name']]?.trim()
         return {
-          firstName: cols[headerMap['first name']]?.trim(),
-          lastName: cols[headerMap['last name']]?.trim(),
+          firstName: firstName ? this.formatName(firstName) : firstName,
+          lastName: lastName ? this.formatName(lastName) : lastName,
           email: cols[headerMap['email']]?.trim(),
           phone: headerMap['phone'] !== undefined ? cols[headerMap['phone']]?.trim() : undefined,
           dateOfBirth: headerMap['date of birth'] !== undefined ? cols[headerMap['date of birth']]?.trim() : undefined,
@@ -343,17 +445,38 @@ export class EmployeesService {
       const wb = XLSX.read(file.buffer, { type: 'buffer' })
       const sheet = wb.Sheets[wb.SheetNames[0]]
       const data = XLSX.utils.sheet_to_json(sheet) as any[]
-      rows = data.map(r => ({
-        firstName: r['First Name']?.toString().trim(),
-        lastName: r['Last Name']?.toString().trim(),
-        email: r['Email']?.toString().trim(),
-        phone: r['Phone']?.toString().trim(),
-        dateOfBirth: r['Date of Birth']?.toString().trim(),
-        address: r['Address']?.toString().trim(),
-      }))
+      rows = data.map(r => {
+        const firstName = r['First Name']?.toString().trim()
+        const lastName = r['Last Name']?.toString().trim()
+        return {
+          firstName: firstName ? this.formatName(firstName) : firstName,
+          lastName: lastName ? this.formatName(lastName) : lastName,
+          email: r['Email']?.toString().trim(),
+          phone: r['Phone']?.toString().trim(),
+          dateOfBirth: r['Date of Birth']?.toString().trim(),
+          address: r['Address']?.toString().trim(),
+        }
+      })
     }
 
-    if (rows.length === 0) throw new BadRequestException('File has no valid rows')
+    if (rows.length === 0) {
+      if (validateOnly) {
+        return { 
+          message: 'Validation completed with errors', 
+          data: { 
+            errors: [{ row: 0, field: 'file', message: 'File has no valid rows' }], 
+            totalRows: 0,
+            summary: { 
+              totalRows: 0, 
+              successfulImports: 0, 
+              failedImports: 1 
+            } 
+          } 
+        }
+      } else {
+        throw new BadRequestException('File has no valid rows')
+      }
+    }
 
     // Basic validation + collect emails
     const errors: Array<{ row: number; field: string; message: string }> = []
@@ -391,12 +514,25 @@ export class EmployeesService {
       }
     })
 
-    if (errors.length > 0) {
-      throw new BadRequestException({ message: 'Validation failed', errors })
+    if (validateOnly) {
+      // For validation-only requests, return errors as part of successful response
+      return { 
+        message: errors.length > 0 ? 'Validation completed with errors' : 'Validation successful', 
+        data: { 
+          errors, 
+          totalRows: rows.length,
+          summary: { 
+            totalRows: rows.length, 
+            successfulImports: 0, 
+            failedImports: errors.length 
+          } 
+        } 
+      }
     }
 
-    if (validateOnly) {
-      return { message: 'Validation successful', data: { imported: 0, errors: [], summary: { totalRows: rows.length, successfulImports: 0, failedImports: 0 } } }
+    // For actual upload, throw error if validation fails
+    if (errors.length > 0) {
+      throw new BadRequestException({ message: 'Validation failed', errors })
     }
 
     // Transactional insert: all or none
@@ -428,8 +564,14 @@ export class EmployeesService {
     id: string,
     includeAssets: boolean = true,
   ): Promise<EmployeeDetailResponseDto> {
+    // Check if id is numeric (database ID) or string (employeeId)
+    const isNumericId = /^\d+$/.test(id);
+    const whereClause = isNumericId 
+      ? { id: parseInt(id, 10) } 
+      : { employeeId: id };
+
     const employee = await this.prisma.employee.findUnique({
-      where: { employeeId: id },
+      where: whereClause,
       include: includeAssets
         ? {
             assetIssues: {
@@ -488,8 +630,14 @@ export class EmployeesService {
     updateEmployeeDto: UpdateEmployeeDto,
     userId: number,
   ): Promise<EmployeeDetailResponseDto> {
+    // Check if id is numeric (database ID) or string (employeeId)
+    const isNumericId = /^\d+$/.test(id);
+    const whereClause = isNumericId 
+      ? { id: parseInt(id, 10) } 
+      : { employeeId: id };
+
     const existingEmployee = await this.prisma.employee.findUnique({
-      where: { employeeId: id },
+      where: whereClause,
     });
 
     if (!existingEmployee) {
@@ -512,13 +660,23 @@ export class EmployeesService {
       ? new Date(updateEmployeeDto.dateOfBirth)
       : undefined;
 
+    // Format names if they are being updated
+    const updateData: any = {
+      ...updateEmployeeDto,
+      dateOfBirth,
+      updatedBy: userId,
+    };
+    
+    if (updateEmployeeDto.firstName) {
+      updateData.firstName = this.formatName(updateEmployeeDto.firstName);
+    }
+    if (updateEmployeeDto.lastName) {
+      updateData.lastName = this.formatName(updateEmployeeDto.lastName);
+    }
+
     const employee = await this.prisma.employee.update({
       where: { employeeId: id },
-      data: {
-        ...updateEmployeeDto,
-        dateOfBirth,
-        updatedBy: userId,
-      },
+      data: updateData,
     });
 
     const responseEmployee = this.mapToResponseDto(employee);
@@ -536,8 +694,14 @@ export class EmployeesService {
     userId: number,
     reassignAssetsTo?: string,
   ): Promise<EmployeeDetailResponseDto> {
+    // Check if id is numeric (database ID) or string (employeeId)
+    const isNumericId = /^\d+$/.test(id);
+    const whereClause = isNumericId 
+      ? { id: parseInt(id, 10) } 
+      : { employeeId: id };
+
     const employee = await this.prisma.employee.findUnique({
-      where: { employeeId: id },
+      where: whereClause,
       include: {
         assetIssues: {
           where: { returnDate: null },
@@ -641,8 +805,14 @@ export class EmployeesService {
       }>;
     };
   }> {
+    // Check if employeeId is numeric (database ID) or string (employeeId)
+    const isNumericId = /^\d+$/.test(employeeId);
+    const whereClause = isNumericId 
+      ? { id: parseInt(employeeId, 10) } 
+      : { employeeId };
+
     const employee = await this.prisma.employee.findUnique({
-      where: { employeeId },
+      where: whereClause,
       select: { id: true, employeeId: true, firstName: true, lastName: true }
     });
 
@@ -708,14 +878,15 @@ export class EmployeesService {
     message: string;
     data: {
       assetEvents: Array<{
-        id: number; // assetIssue id
+        id: number; // assetEvent id
         assetId: string;
         assetName: string;
         assetType: string;
         brand: string;
         model: string;
         action: AssetEventAction;
-        date: string; // ISO date for the action
+        date: string; // business date (YYYY-MM-DD)
+        timestamp: string; // audit timestamp (ISO)
         condition?: string;
         reason?: string;
         notes?: string;
@@ -724,9 +895,15 @@ export class EmployeesService {
       pagination: { totalCount: number; currentPage: number; totalPages: number; hasNext: boolean; hasPrevious: boolean };
     };
   }> {
+    // Check if employeeId is numeric (database ID) or string (employeeId)
+    const isNumericId = /^\d+$/.test(employeeId);
+    const whereClause = isNumericId 
+      ? { id: parseInt(employeeId, 10) } 
+      : { employeeId };
+
     const employee = await this.prisma.employee.findUnique({
-      where: { employeeId },
-      select: { id: true },
+      where: whereClause,
+      select: { id: true, employeeId: true },
     });
     if (!employee) {
       throw new NotFoundException('Employee not found');
@@ -736,13 +913,23 @@ export class EmployeesService {
     const limit = Math.min(query.limit ?? 20, 100);
     const skip = (page - 1) * limit;
 
-    // Base where for issues belonging to employee
-    const where: any = { employeeId: employee.id };
+    // Build base where clause for AssetEvents
+    // We need to find events where this employee is mentioned in metadata
+    const where: any = {
+      OR: [
+        // Events where employee is mentioned by database ID
+        {
+          eventType: { in: ['ASSET_ISSUED', 'ASSET_COLLECTED'] },
+          metadata: {
+            path: ['employeeId'],
+            equals: employee.employeeId
+          }
+        }
+      ]
+    };
 
-    // Date filtering will be applied per-action; but we can narrow by overall issueDate/returnDate ranges if provided
-    // For simplicity, we will fetch candidate rows with include and filter/expand in memory with pagination post-expand
-
-    const issues = await this.prisma.assetIssue.findMany({
+    // Fetch asset events from AssetEvent table
+    const events = await this.prisma.assetEvent.findMany({
       where,
       include: {
         asset: {
@@ -752,13 +939,23 @@ export class EmployeesService {
             model: { select: { name: true } },
           },
         },
-        issuedByUser: { select: { username: true } },
-        updatedByUser: { select: { username: true } },
+        performedByUser: { 
+          select: { 
+            username: true, 
+            employee: { 
+              select: { 
+                firstName: true, 
+                lastName: true, 
+                employeeId: true 
+              } 
+            } 
+          } 
+        },
       },
-      orderBy: { issueDate: 'desc' },
+      orderBy: { eventDate: 'desc' },
     });
 
-    // Expand issues into events
+    // Transform events into the expected format
     type EventRow = {
       id: number;
       assetId: string;
@@ -767,53 +964,61 @@ export class EmployeesService {
       brand: string;
       model: string;
       action: AssetEventAction;
-      date: Date;
+      date: Date; // business date
+      timestamp: Date; // audit timestamp for ordering
       condition?: string;
       reason?: string;
       notes?: string;
       performedBy: string;
     };
 
-    const expanded: EventRow[] = [];
+    const transformed: EventRow[] = [];
 
-    for (const issue of issues) {
-      // Assigned event
-      expanded.push({
-        id: issue.id,
-        assetId: issue.asset.assetId,
-        assetName: `${issue.asset.brand.name} ${issue.asset.model.name}`,
-        assetType: issue.asset.assetType.name,
-        brand: issue.asset.brand.name,
-        model: issue.asset.model.name,
-        action: 'ASSIGNED',
-        date: new Date(issue.issueDate),
-        condition: issue.issueCondition || undefined,
-        reason: issue.issueReason || undefined,
-        notes: issue.notes || undefined,
-        performedBy: issue.issuedByUser.username,
-      });
+    for (const event of events) {
+      // Determine performing user display name
+      const performedByName = `${event.performedByUser.employee?.firstName || ''} ${event.performedByUser.employee?.lastName || ''}`.trim()
+        || event.performedByUser.employee?.employeeId
+        || event.performedByUser.username;
 
-      // Returned event (if applicable)
-      if (issue.returnDate) {
-        expanded.push({
-          id: issue.id,
-          assetId: issue.asset.assetId,
-          assetName: `${issue.asset.brand.name} ${issue.asset.model.name}`,
-          assetType: issue.asset.assetType.name,
-          brand: issue.asset.brand.name,
-          model: issue.asset.model.name,
+      const metadata = event.metadata as any;
+
+      if (event.eventType === 'ASSET_ISSUED') {
+        transformed.push({
+          id: event.id,
+          assetId: event.asset.assetId,
+          assetName: `${event.asset.brand.name} ${event.asset.model.name}`,
+          assetType: event.asset.assetType.name,
+          brand: event.asset.brand.name,
+          model: event.asset.model.name,
+          action: 'ASSIGNED',
+          date: metadata?.issueDate ? new Date(metadata.issueDate) : new Date(event.eventDate),
+          timestamp: new Date(event.eventDate),
+          condition: metadata?.issueCondition || undefined,
+          reason: metadata?.issueReason || undefined,
+          notes: metadata?.notes || undefined,
+          performedBy: performedByName,
+        });
+      } else if (event.eventType === 'ASSET_COLLECTED') {
+        transformed.push({
+          id: event.id,
+          assetId: event.asset.assetId,
+          assetName: `${event.asset.brand.name} ${event.asset.model.name}`,
+          assetType: event.asset.assetType.name,
+          brand: event.asset.brand.name,
+          model: event.asset.model.name,
           action: 'RETURNED',
-          date: new Date(issue.returnDate),
-          condition: issue.returnCondition || undefined,
-          reason: issue.returnReason || undefined,
-          notes: issue.notes || undefined,
-          performedBy: issue.updatedByUser?.username || issue.issuedByUser.username,
+          date: metadata?.returnDate ? new Date(metadata.returnDate) : new Date(event.eventDate),
+          timestamp: new Date(event.eventDate),
+          condition: metadata?.returnCondition || undefined,
+          reason: metadata?.returnReason || undefined,
+          notes: metadata?.notes || undefined,
+          performedBy: performedByName,
         });
       }
     }
 
     // Apply filters
-    let filtered = expanded;
+    let filtered = transformed;
     if (query.action) {
       filtered = filtered.filter((e) => e.action === query.action);
     }
@@ -841,14 +1046,14 @@ export class EmployeesService {
       filtered = filtered.filter((e) => e.date <= to);
     }
 
-    // Sort
+    // Sort (always by timestamp for chronological ordering)
     const sortBy = query.sortBy ?? 'date';
     const sortOrder = (query.sortOrder ?? 'desc') === 'asc' ? 1 : -1;
     filtered.sort((a, b) => {
       let cmp = 0;
       if (sortBy === 'action') cmp = a.action.localeCompare(b.action);
       else if (sortBy === 'assetType') cmp = a.assetType.localeCompare(b.assetType);
-      else cmp = a.date.getTime() - b.date.getTime();
+      else cmp = a.timestamp.getTime() - b.timestamp.getTime();
       return cmp * sortOrder;
     });
 
@@ -865,7 +1070,8 @@ export class EmployeesService {
       brand: e.brand,
       model: e.model,
       action: e.action,
-      date: e.date.toISOString(),
+      date: e.date.toISOString().split('T')[0],
+      timestamp: e.timestamp.toISOString(),
       condition: e.condition,
       reason: e.reason,
       notes: e.notes,
@@ -902,5 +1108,231 @@ export class EmployeesService {
       createdAt: employee.createdAt.toISOString(),
       updatedAt: employee.updatedAt.toISOString(),
     };
+  }
+
+  // Export employees to Excel with asset details
+  async exportEmployeesToExcel(queryDto: QueryEmployeeDto) {
+    try {
+      const { search, status, hasAssets, assetCountRange, sortBy = 'firstName', sortOrder = 'asc' } = queryDto;
+
+      // Build where clause
+      const where: Prisma.EmployeeWhereInput = {};
+
+      if (search) {
+        where.OR = [
+          { firstName: { contains: search, mode: 'insensitive' } },
+          { lastName: { contains: search, mode: 'insensitive' } },
+          { employeeId: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+        ];
+      }
+
+      if (status) {
+        where.status = status;
+      }
+
+      if (hasAssets !== undefined) {
+        if (hasAssets) {
+          where.assetIssues = { some: { returnDate: null } };
+        } else {
+          where.assetIssues = { none: { returnDate: null } };
+        }
+      }
+
+      // Note: assetCountRange filtering will be handled after fetching data
+
+      // Build orderBy clause
+      const orderBy: any = {};
+      switch (sortBy) {
+        case 'name':
+          orderBy.firstName = sortOrder;
+          break;
+        case 'employeeId':
+          orderBy.employeeId = sortOrder;
+          break;
+        case 'email':
+          orderBy.email = sortOrder;
+          break;
+        case 'status':
+          orderBy.status = sortOrder;
+          break;
+        case 'createdAt':
+          orderBy.createdAt = sortOrder;
+          break;
+        default:
+          orderBy.firstName = 'asc';
+      }
+
+      // Use the where clause as is since we removed assetCountRange assignment
+
+      // Get all employees with related data
+      let employees = await this.prisma.employee.findMany({
+        where,
+        include: {
+          createdByUser: { select: { id: true, username: true } },
+          updatedByUser: { select: { id: true, username: true } },
+          assetIssues: {
+            where: { returnDate: null }, // Only active assignments
+            include: {
+              asset: {
+                include: {
+                  assetType: { select: { name: true } },
+                  brand: { select: { name: true } },
+                  model: { select: { name: true } },
+                }
+              }
+            }
+          }
+        },
+        orderBy
+      });
+
+      // Filter by asset count range if specified
+      if (assetCountRange) {
+        employees = employees.filter(employee => {
+          const assetCount = employee.assetIssues.length;
+          switch (assetCountRange) {
+            case '0':
+              return assetCount === 0;
+            case '1-2':
+              return assetCount >= 1 && assetCount <= 2;
+            case '3+':
+              return assetCount >= 3;
+            default:
+              return true;
+          }
+        });
+      }
+
+      // Prepare data for Excel export
+      const exportData = employees.map(employee => {
+        // Format asset details as requested: "del thinkpad (AST-0001)"
+        const assetDetails = employee.assetIssues.map(issue => 
+          `${issue.asset.brand.name} ${issue.asset.model.name} (${issue.asset.assetId})`
+        ).join('\n');
+
+        return [
+          employee.employeeId,
+          employee.firstName,
+          employee.lastName,
+          employee.email,
+          employee.phone || '',
+          employee.dateOfBirth ? employee.dateOfBirth.toISOString().split('T')[0] : '',
+          employee.address || '',
+          employee.status,
+          employee.assetIssues.length, // Number of assets
+          assetDetails, // Asset details in one cell
+          employee.createdByUser?.username || 'System',
+          employee.updatedByUser?.username || 'System',
+          employee.createdAt.toISOString().replace('T', ' ').split('.')[0],
+          employee.updatedAt.toISOString().replace('T', ' ').split('.')[0]
+        ];
+      });
+
+      const headers = [
+        'Employee ID',
+        'First Name', 
+        'Last Name',
+        'Email',
+        'Phone',
+        'Date of Birth',
+        'Address',
+        'Status',
+        'Number of Assets',
+        'Asset Details',
+        'Created By',
+        'Updated By',
+        'Created At',
+        'Updated At'
+      ];
+
+      // Create workbook and worksheet
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...exportData]);
+
+      // Set column widths
+      const columnWidths = [
+        { wch: 12 }, // Employee ID
+        { wch: 15 }, // First Name
+        { wch: 15 }, // Last Name
+        { wch: 25 }, // Email
+        { wch: 15 }, // Phone
+        { wch: 12 }, // Date of Birth
+        { wch: 30 }, // Address
+        { wch: 10 }, // Status
+        { wch: 15 }, // Number of Assets
+        { wch: 50 }, // Asset Details
+        { wch: 15 }, // Created By
+        { wch: 15 }, // Updated By
+        { wch: 12 }, // Created At
+        { wch: 12 }, // Updated At
+      ];
+      worksheet['!cols'] = columnWidths;
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Employee Asset Report');
+
+      // Generate Excel file
+      const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      
+      return excelBuffer;
+    } catch (error) {
+      console.error('Error exporting employees to Excel:', error);
+      throw new Error('Failed to export employees to Excel');
+    }
+  }
+
+  async getNonAdminEmployeesForDropdown() {
+    try {
+      // Determine admin users via UserRole mapping (source of truth)
+      const adminRole = await this.prisma.role.findFirst({
+        where: { roleName: 'ADMIN' }
+      });
+
+      const adminEmployeeIds = adminRole
+        ? (
+            await this.prisma.user.findMany({
+              where: {
+                userRoles: {
+                  some: {
+                    roleId: adminRole.id,
+                    isActive: true,
+                  },
+                },
+              },
+              select: { employeeId: true },
+            })
+          ).map((user) => user.employeeId)
+        : [];
+
+      // Get active employees excluding admins
+      const employees = await this.prisma.employee.findMany({
+        where: {
+          status: 'ACTIVE',
+          id: {
+            notIn: adminEmployeeIds
+          }
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          employeeId: true,
+          email: true,
+          status: true
+        },
+        orderBy: {
+          firstName: 'asc'
+        }
+      });
+
+      return {
+        success: true,
+        data: employees
+      };
+    } catch (error) {
+      console.error('Error fetching non-admin employees for dropdown:', error);
+      throw new Error('Failed to fetch non-admin employees');
+    }
   }
 } 
