@@ -144,6 +144,7 @@ export class EmployeesController {
   @Get('dropdowns')
   @ApiOperation({ summary: 'Get all employees for dropdown selection (ID and name only)' })
   @ApiQuery({ name: 'status', required: false, enum: ['ACTIVE', 'INACTIVE'], description: 'Filter by status (default: ACTIVE)', example: 'ACTIVE' })
+  @ApiQuery({ name: 'hasAssignedAssets', required: false, type: 'boolean', description: 'Filter employees who have at least one asset currently assigned', example: true })
   @ApiResponse({
     status: 200,
     description: 'Employees retrieved successfully for dropdown',
@@ -171,8 +172,12 @@ export class EmployeesController {
       }
     }
   })
-  async findAllForDropdowns(@Query('status') status?: string) {
-    return this.employeesService.findAllForDropdowns(status);
+  async findAllForDropdowns(
+    @Query('status') status?: string,
+    @Query('hasAssignedAssets') hasAssignedAssets?: string
+  ) {
+    const hasAssignedAssetsBool = hasAssignedAssets === 'true';
+    return this.employeesService.findAllForDropdowns(status, hasAssignedAssetsBool);
   }
 
   @Get('test-route')

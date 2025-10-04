@@ -265,7 +265,7 @@ export class EmployeesService {
     };
   }
 
-  async findAllForDropdowns(status?: string) {
+  async findAllForDropdowns(status?: string, hasAssignedAssets?: boolean) {
     // Build where clause
     const where: Prisma.EmployeeWhereInput = {};
 
@@ -274,6 +274,15 @@ export class EmployeesService {
       where.status = status as EmployeeStatus;
     } else {
       where.status = 'ACTIVE';
+    }
+
+    // Add filter for employees with assigned assets if requested
+    if (hasAssignedAssets) {
+      where.assetIssues = {
+        some: {
+          returnDate: null, // Only active assignments (not returned)
+        },
+      };
     }
 
     // Get all employees with minimal data for dropdowns

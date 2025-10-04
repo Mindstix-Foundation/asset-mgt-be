@@ -37,7 +37,18 @@ export class ModelsController {
     return this.modelsService.findAll(queryDto);
   }
 
-
+  @Get('by-brand/:brandId/asset-type/:assetTypeId')
+  @ApiOperation({ summary: 'Get models by brand ID and asset type ID' })
+  @ApiParam({ name: 'brandId', description: 'Brand ID' })
+  @ApiParam({ name: 'assetTypeId', description: 'Asset Type ID' })
+  @ApiResponse({ status: 200, description: 'Models retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Brand or Asset Type not found' })
+  async findByBrandAndAssetType(
+    @Param('brandId', ParseIntPipe) brandId: number,
+    @Param('assetTypeId', ParseIntPipe) assetTypeId: number
+  ) {
+    return this.modelsService.findByBrandAndAssetType(brandId, assetTypeId);
+  }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get model by ID' })

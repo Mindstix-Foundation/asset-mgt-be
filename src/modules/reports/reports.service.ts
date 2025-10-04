@@ -337,7 +337,7 @@ export class ReportsService {
       employee.address || '',
       employee.status,
       employee._count.assetIssues,
-      employee.createdByUser.username,
+      employee.createdByUser?.username || 'System',
       employee.createdAt.toISOString().split('T')[0]
     ]);
 

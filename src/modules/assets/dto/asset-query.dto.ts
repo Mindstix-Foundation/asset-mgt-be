@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsInt, Min, Max, IsIn, IsEnum, IsDateString } from 'class-validator';
+import { IsOptional, IsString, IsInt, IsNumber, Min, Max, IsIn, IsEnum, IsDateString } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -10,8 +10,6 @@ export class AssetQueryDto {
   })
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(1)
   page?: number = 1;
 
   @ApiPropertyOptional({
@@ -22,9 +20,6 @@ export class AssetQueryDto {
   })
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
   limit?: number = 15;
 
   @ApiPropertyOptional({
@@ -41,8 +36,6 @@ export class AssetQueryDto {
   })
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(1)
   assetTypeId?: number;
 
   @ApiPropertyOptional({
@@ -59,8 +52,6 @@ export class AssetQueryDto {
   })
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(1)
   brandId?: number;
 
   @ApiPropertyOptional({
@@ -69,8 +60,6 @@ export class AssetQueryDto {
   })
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(1)
   modelId?: number;
 
   @ApiPropertyOptional({
@@ -79,8 +68,6 @@ export class AssetQueryDto {
   })
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(1)
   vendorId?: number;
 
   @ApiPropertyOptional({

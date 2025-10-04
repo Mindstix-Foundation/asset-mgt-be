@@ -116,6 +116,48 @@ export class ModelsService {
     };
   }
 
+  async findByBrandAndAssetType(brandId: number, assetTypeId: number) {
+    // First verify both brand and asset type exist
+    const [brand, assetType] = await Promise.all([
+      this.prisma.brand.findUnique({ where: { id: brandId } }),
+      this.prisma.assetType.findUnique({ where: { id: assetTypeId } })
+    ]);
+
+    if (!brand) {
+      throw new NotFoundException('Brand not found');
+    }
+    if (!assetType) {
+      throw new NotFoundException('Asset type not found');
+    }
+
+    const models = await this.prisma.model.findMany({
+      where: { 
+        brandId: brandId,
+        assetTypeId: assetTypeId
+      },
+      include: {
+        brand: {
+          select: { id: true, name: true }
+        },
+        assetType: {
+          select: { id: true, name: true, category: { select: { id: true, name: true } } }
+        },
+        createdByUser: {
+          select: { id: true, username: true }
+        },
+        _count: {
+          select: { assets: true }
+        }
+      },
+      orderBy: { name: 'asc' }
+    });
+
+    return {
+      message: 'Models retrieved successfully',
+      data: { models },
+    };
+  }
+
   async findOne(id: number) {
     const model = await this.prisma.model.findUnique({
       where: { id },

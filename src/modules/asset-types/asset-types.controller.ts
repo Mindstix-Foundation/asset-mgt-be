@@ -26,6 +26,12 @@ export class AssetTypesController {
     return this.assetTypesService.findAll(queryDto);
   }
 
+  @Get('by-category/:categoryId')
+  @ApiOperation({ summary: 'Get asset types by category ID' })
+  @ApiParam({ name: 'categoryId', description: 'Asset Category ID' })
+  async findByCategory(@Param('categoryId', ParseIntPipe) categoryId: number) {
+    return this.assetTypesService.findByCategory(categoryId);
+  }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get asset type by ID' })

@@ -4,7 +4,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { AssetsService } from './assets.service';
 import { AssetIdService } from './asset-id.service';
-import { CreateAssetDto, UpdateAssetDto, AssetQueryDto, RetireAssetDto, ReactivateAssetDto } from './dto';
+import { CreateAssetDto, UpdateAssetDto, AssetQueryDto, RetireAssetDto, ReactivateAssetDto, BulkDeleteAssetDto } from './dto';
 
 @ApiTags('assets')
 @ApiBearerAuth('JWT-auth')
@@ -302,6 +302,25 @@ export class AssetsController {
     return this.assetsService.findAvailableAssets(queryDto);
   }
 
+  @Get('deletable')
+  @ApiOperation({ summary: 'Get assets that can be deleted (AVAILABLE status, no assignment history, no maintenance history)' })
+  @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page (default: 10, max: 100)' })
+  @ApiQuery({ name: 'search', required: false, description: 'Search by asset ID, serial number, or notes' })
+  @ApiQuery({ name: 'assetTypeId', required: false, description: 'Filter by asset type ID' })
+  @ApiQuery({ name: 'brandId', required: false, description: 'Filter by brand ID' })
+  @ApiQuery({ name: 'modelId', required: false, description: 'Filter by model ID' })
+  @ApiQuery({ name: 'vendorId', required: false, description: 'Filter by vendor ID' })
+  @ApiQuery({ name: 'condition', required: false, description: 'Filter by condition (NEW, GOOD, FAIR, POOR, DAMAGED)' })
+  @ApiQuery({ name: 'location', required: false, description: 'Filter by location' })
+  @ApiQuery({ name: 'fromDate', required: false, description: 'Filter assets created on/after this date (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'toDate', required: false, description: 'Filter assets created on/before this date (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'sortBy', required: false, description: 'Sort by field (assetId, status, condition, purchaseDate, createdAt, updatedAt)' })
+  @ApiQuery({ name: 'sortOrder', required: false, description: 'Sort order (asc, desc)' })
+  @ApiResponse({ status: 200, description: 'Deletable assets retrieved successfully' })
+  async findDeletableAssets(@Query() queryDto: AssetQueryDto) {
+    return this.assetsService.findDeletableAssets(queryDto);
+  }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get asset by ID with complete details' })
@@ -336,6 +355,35 @@ export class AssetsController {
   @ApiResponse({ status: 400, description: 'Cannot delete asset with active assignments or maintenance schedules' })
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.assetsService.remove(id);
+  }
+
+  @Post('bulk-delete')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete multiple assets at once' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Bulk delete completed',
+    schema: {
+      example: {
+        message: 'Bulk delete completed: 3 succeeded, 2 failed',
+        data: {
+          successCount: 3,
+          errorCount: 2,
+          totalProcessed: 5,
+          results: [
+            { id: 1, assetId: 'AST-0001', status: 'success', message: 'Asset deleted successfully' },
+            { id: 2, assetId: 'AST-0002', status: 'error', message: 'Cannot delete asset with status ASSIGNED' },
+            { id: 3, assetId: 'AST-0003', status: 'success', message: 'Asset deleted successfully' },
+            { id: 4, assetId: 'AST-0004', status: 'error', message: 'Asset has been assigned' },
+            { id: 5, assetId: 'AST-0005', status: 'success', message: 'Asset deleted successfully' }
+          ]
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'Invalid request - at least one asset ID is required' })
+  async bulkDelete(@Body() bulkDeleteDto: BulkDeleteAssetDto) {
+    return this.assetsService.bulkDelete(bulkDeleteDto.assetIds);
   }
 
   @Put(':id/retire')

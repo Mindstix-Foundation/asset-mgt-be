@@ -19,9 +19,9 @@ model User {
   refreshTokenExpires         DateTime?             @map("refresh_token_expires") @db.Timestamptz(6)
   failedLoginAttempts         Int                   @default(0) @map("failed_login_attempts")
   lockedUntil                 DateTime?             @map("locked_until") @db.Timestamptz(6)
-  createdBy                   Int                   @map("created_by")
+  createdBy                   Int?                  @map("created_by")
   createdAt                   DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedBy                   Int                   @map("updated_by")
+  updatedBy                   Int?                  @map("updated_by")
   updatedAt                   DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdAssetCategories      AssetCategory[]       @relation("AssetCategoryCreatedBy")
   updatedAssetCategories      AssetCategory[]       @relation("AssetCategoryUpdatedBy")
@@ -40,20 +40,16 @@ model User {
   updatedMaintenanceSchedules MaintenanceSchedule[] @relation("MaintenanceScheduleUpdatedBy")
   createdModels               Model[]               @relation("ModelCreatedBy")
   updatedModels               Model[]               @relation("ModelUpdatedBy")
-  createdRoles                Role[]                @relation("RoleCreatedBy")
-  updatedRoles                Role[]                @relation("RoleUpdatedBy")
   assignedRoles               UserRole[]            @relation("RoleAssignedBy")
   userRoles                   UserRole[]
-  createdByUser               User                  @relation("UserCreatedBy", fields: [createdBy], references: [id])
+  createdByUser               User?                 @relation("UserCreatedBy", fields: [createdBy], references: [id])
   createdUsers                User[]                @relation("UserCreatedBy")
   employee                    Employee              @relation(fields: [employeeId], references: [id])
-  updatedByUser               User                  @relation("UserUpdatedBy", fields: [updatedBy], references: [id])
+  updatedByUser               User?                 @relation("UserUpdatedBy", fields: [updatedBy], references: [id])
   updatedUsers                User[]                @relation("UserUpdatedBy")
   createdVendors              Vendor[]              @relation("VendorCreatedBy")
   updatedVendors              Vendor[]              @relation("VendorUpdatedBy")
   assetEvents                 AssetEvent[]          @relation("AssetEventPerformedBy")
-  assetStatusHistory          AssetStatusHistory[]  @relation("AssetStatusSetBy")
-  assetConditionHistory       AssetConditionHistory[] @relation("AssetConditionSetBy")
   vendor                      Vendor?
   passwordResets              PasswordReset[]       @relation("PasswordResetUser")
   refreshSessions             RefreshSession[]      @relation("UserRefreshSessions")
@@ -105,12 +101,8 @@ model Role {
   id            Int        @id @default(autoincrement())
   roleName      String     @unique @map("role_name") @db.VarChar(50)
   isActive      Boolean    @default(true) @map("is_active")
-  createdBy     Int        @map("created_by")
   createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedBy     Int        @map("updated_by")
   updatedAt     DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdByUser User       @relation("RoleCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser User       @relation("RoleUpdatedBy", fields: [updatedBy], references: [id])
   userRoles     UserRole[]
 
   @@index([isActive])
@@ -146,13 +138,13 @@ model Employee {
   dateOfBirth   DateTime?      @map("date_of_birth") @db.Date
   address       String?
   status        EmployeeStatus @default(ACTIVE)
-  createdBy     Int            @map("created_by")
+  createdBy     Int?           @map("created_by")
   createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedBy     Int            @map("updated_by")
+  updatedBy     Int?           @map("updated_by")
   updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   assetIssues   AssetIssue[]
-  createdByUser User           @relation("EmployeeCreatedBy", fields: [createdBy], references: [id])
-  updatedByUser User           @relation("EmployeeUpdatedBy", fields: [updatedBy], references: [id])
+  createdByUser User?          @relation("EmployeeCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?          @relation("EmployeeUpdatedBy", fields: [updatedBy], references: [id])
   user          User?
 
   @@index([status])
@@ -295,8 +287,6 @@ model Asset {
   updatedAt            DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   assetIssues          AssetIssue[]
   assetEvents          AssetEvent[]          @relation("AssetEvents")
-  assetStatusHistory   AssetStatusHistory[]  @relation("AssetStatusHistory")
-  assetConditionHistory AssetConditionHistory[] @relation("AssetConditionHistory")
   assetType            AssetType             @relation(fields: [assetTypeId], references: [id])
   brand                Brand                 @relation(fields: [brandId], references: [id])
   createdByUser        User                  @relation("AssetCreatedBy", fields: [createdBy], references: [id])
@@ -505,45 +495,4 @@ model AssetEvent {
   @@map("asset_events")
 }
 
-// Current Asset Status Tracking
-model AssetStatusHistory {
-  id            Int           @id @default(autoincrement())
-  assetId       Int           @map("asset_id")
-  status        AssetStatus   @map("status")
-  effectiveFrom DateTime      @map("effective_from") @db.Timestamptz(6)
-  effectiveTo   DateTime?     @map("effective_to") @db.Timestamptz(6)
-  setBy         Int           @map("set_by")
-  reason        String?       @db.VarChar(500)
-  notes         String?       @db.Text
-  
-  // Relations
-  asset         Asset         @relation("AssetStatusHistory", fields: [assetId], references: [id])
-  setByUser     User          @relation("AssetStatusSetBy", fields: [setBy], references: [id])
-  
-  @@index([assetId])
-  @@index([status])
-  @@index([effectiveFrom])
-  @@map("asset_status_history")
-}
-
-// Current Asset Condition Tracking
-model AssetConditionHistory {
-  id            Int           @id @default(autoincrement())
-  assetId       Int           @map("asset_id")
-  condition     AssetCondition @map("condition")
-  effectiveFrom DateTime      @map("effective_from") @db.Timestamptz(6)
-  effectiveTo   DateTime?     @map("effective_to") @db.Timestamptz(6)
-  setBy         Int           @map("set_by")
-  reason        String?       @db.VarChar(500)
-  notes         String?       @db.Text
-  
-  // Relations
-  asset         Asset         @relation("AssetConditionHistory", fields: [assetId], references: [id])
-  setByUser     User          @relation("AssetConditionSetBy", fields: [setBy], references: [id])
-  
-  @@index([assetId])
-  @@index([condition])
-  @@index([effectiveFrom])
-  @@map("asset_condition_history")
-}
 

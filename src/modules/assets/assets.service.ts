@@ -16,8 +16,23 @@ export class AssetsService {
       throw new BadRequestException('Serial number is required');
     }
 
+    const trimmedSerialNumber = serialNumber.trim();
+    console.log('🔍 Checking serial number uniqueness:', {
+      original: serialNumber,
+      trimmed: trimmedSerialNumber,
+      excludeAssetId
+    });
+
+    // Search for exact match, trimmed match, and also check for leading/trailing spaces
+    const serialNumberConditions = [
+      { serialNumber: { equals: trimmedSerialNumber, mode: 'insensitive' } },
+      { serialNumber: { equals: ` ${trimmedSerialNumber}`, mode: 'insensitive' } }, // Leading space
+      { serialNumber: { equals: `${trimmedSerialNumber} `, mode: 'insensitive' } }, // Trailing space
+      { serialNumber: { equals: ` ${trimmedSerialNumber} `, mode: 'insensitive' } } // Both spaces
+    ];
+
     const where: any = {
-      serialNumber: serialNumber.trim()
+      OR: serialNumberConditions
     };
 
     // If excludeAssetId is provided (for edit mode), exclude that asset from the check
@@ -30,14 +45,20 @@ export class AssetsService {
       select: { id: true, assetId: true, serialNumber: true }
     });
 
+    console.log('🔍 Search result:', {
+      found: !!existingAsset,
+      existingAsset: existingAsset
+    });
+
     return {
       message: 'Serial number check completed',
       data: {
         isUnique: !existingAsset,
-        serialNumber: serialNumber.trim(),
+        serialNumber: trimmedSerialNumber,
         existingAsset: existingAsset ? {
           id: existingAsset.id,
-          assetId: existingAsset.assetId
+          assetId: existingAsset.assetId,
+          serialNumber: existingAsset.serialNumber
         } : null
       }
     };
@@ -87,6 +108,7 @@ export class AssetsService {
         data: {
           ...createAssetDto,
           assetId, // Use generated or validated asset ID
+          serialNumber: createAssetDto.serialNumber ? createAssetDto.serialNumber.trim() : null, // Trim serial number
           status: createAssetDto.status || 'AVAILABLE', // Default to AVAILABLE if not provided
           condition: createAssetDto.condition || 'NEW', // Default to NEW if not provided
           purchaseDate: createAssetDto.purchaseDate ? new Date(createAssetDto.purchaseDate) : null,
@@ -428,6 +450,7 @@ export class AssetsService {
         where: { id },
         data: {
           ...updateAssetDto,
+          serialNumber: updateAssetDto.serialNumber ? updateAssetDto.serialNumber.trim() : undefined, // Trim serial number
           purchaseDate: updateAssetDto.purchaseDate ? new Date(updateAssetDto.purchaseDate) : undefined,
           warrantyStartDate: updateAssetDto.warrantyStartDate ? new Date(updateAssetDto.warrantyStartDate) : undefined,
           warrantyEndDate: updateAssetDto.warrantyEndDate ? new Date(updateAssetDto.warrantyEndDate) : undefined,
@@ -638,45 +661,56 @@ export class AssetsService {
 
   async remove(id: number) {
     try {
-      // Check if asset has active issues
-      const assetWithIssues = await this.prisma.asset.findUnique({
+      // Check for asset deletion eligibility - only 3 criteria
+      const assetWithChecks = await this.prisma.asset.findUnique({
         where: { id },
         include: {
-          assetIssues: {
-            where: { returnDate: null },
-            select: { id: true }
-          },
+          // Check for any assignment history (never been assigned)
           _count: { 
             select: { 
-              assetIssues: true,
-              maintenanceSchedules: true
+              assetIssues: true,           // Any assignment history
+              maintenanceSchedules: true   // Any maintenance history
             } 
           }
         }
       });
 
-      if (!assetWithIssues) {
+      if (!assetWithChecks) {
         throw new NotFoundException('Asset not found');
       }
 
-      if (assetWithIssues.assetIssues.length > 0) {
+      // ✅ CRITERIA 1: Only AVAILABLE assets can be deleted
+      if (assetWithChecks.status !== 'AVAILABLE') {
         throw new BadRequestException(
-          'Cannot delete asset with active assignments. Please return the asset first.'
+          `Cannot delete asset with status '${assetWithChecks.status}'. Only AVAILABLE assets can be deleted.`
         );
       }
 
-      if (assetWithIssues._count.maintenanceSchedules > 0) {
+      // ✅ CRITERIA 2: Never been assigned to anyone (no assignment history)
+      if (assetWithChecks._count.assetIssues > 0) {
         throw new BadRequestException(
-          'Cannot delete asset with maintenance schedules. Please remove maintenance schedules first.'
+          'Cannot delete asset that has been assigned. Only assets that have never been assigned can be deleted.'
         );
       }
 
+      // ✅ CRITERIA 3: Never been in maintenance (no maintenance history)
+      if (assetWithChecks._count.maintenanceSchedules > 0) {
+        throw new BadRequestException(
+          'Cannot delete asset that has been in maintenance. Only assets that have never been in maintenance can be deleted.'
+        );
+      }
+
+      // All 3 criteria passed - safe to delete
       await this.prisma.asset.delete({
         where: { id },
       });
 
       return {
         message: 'Asset deleted successfully',
+        details: {
+          assetId: assetWithChecks.assetId,
+          reason: 'Asset met all deletion criteria: AVAILABLE status, never assigned, never maintained'
+        }
       };
     } catch (error) {
       if (error.code === 'P2025') {
@@ -684,6 +718,108 @@ export class AssetsService {
       }
       throw error;
     }
+  }
+
+  async bulkDelete(assetIds: number[]) {
+    const results = [];
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const id of assetIds) {
+      try {
+        // Check for asset deletion eligibility - same 3 criteria as single delete
+        const assetWithChecks = await this.prisma.asset.findUnique({
+          where: { id },
+          include: {
+            _count: { 
+              select: { 
+                assetIssues: true,           // Any assignment history
+                maintenanceSchedules: true   // Any maintenance history
+              } 
+            }
+          }
+        });
+
+        if (!assetWithChecks) {
+          errorCount++;
+          results.push({
+            id,
+            assetId: null,
+            status: 'error',
+            message: 'Asset not found'
+          });
+          continue;
+        }
+
+        // ✅ CRITERIA 1: Only AVAILABLE assets can be deleted
+        if (assetWithChecks.status !== 'AVAILABLE') {
+          errorCount++;
+          results.push({
+            id,
+            assetId: assetWithChecks.assetId,
+            status: 'error',
+            message: `Cannot delete asset with status '${assetWithChecks.status}'. Only AVAILABLE assets can be deleted.`
+          });
+          continue;
+        }
+
+        // ✅ CRITERIA 2: Never been assigned to anyone (no assignment history)
+        if (assetWithChecks._count.assetIssues > 0) {
+          errorCount++;
+          results.push({
+            id,
+            assetId: assetWithChecks.assetId,
+            status: 'error',
+            message: 'Cannot delete asset that has been assigned. Only assets that have never been assigned can be deleted.'
+          });
+          continue;
+        }
+
+        // ✅ CRITERIA 3: Never been in maintenance (no maintenance history)
+        if (assetWithChecks._count.maintenanceSchedules > 0) {
+          errorCount++;
+          results.push({
+            id,
+            assetId: assetWithChecks.assetId,
+            status: 'error',
+            message: 'Cannot delete asset that has been in maintenance. Only assets that have never been in maintenance can be deleted.'
+          });
+          continue;
+        }
+
+        // All 3 criteria passed - safe to delete
+        await this.prisma.asset.delete({
+          where: { id },
+        });
+
+        successCount++;
+        results.push({
+          id,
+          assetId: assetWithChecks.assetId,
+          status: 'success',
+          message: 'Asset deleted successfully'
+        });
+
+      } catch (error) {
+        errorCount++;
+        results.push({
+          id,
+          assetId: null,
+          status: 'error',
+          message: error.message || 'Failed to delete asset'
+        });
+      }
+    }
+
+    return {
+      message: `Bulk delete completed: ${successCount} succeeded, ${errorCount} failed`,
+      data: {
+        successCount,
+        errorCount,
+        totalProcessed: assetIds.length,
+        results
+      }
+    };
   }
 
   async getAssetStats() {
@@ -772,7 +908,97 @@ export class AssetsService {
     };
   }
 
+  async findDeletableAssets(queryDto: AssetQueryDto) {
+    const { page = 1, limit = 10, search, assetTypeId, brandId, modelId, vendorId, condition, location, fromDate, toDate, sortBy = 'assetId', sortOrder = 'asc' } = queryDto;
+    const skip = (page - 1) * limit;
 
+    const where: any = {
+      // Only AVAILABLE assets
+      status: 'AVAILABLE',
+      // No assignment history
+      assetIssues: {
+        none: {}
+      },
+      // No maintenance history
+      maintenanceSchedules: {
+        none: {}
+      }
+    };
+
+    if (search) {
+      where.OR = [
+        { assetId: { contains: search, mode: 'insensitive' as const } },
+        { serialNumber: { contains: search, mode: 'insensitive' as const } },
+        { notes: { contains: search, mode: 'insensitive' as const } },
+      ];
+    }
+
+    if (assetTypeId) where.assetTypeId = assetTypeId;
+    if (brandId) where.brandId = brandId;
+    if (modelId) where.modelId = modelId;
+    if (vendorId) where.vendorId = vendorId;
+    if (condition) where.condition = condition;
+    if (location) where.location = { contains: location, mode: 'insensitive' as const };
+
+    // Date range filter (createdAt)
+    if (fromDate || toDate) {
+      where.createdAt = {} as any
+      if (fromDate) (where.createdAt as any).gte = new Date(fromDate)
+      if (toDate) {
+        const end = new Date(toDate)
+        end.setHours(23,59,59,999)
+        ;(where.createdAt as any).lte = end
+      }
+    }
+
+    const orderBy = { [sortBy]: sortOrder } as any;
+
+    const [assets, totalCount] = await Promise.all([
+      this.prisma.asset.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy,
+        include: {
+          assetType: {
+            select: { 
+              id: true, 
+              name: true,
+              category: { select: { id: true, name: true } }
+            }
+          },
+          brand: { select: { id: true, name: true } },
+          model: { select: { id: true, name: true, specifications: true } },
+          vendor: { select: { id: true, name: true } },
+          createdByUser: { select: { id: true, username: true } },
+          _count: { 
+            select: { 
+              assetIssues: true,
+              maintenanceSchedules: true,
+              assetEvents: true
+            } 
+          }
+        },
+      }),
+      this.prisma.asset.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(totalCount / limit);
+
+    return {
+      message: 'Deletable assets retrieved successfully',
+      data: {
+        assets,
+        pagination: {
+          totalCount,
+          currentPage: page,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrevious: page > 1,
+        },
+      },
+    };
+  }
 
   async searchAssets(queryDto: any) {
     const { q, page = 1, limit = 10, assetTypeId, brandId, status, condition } = queryDto;

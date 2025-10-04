@@ -109,6 +109,41 @@ export class AssetTypesService {
     };
   }
 
+  async findByCategory(categoryId: number) {
+    // First verify the category exists
+    const category = await this.prisma.assetCategory.findUnique({
+      where: { id: categoryId }
+    });
+
+    if (!category) {
+      throw new NotFoundException('Asset category not found');
+    }
+
+    const assetTypes = await this.prisma.assetType.findMany({
+      where: { 
+        categoryId: categoryId,
+        isActive: true 
+      },
+      include: {
+        category: {
+          select: { id: true, name: true }
+        },
+        createdByUser: {
+          select: { id: true, username: true }
+        },
+        _count: {
+          select: { assets: true, models: true }
+        }
+      },
+      orderBy: { name: 'asc' }
+    });
+
+    return {
+      message: 'Asset types retrieved successfully',
+      data: { assetTypes },
+    };
+  }
+
   async findOne(id: number) {
     const assetType = await this.prisma.assetType.findUnique({
       where: { id },
