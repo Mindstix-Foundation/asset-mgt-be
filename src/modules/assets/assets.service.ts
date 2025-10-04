@@ -721,7 +721,12 @@ export class AssetsService {
   }
 
   async bulkDelete(assetIds: number[]) {
-    const results = [];
+    const results: Array<{
+      id: number;
+      assetId: string | null;
+      status: 'success' | 'error';
+      message: string;
+    }> = [];
     let successCount = 0;
     let errorCount = 0;
 
