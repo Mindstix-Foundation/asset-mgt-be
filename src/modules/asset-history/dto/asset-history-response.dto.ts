@@ -37,13 +37,23 @@ export class AssetHistoryEventDto {
   @ApiProperty({ description: 'Event ID', example: 'event-123' })
   id: string;
 
-  @ApiProperty({ description: 'Event type', enum: AssetEventType, example: 'ASSET_ISSUED' })
+  @ApiProperty({
+    description: 'Event type',
+    enum: AssetEventType,
+    example: 'ASSET_ISSUED',
+  })
   type: AssetEventType;
 
-  @ApiProperty({ description: 'Event date (IST)', example: '30/01/2025, 16:00:00' })
+  @ApiProperty({
+    description: 'Event date (IST)',
+    example: '30/01/2025, 16:00:00',
+  })
   dateIST: string;
 
-  @ApiProperty({ description: 'Event description', example: 'issue to John Doe (EMP-001)' })
+  @ApiProperty({
+    description: 'Event description',
+    example: 'issue to John Doe (EMP-001)',
+  })
   description: string;
 
   @ApiProperty({ description: 'User display name', example: 'Jane Smith' })
@@ -58,10 +68,16 @@ export class AssetHistoryEventDto {
   @ApiProperty({ description: 'Event color', example: '#007bff' })
   color: string;
 
-  @ApiProperty({ description: 'Asset status at time of event (or status change)', example: 'AVAILABLE → ASSIGNED' })
+  @ApiProperty({
+    description: 'Asset status at time of event (or status change)',
+    example: 'AVAILABLE → ASSIGNED',
+  })
   status: string;
 
-  @ApiProperty({ description: 'Asset condition at time of event (or condition change)', example: 'GOOD' })
+  @ApiProperty({
+    description: 'Asset condition at time of event (or condition change)',
+    example: 'GOOD',
+  })
   condition: string;
 }
 
@@ -86,10 +102,16 @@ export class PaginationDto {
 }
 
 export class AssetHistoryResponseDto {
-  @ApiProperty({ description: 'Response timestamp', example: '2025-01-30T12:00:00.000Z' })
+  @ApiProperty({
+    description: 'Response timestamp',
+    example: '2025-01-30T12:00:00.000Z',
+  })
   timestamp: string;
 
-  @ApiProperty({ description: 'Response description', example: 'Asset history retrieved successfully' })
+  @ApiProperty({
+    description: 'Response description',
+    example: 'Asset history retrieved successfully',
+  })
   description: string;
 
   @ApiProperty({ description: 'Asset information' })
@@ -106,7 +128,10 @@ export class AssetHistorySummaryDto {
   @ApiProperty({ description: 'Total number of events', example: 89 })
   totalEvents: number;
 
-  @ApiProperty({ description: 'Last activity date (UTC)', example: '2024-12-15T10:30:00Z' })
+  @ApiProperty({
+    description: 'Last activity date (UTC)',
+    example: '2024-12-15T10:30:00Z',
+  })
   lastActivity: string;
 
   @ApiProperty({ description: 'Current status', example: 'ASSIGNED' })
@@ -124,7 +149,7 @@ export class AssetHistorySummaryDto {
   @ApiProperty({ description: 'Total status changes', example: 12 })
   totalStatusChanges: number;
 
-  @ApiProperty({ description: 'Total cost', example: 2500.00 })
+  @ApiProperty({ description: 'Total cost', example: 2500.0 })
   totalCost: number;
 
   @ApiPropertyOptional({ description: 'Event counts by type' })
@@ -132,24 +157,42 @@ export class AssetHistorySummaryDto {
 }
 
 export class QuickStatsDto {
-  @ApiPropertyOptional({ description: 'Average assignment duration', example: '45 days' })
+  @ApiPropertyOptional({
+    description: 'Average assignment duration',
+    example: '45 days',
+  })
   avgAssignmentDuration?: string;
 
-  @ApiPropertyOptional({ description: 'Maintenance frequency', example: 'Every 6 months' })
+  @ApiPropertyOptional({
+    description: 'Maintenance frequency',
+    example: 'Every 6 months',
+  })
   maintenanceFrequency?: string;
 
-  @ApiPropertyOptional({ description: 'Most common status', example: 'ASSIGNED' })
+  @ApiPropertyOptional({
+    description: 'Most common status',
+    example: 'ASSIGNED',
+  })
   mostCommonStatus?: string;
 
-  @ApiPropertyOptional({ description: 'Most common condition', example: 'GOOD' })
+  @ApiPropertyOptional({
+    description: 'Most common condition',
+    example: 'GOOD',
+  })
   mostCommonCondition?: string;
 }
 
 export class AssetHistorySummaryResponseDto {
-  @ApiProperty({ description: 'Response timestamp', example: '2025-01-30T12:00:00.000Z' })
+  @ApiProperty({
+    description: 'Response timestamp',
+    example: '2025-01-30T12:00:00.000Z',
+  })
   timestamp: string;
 
-  @ApiProperty({ description: 'Response description', example: 'Asset history summary retrieved successfully' })
+  @ApiProperty({
+    description: 'Response description',
+    example: 'Asset history summary retrieved successfully',
+  })
   description: string;
 
   @ApiProperty({ description: 'Asset information' })

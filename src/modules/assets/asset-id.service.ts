@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class AssetIdService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Generate the next sequential asset ID in format AST-XXXX
@@ -15,23 +15,25 @@ export class AssetIdService {
       const lastAsset = await this.prisma.asset.findFirst({
         where: {
           assetId: {
-            startsWith: 'AST-'
-          }
+            startsWith: 'AST-',
+          },
         },
         orderBy: {
-          assetId: 'desc'
+          assetId: 'desc',
         },
         select: {
-          assetId: true
-        }
+          assetId: true,
+        },
       });
 
       let nextNumber = 1;
 
       if (lastAsset) {
         // Extract the number from the last asset ID
-        const lastNumber = parseInt(lastAsset.assetId.replace('AST-', ''));
-        if (!isNaN(lastNumber)) {
+        const lastNumber = Number.parseInt(
+          lastAsset.assetId.replace('AST-', ''),
+        );
+        if (!Number.isNaN(lastNumber)) {
           nextNumber = lastNumber + 1;
         }
       }
@@ -65,7 +67,7 @@ export class AssetIdService {
   async assetIdExists(assetId: string): Promise<boolean> {
     const existingAsset = await this.prisma.asset.findUnique({
       where: { assetId },
-      select: { id: true }
+      select: { id: true },
     });
     return !!existingAsset;
   }

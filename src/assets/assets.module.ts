@@ -9,4 +9,4 @@ import { PrismaModule } from '../prisma/prisma.module';
   providers: [AssetsService],
   exports: [AssetsService],
 })
-export class AssetsModule {} 
+export class AssetsModule {}

@@ -8,7 +8,7 @@ export class LoginDto {
     type: String,
     required: true,
     minLength: 1,
-    maxLength: 100
+    maxLength: 100,
   })
   @IsString()
   @IsNotEmpty()
@@ -20,9 +20,9 @@ export class LoginDto {
     type: String,
     required: true,
     minLength: 1,
-    format: 'password'
+    format: 'password',
   })
   @IsString()
   @IsNotEmpty()
   password: string;
-} 
+}

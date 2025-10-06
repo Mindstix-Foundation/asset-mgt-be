@@ -1,10 +1,21 @@
-import { IsString, IsInt, IsOptional, IsNumber, IsDateString, IsEnum, MaxLength, MinLength, Min } from 'class-validator';
+import {
+  IsString,
+  IsInt,
+  IsOptional,
+  IsNumber,
+  IsDateString,
+  IsEnum,
+  MaxLength,
+  MinLength,
+  Min,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type, Transform } from 'class-transformer';
 
 export class CreateAssetDto {
   @ApiPropertyOptional({
-    description: 'Asset ID (unique identifier). If not provided, will be auto-generated in format AST-XXXX',
+    description:
+      'Asset ID (unique identifier). If not provided, will be auto-generated in format AST-XXXX',
     example: 'AST-0001',
     minLength: 7,
     maxLength: 8,
@@ -65,7 +76,7 @@ export class CreateAssetDto {
     example: 1500.99,
   })
   @IsOptional()
-  @Transform(({ value }) => (value ? parseFloat(value) : value))
+  @Transform(({ value }) => (value ? Number.parseFloat(value) : value))
   @IsNumber({ maxDecimalPlaces: 2 })
   purchaseCost?: number;
 
@@ -150,4 +161,4 @@ export class CreateAssetDto {
   @IsString()
   @MaxLength(500)
   imageUrl?: string;
-} 
+}

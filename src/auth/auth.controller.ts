@@ -1,13 +1,39 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, Get, UseGuards, Request, Response, Req, Res, UnauthorizedException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  Get,
+  UseGuards,
+  Request,
+  Response,
+  Req,
+  Res,
+  UnauthorizedException,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
-import { ForgotPasswordDto, ResetPasswordDto, ChangePasswordDto } from './dto/password.dto';
+import {
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  ChangePasswordDto,
+} from './dto/password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
-import type { Response as ExpressResponse, Request as ExpressRequest } from 'express';
+import type {
+  Response as ExpressResponse,
+  Request as ExpressRequest,
+} from 'express';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -18,13 +44,15 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 login attempts per minute
   @Post('login')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'User login authentication',
-    description: 'Authenticate user with username/email/employee ID and password. Returns JWT token for authorized access.'
+    description:
+      'Authenticate user with username/email/employee ID and password. Returns JWT token for authorized access.',
   })
-  @ApiBody({ 
+  @ApiBody({
     type: LoginDto,
-    description: 'Login credentials - Use username, email, or employee ID with password'
+    description:
+      'Login credentials - Use username, email, or employee ID with password',
   })
   @ApiResponse({
     status: 200,
@@ -39,21 +67,24 @@ export class AuthController {
           username: 'EMP-0001',
           email: 'john.doe@company.com',
           name: 'John Doe',
-          employeeId: 'EMP-0001'
-        }
-      }
-    }
+          employeeId: 'EMP-0001',
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 400,
     description: 'Bad Request - Invalid input data',
     schema: {
       example: {
-        message: ['username should not be empty', 'password should not be empty'],
+        message: [
+          'username should not be empty',
+          'password should not be empty',
+        ],
         error: 'Bad Request',
-        statusCode: 400
-      }
-    }
+        statusCode: 400,
+      },
+    },
   })
   @ApiResponse({
     status: 401,
@@ -62,9 +93,9 @@ export class AuthController {
       example: {
         message: 'Invalid credentials',
         error: 'Unauthorized',
-        statusCode: 401
-      }
-    }
+        statusCode: 401,
+      },
+    },
   })
   @ApiResponse({
     status: 500,
@@ -73,33 +104,33 @@ export class AuthController {
       example: {
         message: 'Authentication failed',
         error: 'Internal Server Error',
-        statusCode: 500
-      }
-    }
+        statusCode: 500,
+      },
+    },
   })
   async login(
     @Body() loginDto: LoginDto,
     @Req() req: ExpressRequest,
-    @Res({ passthrough: true }) res: ExpressResponse
+    @Res({ passthrough: true }) res: ExpressResponse,
   ): Promise<AuthResponseDto> {
     // Extract device info
     const deviceInfo = {
       ipAddress: req.ip || req.connection.remoteAddress,
       userAgent: req.headers['user-agent'],
-      deviceId: req.headers['x-device-id'] as string
+      deviceId: req.headers['x-device-id'] as string,
     };
 
     const result = await this.authService.login(loginDto, deviceInfo);
 
     // Set HTTP-only cookies
     const isProduction = process.env.NODE_ENV === 'production';
-    
+
     res.cookie('access_token', result.access_token, {
       httpOnly: true,
       secure: isProduction,
       sameSite: isProduction ? 'strict' : 'lax',
       maxAge: 15 * 60 * 1000, // 15 minutes
-      path: '/'
+      path: '/',
     });
 
     res.cookie('refresh_token', result.refresh_token, {
@@ -107,22 +138,23 @@ export class AuthController {
       secure: isProduction,
       sameSite: isProduction ? 'strict' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: '/'
+      path: '/',
     });
 
     // Return response without tokens (they're in cookies now)
     return {
       success: result.success,
       access_token: result.access_token, // Still return for backwards compatibility during migration
-      user: result.user
+      user: result.user,
     };
   }
 
   @Get('profile')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get current user profile',
-    description: 'Get authenticated user profile information including user details and roles'
+    description:
+      'Get authenticated user profile information including user details and roles',
   })
   @ApiResponse({
     status: 200,
@@ -142,13 +174,13 @@ export class AuthController {
             lastName: 'Doe',
             email: 'john.doe@company.com',
             department: 'IT',
-            position: 'Software Engineer'
+            position: 'Software Engineer',
           },
           roles: ['USER', 'ADMIN'],
-          lastLogin: '2025-09-28T17:30:00.000Z'
-        }
-      }
-    }
+          lastLogin: '2025-09-28T17:30:00.000Z',
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 401,
@@ -156,9 +188,9 @@ export class AuthController {
     schema: {
       example: {
         message: 'Unauthorized',
-        statusCode: 401
-      }
-    }
+        statusCode: 401,
+      },
+    },
   })
   async getProfile(@Request() req: any) {
     return this.authService.getProfile(req.user.id);
@@ -166,9 +198,9 @@ export class AuthController {
 
   @Public()
   @Post('refresh')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Refresh access token',
-    description: 'Refresh the access token to extend session'
+    description: 'Refresh the access token to extend session',
   })
   @ApiResponse({
     status: 200,
@@ -177,19 +209,22 @@ export class AuthController {
       example: {
         success: true,
         access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-        expires_in: 900
-      }
-    }
+        expires_in: 900,
+      },
+    },
   })
-  @ApiResponse({ status: 401, description: 'Unauthorized - Invalid or expired token' })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or expired token',
+  })
   async refreshToken(
     @Req() req: ExpressRequest,
     @Res({ passthrough: true }) res: ExpressResponse,
-    @Body('refresh_token') bodyRefreshToken?: string
+    @Body('refresh_token') bodyRefreshToken?: string,
   ) {
     // Get refresh token from cookie or body
     const refreshToken = req.cookies?.refresh_token || bodyRefreshToken;
-    
+
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token not provided');
     }
@@ -198,20 +233,23 @@ export class AuthController {
     const deviceInfo = {
       ipAddress: req.ip || req.connection.remoteAddress,
       userAgent: req.headers['user-agent'],
-      deviceId: req.headers['x-device-id'] as string
+      deviceId: req.headers['x-device-id'] as string,
     };
 
-    const result = await this.authService.refreshToken(refreshToken, deviceInfo);
+    const result = await this.authService.refreshToken(
+      refreshToken,
+      deviceInfo,
+    );
 
     // Set new cookies
     const isProduction = process.env.NODE_ENV === 'production';
-    
+
     res.cookie('access_token', result.access_token, {
       httpOnly: true,
       secure: isProduction,
       sameSite: isProduction ? 'strict' : 'lax',
       maxAge: 15 * 60 * 1000,
-      path: '/'
+      path: '/',
     });
 
     res.cookie('refresh_token', result.refresh_token, {
@@ -219,21 +257,21 @@ export class AuthController {
       secure: isProduction,
       sameSite: isProduction ? 'strict' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/'
+      path: '/',
     });
 
     return {
       success: result.success,
       access_token: result.access_token, // Backwards compatibility
-      expires_in: result.expires_in
+      expires_in: result.expires_in,
     };
   }
 
   @Post('logout')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'User logout',
-    description: 'Logout user and invalidate refresh token'
+    description: 'Logout user and invalidate refresh token',
   })
   @ApiResponse({
     status: 200,
@@ -241,20 +279,25 @@ export class AuthController {
     schema: {
       example: {
         success: true,
-        message: 'Logged out successfully'
-      }
-    }
+        message: 'Logged out successfully',
+      },
+    },
   })
   async logout(
     @Request() req: any,
     @Req() request: ExpressRequest,
-    @Res({ passthrough: true }) res: ExpressResponse
+    @Res({ passthrough: true }) res: ExpressResponse,
   ) {
     // Extract tokens
-    const accessToken = req.headers.authorization?.split(' ')[1] || request.cookies?.access_token;
+    const accessToken =
+      req.headers.authorization?.split(' ')[1] || request.cookies?.access_token;
     const refreshToken = request.cookies?.refresh_token;
 
-    const result = await this.authService.logout(req.user.id, accessToken, refreshToken);
+    const result = await this.authService.logout(
+      req.user.id,
+      accessToken,
+      refreshToken,
+    );
 
     // Clear cookies
     res.clearCookie('access_token', { path: '/' });
@@ -267,23 +310,24 @@ export class AuthController {
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 attempts per minute
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Request password reset',
-    description: 'Send password reset email to the user'
+    description: 'Send password reset email to the user',
   })
   @ApiBody({ type: ForgotPasswordDto })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
+  @ApiResponse({
+    status: HttpStatus.OK,
     description: 'Reset email sent successfully',
     schema: {
       example: {
-        message: 'If your email is registered with us, you will receive a password reset link shortly.'
-      }
-    }
+        message:
+          'If your email is registered with us, you will receive a password reset link shortly.',
+      },
+    },
   })
-  @ApiResponse({ 
-    status: HttpStatus.BAD_REQUEST, 
-    description: 'Invalid email format' 
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid email format',
   })
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
     return this.authService.forgotPassword(forgotPasswordDto);
@@ -292,23 +336,23 @@ export class AuthController {
   @Public()
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Reset password using token',
-    description: 'Reset user password with a valid reset token'
+    description: 'Reset user password with a valid reset token',
   })
   @ApiBody({ type: ResetPasswordDto })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
+  @ApiResponse({
+    status: HttpStatus.OK,
     description: 'Password reset successful',
     schema: {
       example: {
-        message: 'Password successfully reset'
-      }
-    }
+        message: 'Password successfully reset',
+      },
+    },
   })
-  @ApiResponse({ 
-    status: HttpStatus.UNAUTHORIZED, 
-    description: 'Invalid or expired reset token' 
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Invalid or expired reset token',
   })
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     return this.authService.resetPassword(resetPasswordDto);
@@ -316,36 +360,36 @@ export class AuthController {
 
   @Post('change-password')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Change user password',
-    description: 'Change password for authenticated user'
+    description: 'Change password for authenticated user',
   })
   @ApiBody({ type: ChangePasswordDto })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
+  @ApiResponse({
+    status: HttpStatus.OK,
     description: 'Password changed successfully',
     schema: {
       example: {
-        message: 'Password changed successfully'
-      }
-    }
+        message: 'Password changed successfully',
+      },
+    },
   })
-  @ApiResponse({ 
-    status: HttpStatus.UNAUTHORIZED, 
-    description: 'Current password is incorrect' 
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Current password is incorrect',
   })
-  @ApiResponse({ 
-    status: HttpStatus.BAD_REQUEST, 
-    description: 'Invalid password format' 
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid password format',
   })
   async changePassword(
     @Request() req: any,
-    @Body() changePasswordDto: ChangePasswordDto
+    @Body() changePasswordDto: ChangePasswordDto,
   ) {
     return await this.authService.changePassword(
       req.user.id,
       changePasswordDto.currentPassword,
-      changePasswordDto.newPassword
+      changePasswordDto.newPassword,
     );
   }
-} 
+}

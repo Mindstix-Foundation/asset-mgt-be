@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
 import { NotificationService } from './notification.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MarkAsReadDto } from './dto/mark-as-read.dto';
@@ -25,8 +33,11 @@ export class NotificationController {
   async markAsRead(@Request() req, @Body() markAsReadDto: MarkAsReadDto) {
     const userId = req.user.id;
     const { notificationId } = markAsReadDto;
-    
-    const success = await this.notificationService.markAsRead(notificationId, userId);
+
+    const success = await this.notificationService.markAsRead(
+      notificationId,
+      userId,
+    );
     return { success };
   }
 
@@ -46,11 +57,12 @@ export class NotificationController {
 
   @Post('cleanup-all-old')
   async cleanupAllOldNotifications() {
-    const totalCleaned = await this.notificationService.cleanupAllOldNotifications();
-    return { 
-      message: `Cleanup completed successfully`, 
+    const totalCleaned =
+      await this.notificationService.cleanupAllOldNotifications();
+    return {
+      message: `Cleanup completed successfully`,
       totalCleaned,
-      details: `Removed ${totalCleaned} old notifications across all users`
+      details: `Removed ${totalCleaned} old notifications across all users`,
     };
   }
 }

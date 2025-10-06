@@ -1,4 +1,9 @@
-import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
+import {
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  CallHandler,
+} from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
@@ -20,12 +25,12 @@ function toISTString(value: Date): string {
 // Only convert audit timestamp fields to IST
 const AUDIT_TIMESTAMP_FIELDS = new Set([
   'createdAt',
-  'updatedAt', 
+  'updatedAt',
   'changedAt',
   'assignedAt',
   'lastLogin',
   'issueTimestamp',
-  'returnTimestamp'
+  'returnTimestamp',
 ]);
 
 // Business date fields that should NOT be converted
@@ -41,7 +46,7 @@ const BUSINESS_DATE_FIELDS = new Set([
   'actualStartDate',
   'actualCompletionDate',
   'cancellationDate',
-  'dateOfBirth'
+  'dateOfBirth',
 ]);
 
 const ISO_MINUTE_RE = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
@@ -78,17 +83,13 @@ function convertAuditTimestampsToIST(data: any): any {
       if (isAuditKey(key)) return [key, convertAuditValue(value)];
       if (isBusinessDateKey(key)) return [key, value];
       return [key, convertAuditTimestampsToIST(value)];
-    })
+    }),
   );
 }
 
 @Injectable()
 export class TimezoneInterceptor implements NestInterceptor {
   intercept(_context: ExecutionContext, next: CallHandler): Observable<any> {
-    return next.handle().pipe(
-      map((data) => convertAuditTimestampsToIST(data)),
-    );
+    return next.handle().pipe(map((data) => convertAuditTimestampsToIST(data)));
   }
 }
-
-

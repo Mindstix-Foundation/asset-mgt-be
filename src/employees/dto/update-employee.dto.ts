@@ -9,9 +9,9 @@ export class UpdateEmployeeDto extends PartialType(CreateEmployeeDto) {
     description: 'Employee status',
     enum: EmployeeStatus,
     example: EmployeeStatus.ACTIVE,
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsEnum(EmployeeStatus)
   status?: EmployeeStatus;
-} 
+}

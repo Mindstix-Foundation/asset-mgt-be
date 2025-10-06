@@ -1,22 +1,20 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TimezoneUtil } from '../../shared/utils/timezone.util';
-import { 
-  AssetHistoryQueryDto, 
+import {
+  AssetHistoryQueryDto,
   AssetEventType,
   AssetHistoryResponseDto,
   AssetHistorySummaryResponseDto,
   AssetHistoryEventDto,
   AssetBasicInfoDto,
   AssetHistorySummaryDto,
-  QuickStatsDto
+  QuickStatsDto,
 } from './dto';
 
 @Injectable()
 export class AssetHistoryService {
-  constructor(
-    private readonly prisma: PrismaService
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Utility method to safely format decimal values
@@ -24,9 +22,9 @@ export class AssetHistoryService {
   private formatDecimal(value: any): number | null {
     if (value === null || value === undefined) return null;
     if (typeof value === 'number') return value;
-    if (typeof value === 'string') return parseFloat(value);
+    if (typeof value === 'string') return Number.parseFloat(value);
     if (value && typeof value.toString === 'function') {
-      return parseFloat(value.toString());
+      return Number.parseFloat(value.toString());
     }
     return null;
   }
@@ -36,15 +34,15 @@ export class AssetHistoryService {
    */
   private buildUserInfo(user: any): any {
     if (!user) return null;
-    
+
     return {
       id: user.id,
       username: user.username,
-      displayName: user.employee ? 
-        `${user.employee.firstName} ${user.employee.lastName}` : 
-        user.username,
+      displayName: user.employee
+        ? `${user.employee.firstName} ${user.employee.lastName}`
+        : user.username,
       email: user.employee?.email || null,
-      employeeId: user.employee?.employeeId || null
+      employeeId: user.employee?.employeeId || null,
     };
   }
 
@@ -55,25 +53,27 @@ export class AssetHistoryService {
     const asset = await this.prisma.asset.findFirst({
       where: {
         OR: [
-          { id: isNaN(Number(idOrCode)) ? undefined : Number(idOrCode) },
-          { assetId: idOrCode }
-        ]
+          { id: Number.isNaN(Number(idOrCode)) ? undefined : Number(idOrCode) },
+          { assetId: idOrCode },
+        ],
       },
       include: {
         assetType: true,
         brand: true,
         model: true,
         createdByUser: {
-          include: { employee: true }
+          include: { employee: true },
         },
         updatedByUser: {
-          include: { employee: true }
-        }
-      }
+          include: { employee: true },
+        },
+      },
     });
 
     if (!asset) {
-      throw new NotFoundException(`Asset with ID or code '${idOrCode}' not found`);
+      throw new NotFoundException(
+        `Asset with ID or code '${idOrCode}' not found`,
+      );
     }
 
     return asset;
@@ -83,7 +83,7 @@ export class AssetHistoryService {
    * Build asset basic info
    */
   private buildAssetBasicInfo(asset: any): AssetBasicInfoDto {
-      return {
+    return {
       id: asset.id,
       assetId: asset.assetId,
       name: `${asset.assetType?.name || 'Unknown'} - ${asset.brand?.name || 'Unknown'} ${asset.model?.name || ''}`.trim(),
@@ -93,8 +93,93 @@ export class AssetHistoryService {
       brand: asset.brand?.name,
       model: asset.model?.name,
       serialNumber: asset.serialNumber,
-      location: asset.location
+      location: asset.location,
     };
+  }
+
+  /**
+   * Build asset creation event details
+   */
+  private buildAssetCreatedDetails(event: any, asset: any): any {
+    return {
+      assetId: event.metadata?.assetId || asset.assetId,
+      assetType: event.metadata?.assetType || asset.assetType?.name || null,
+      brand: event.metadata?.brand || asset.brand?.name || null,
+      model: event.metadata?.model || asset.model?.name || null,
+      serialNumber: event.metadata?.serialNumber || asset.serialNumber || null,
+      condition: event.metadata?.condition || asset.condition || null,
+      status: event.metadata?.status || asset.status || null,
+      location: event.metadata?.location || asset.location || null,
+      purchaseCost: event.metadata?.purchaseCost || asset.purchaseCost || null,
+      vendor: event.metadata?.vendor || asset.vendor?.name || null,
+      purchaseDate: asset.purchaseDate || null,
+      warrantyStartDate: asset.warrantyStartDate || null,
+      warrantyEndDate: asset.warrantyEndDate || null,
+      notes: asset.notes || null,
+    };
+  }
+
+  /**
+   * Build asset updated event details
+   */
+  private buildAssetUpdatedDetails(event: any): any {
+    const details: any = {};
+
+    if (event.metadata?.changes && event.metadata.changes.length > 0) {
+      details.changes = event.metadata.changes.map((change: any) => ({
+        field: change.fieldName,
+        change: `${this.formatDateValueForField(change.oldValue, change.fieldName) || 'null'} → ${this.formatDateValueForField(change.newValue, change.fieldName) || 'null'}`,
+      }));
+      details.totalChanges = event.metadata.totalChanges;
+      details.updatedVia = event.metadata.updatedVia;
+    } else if (event.oldValue && event.newValue) {
+      // Fallback for old format
+      details.change = `${this.formatDateValueForField(event.oldValue, event.fieldName)} → ${this.formatDateValueForField(event.newValue, event.fieldName)}`;
+      details.fieldName = event.fieldName;
+    }
+
+    return details;
+  }
+
+  /**
+   * Build maintenance updated event details
+   */
+  private buildMaintenanceUpdatedDetails(event: any): any {
+    const details: any = {
+      maintenanceType: event.metadata?.maintenanceType || 'Unknown',
+      scheduledDate:
+        this.formatDateValue(event.metadata?.scheduledDate) || null,
+      estimatedCost: event.metadata?.estimatedCost || null,
+      description: event.metadata?.description || null,
+      status: event.metadata?.status || null,
+    };
+
+    // Show changes if available - filter out unnecessary fields
+    if (event.metadata?.changes && event.metadata.changes.length > 0) {
+      const meaningfulFields = new Set([
+        'maintenanceType',
+        'scheduledDate',
+        'estimatedCost',
+        'description',
+        'frequencyDays',
+      ]);
+
+      details.changes = event.metadata.changes
+        .filter((change: any) => meaningfulFields.has(change.fieldName))
+        .filter((change: any) => {
+          // Only show fields that actually changed (not null → null or same value)
+          const oldValue = change.oldValue || 'null';
+          const newValue = change.newValue || 'null';
+          return oldValue !== newValue;
+        })
+        .map((change: any) => ({
+          field: change.fieldName,
+          change: `${this.formatDateValueForField(change.oldValue, change.fieldName) || 'null'} → ${this.formatDateValueForField(change.newValue, change.fieldName) || 'null'}`,
+        }));
+      details.totalChanges = details.changes.length;
+    }
+
+    return details;
   }
 
   /**
@@ -105,37 +190,10 @@ export class AssetHistoryService {
 
     switch (event.eventType) {
       case AssetEventType.ASSET_CREATED:
-        details.assetId = event.metadata?.assetId || asset.assetId;
-        details.assetType = event.metadata?.assetType || asset.assetType?.name || null;
-        details.brand = event.metadata?.brand || asset.brand?.name || null;
-        details.model = event.metadata?.model || asset.model?.name || null;
-        details.serialNumber = event.metadata?.serialNumber || asset.serialNumber || null;
-        details.condition = event.metadata?.condition || asset.condition || null;
-        details.status = event.metadata?.status || asset.status || null;
-        details.location = event.metadata?.location || asset.location || null;
-        details.purchaseCost = event.metadata?.purchaseCost || asset.purchaseCost || null;
-        details.vendor = event.metadata?.vendor || asset.vendor?.name || null;
-        details.purchaseDate = asset.purchaseDate || null;
-        details.warrantyStartDate = asset.warrantyStartDate || null;
-        details.warrantyEndDate = asset.warrantyEndDate || null;
-        details.notes = asset.notes || null;
-        break;
+        return this.buildAssetCreatedDetails(event, asset);
 
       case AssetEventType.ASSET_UPDATED:
-        // Show all changed fields from metadata
-        if (event.metadata?.changes && event.metadata.changes.length > 0) {
-          details.changes = event.metadata.changes.map((change: any) => ({
-            field: change.fieldName,
-            change: `${this.formatDateValueForField(change.oldValue, change.fieldName) || 'null'} → ${this.formatDateValueForField(change.newValue, change.fieldName) || 'null'}`
-          }));
-          details.totalChanges = event.metadata.totalChanges;
-          details.updatedVia = event.metadata.updatedVia;
-        } else if (event.oldValue && event.newValue) {
-          // Fallback for old format
-          details.change = `${this.formatDateValueForField(event.oldValue, event.fieldName)} → ${this.formatDateValueForField(event.newValue, event.fieldName)}`;
-          details.fieldName = event.fieldName;
-        }
-        break;
+        return this.buildAssetUpdatedDetails(event);
 
       case AssetEventType.ASSET_RETIRED:
         // Show retirement details from metadata
@@ -179,47 +237,21 @@ export class AssetHistoryService {
 
       case AssetEventType.MAINTENANCE_SCHEDULED:
         details.maintenanceType = event.metadata?.maintenanceType || 'Unknown';
-        details.scheduledDate = this.formatDateValue(event.metadata?.scheduledDate) || null;
+        details.scheduledDate =
+          this.formatDateValue(event.metadata?.scheduledDate) || null;
         details.estimatedCost = event.metadata?.estimatedCost || null;
         details.description = event.metadata?.description || event.notes;
         break;
 
       case AssetEventType.MAINTENANCE_UPDATED:
-        details.maintenanceType = event.metadata?.maintenanceType || 'Unknown';
-        details.scheduledDate = this.formatDateValue(event.metadata?.scheduledDate) || null;
-        details.estimatedCost = event.metadata?.estimatedCost || null;
-        details.description = event.metadata?.description || null;
-        details.status = event.metadata?.status || null;
-        // Show changes if available - filter out unnecessary fields
-        if (event.metadata?.changes && event.metadata.changes.length > 0) {
-          const meaningfulFields = [
-            'maintenanceType',
-            'scheduledDate', 
-            'estimatedCost',
-            'description',
-            'frequencyDays'
-          ];
-          
-          details.changes = event.metadata.changes
-            .filter((change: any) => meaningfulFields.includes(change.fieldName))
-            .filter((change: any) => {
-              // Only show fields that actually changed (not null → null or same value)
-              const oldValue = change.oldValue || 'null';
-              const newValue = change.newValue || 'null';
-              return oldValue !== newValue;
-            })
-            .map((change: any) => ({
-              field: change.fieldName,
-              change: `${this.formatDateValueForField(change.oldValue, change.fieldName) || 'null'} → ${this.formatDateValueForField(change.newValue, change.fieldName) || 'null'}`
-            }));
-          details.totalChanges = details.changes.length;
-        }
-        break;
+        return this.buildMaintenanceUpdatedDetails(event);
 
       case AssetEventType.MAINTENANCE_COMPLETED:
         details.maintenanceType = event.metadata?.maintenanceType || 'Unknown';
-        details.scheduledDate = this.formatDateValue(event.metadata?.scheduledDate) || null;
-        details.actualCompletionDate = this.formatDateValue(event.metadata?.actualCompletionDate) || null;
+        details.scheduledDate =
+          this.formatDateValue(event.metadata?.scheduledDate) || null;
+        details.actualCompletionDate =
+          this.formatDateValue(event.metadata?.actualCompletionDate) || null;
         details.estimatedCost = event.metadata?.estimatedCost || null;
         details.actualCost = event.metadata?.actualCost || null;
         details.description = event.metadata?.description || null;
@@ -228,8 +260,10 @@ export class AssetHistoryService {
 
       case AssetEventType.MAINTENANCE_CANCELLED:
         details.maintenanceType = event.metadata?.maintenanceType || 'Unknown';
-        details.scheduledDate = this.formatDateValue(event.metadata?.scheduledDate) || null;
-        details.cancellationDate = this.formatDateValue(event.metadata?.cancellationDate) || null;
+        details.scheduledDate =
+          this.formatDateValue(event.metadata?.scheduledDate) || null;
+        details.cancellationDate =
+          this.formatDateValue(event.metadata?.cancellationDate) || null;
         details.estimatedCost = event.metadata?.estimatedCost || null;
         details.description = event.metadata?.description || null;
         details.cancellationNotes = event.metadata?.cancellationNotes || null;
@@ -248,21 +282,57 @@ export class AssetHistoryService {
   /**
    * Get event icon and color
    */
-  private getEventIconAndColor(eventType: AssetEventType): { icon: string; color: string } {
-    const eventStyles: Record<AssetEventType, { icon: string; color: string }> = {
-      [AssetEventType.ASSET_CREATED]: { icon: 'fas fa-plus-circle', color: '#28a745' },
-      [AssetEventType.ASSET_UPDATED]: { icon: 'fas fa-edit', color: '#007bff' },
-      [AssetEventType.ASSET_RETIRED]: { icon: 'fas fa-ban', color: '#6c757d' },
-      [AssetEventType.ASSET_REACTIVATED]: { icon: 'fas fa-redo', color: '#17a2b8' },
-      [AssetEventType.ASSET_ISSUED]: { icon: 'fas fa-user-plus', color: '#007bff' },
-      [AssetEventType.ASSET_COLLECTED]: { icon: 'fas fa-user-minus', color: '#6c757d' },
-      [AssetEventType.MAINTENANCE_SCHEDULED]: { icon: 'fas fa-calendar-plus', color: '#6f42c1' },
-      [AssetEventType.MAINTENANCE_UPDATED]: { icon: 'fas fa-edit', color: '#007bff' },
-      [AssetEventType.MAINTENANCE_COMPLETED]: { icon: 'fas fa-check-circle', color: '#28a745' },
-      [AssetEventType.MAINTENANCE_CANCELLED]: { icon: 'fas fa-times-circle', color: '#dc3545' }
-    };
+  private getEventIconAndColor(eventType: AssetEventType): {
+    icon: string;
+    color: string;
+  } {
+    const eventStyles: Record<AssetEventType, { icon: string; color: string }> =
+      {
+        [AssetEventType.ASSET_CREATED]: {
+          icon: 'fas fa-plus-circle',
+          color: '#28a745',
+        },
+        [AssetEventType.ASSET_UPDATED]: {
+          icon: 'fas fa-edit',
+          color: '#007bff',
+        },
+        [AssetEventType.ASSET_RETIRED]: {
+          icon: 'fas fa-ban',
+          color: '#6c757d',
+        },
+        [AssetEventType.ASSET_REACTIVATED]: {
+          icon: 'fas fa-redo',
+          color: '#17a2b8',
+        },
+        [AssetEventType.ASSET_ISSUED]: {
+          icon: 'fas fa-user-plus',
+          color: '#007bff',
+        },
+        [AssetEventType.ASSET_COLLECTED]: {
+          icon: 'fas fa-user-minus',
+          color: '#6c757d',
+        },
+        [AssetEventType.MAINTENANCE_SCHEDULED]: {
+          icon: 'fas fa-calendar-plus',
+          color: '#6f42c1',
+        },
+        [AssetEventType.MAINTENANCE_UPDATED]: {
+          icon: 'fas fa-edit',
+          color: '#007bff',
+        },
+        [AssetEventType.MAINTENANCE_COMPLETED]: {
+          icon: 'fas fa-check-circle',
+          color: '#28a745',
+        },
+        [AssetEventType.MAINTENANCE_CANCELLED]: {
+          icon: 'fas fa-times-circle',
+          color: '#dc3545',
+        },
+      };
 
-    return eventStyles[eventType] || { icon: 'fas fa-info-circle', color: '#6c757d' };
+    return (
+      eventStyles[eventType] || { icon: 'fas fa-info-circle', color: '#6c757d' }
+    );
   }
 
   /**
@@ -279,7 +349,7 @@ export class AssetHistoryService {
       [AssetEventType.MAINTENANCE_SCHEDULED]: 'Maintenance Scheduled',
       [AssetEventType.MAINTENANCE_UPDATED]: 'Maintenance Updated',
       [AssetEventType.MAINTENANCE_COMPLETED]: 'Maintenance Completed',
-      [AssetEventType.MAINTENANCE_CANCELLED]: 'Maintenance Cancelled'
+      [AssetEventType.MAINTENANCE_CANCELLED]: 'Maintenance Cancelled',
     };
 
     return titles[eventType] || 'Unknown Event';
@@ -292,59 +362,46 @@ export class AssetHistoryService {
     switch (eventType) {
       case AssetEventType.ASSET_CREATED:
         return `Asset created with ID ${event.metadata?.assetId || 'Unknown'}`;
-      
+
       case AssetEventType.ASSET_UPDATED:
         return `Asset details updated`;
-      
+
       case AssetEventType.ASSET_RETIRED:
         return `Asset retired`;
-      
+
       case AssetEventType.ASSET_REACTIVATED:
         return `Asset reactivated`;
-      
+
       case AssetEventType.ASSET_ISSUED:
         return `Issued to ${event.metadata?.employeeName || 'Unknown Employee'} (${event.metadata?.employeeId || 'N/A'})`;
-      
+
       case AssetEventType.ASSET_COLLECTED:
         return `Collected from ${event.metadata?.employeeName || 'Unknown Employee'} (${event.metadata?.employeeId || 'N/A'})`;
-      
+
       case AssetEventType.MAINTENANCE_SCHEDULED:
         return `Maintenance scheduled for ${event.metadata?.maintenanceType || 'Unknown'} type`;
-      
+
       case AssetEventType.MAINTENANCE_UPDATED:
         return `Maintenance schedule updated`;
-      
+
       case AssetEventType.MAINTENANCE_COMPLETED:
         return `Maintenance completed for ${event.metadata?.maintenanceType || 'Unknown'} type`;
-      
+
       case AssetEventType.MAINTENANCE_CANCELLED:
         return `Maintenance cancelled for ${event.metadata?.maintenanceType || 'Unknown'} type`;
-      
+
       default:
         return 'No additional details';
     }
   }
 
   /**
-   * Get asset status and condition at the time of event
-   * Reconstructs the asset state by looking at all events up to that point
+   * Get initial asset state from creation event
    */
-  private async getAssetStateAtEvent(assetId: number, eventDate: Date, event?: any): Promise<{ status: string; condition: string }> {
-    // Get the asset's current state (fallback)
-    const asset = await this.prisma.asset.findUnique({
-      where: { id: assetId },
-      select: { 
-        status: true, 
-        condition: true,
-        createdAt: true
-      }
-    });
-
-    if (!asset) {
-      return { status: 'UNKNOWN', condition: 'UNKNOWN' };
-    }
-
-    // Start with the asset's initial state from creation
+  private async getInitialAssetState(
+    assetId: number,
+  ): Promise<{ status: string; condition: string }> {
+    // Start with default initial state
     let currentStatus = 'AVAILABLE'; // default initial status
     let currentCondition = 'NEW'; // default initial condition
 
@@ -352,10 +409,10 @@ export class AssetHistoryService {
     const creationEvent = await this.prisma.assetEvent.findFirst({
       where: {
         assetId: assetId,
-        eventType: 'ASSET_CREATED'
+        eventType: 'ASSET_CREATED',
       },
       orderBy: { eventDate: 'asc' },
-      select: { metadata: true }
+      select: { metadata: true },
     });
 
     if (creationEvent?.metadata) {
@@ -369,59 +426,115 @@ export class AssetHistoryService {
       }
     }
 
+    return { status: currentStatus, condition: currentCondition };
+  }
+
+  /**
+   * Process metadata changes to update asset state
+   */
+  private processMetadataChanges(
+    metadata: any,
+    currentState: { status: string; condition: string },
+  ): { status: string; condition: string } {
+    let { status, condition } = currentState;
+
+    // Check for status changes in the metadata.changes array
+    if (metadata?.changes) {
+      for (const change of metadata.changes) {
+        if (change.fieldName === 'status' && change.newValue) {
+          status = change.newValue;
+        }
+        if (change.fieldName === 'condition' && change.newValue) {
+          condition = change.newValue;
+        }
+      }
+    }
+
+    // Also check for direct status/condition in metadata (for events like ASSET_ISSUED, ASSET_COLLECTED)
+    if (metadata?.newStatus) {
+      status = metadata.newStatus;
+    }
+    if (metadata?.newCondition) {
+      condition = metadata.newCondition;
+    }
+
+    return { status, condition };
+  }
+
+  /**
+   * Process historical events to reconstruct asset state
+   */
+  private async processHistoricalEvents(
+    assetId: number,
+    eventDate: Date,
+    initialState: { status: string; condition: string },
+  ): Promise<{ status: string; condition: string }> {
     // Get all events for this asset up to the specified event date (excluding the current event)
     const eventsUpToDate = await this.prisma.assetEvent.findMany({
       where: {
         assetId: assetId,
         eventDate: {
-          lt: eventDate // Use lt instead of lte to exclude the current event
-        }
+          lt: eventDate, // Use lt instead of lte to exclude the current event
+        },
       },
       orderBy: { eventDate: 'asc' },
       select: {
         eventType: true,
         eventDate: true,
-        metadata: true
-      }
+        metadata: true,
+      },
     });
 
     // Apply each event's changes chronologically to reconstruct the state
+    let currentState = initialState;
     for (const historicalEvent of eventsUpToDate) {
       const metadata = historicalEvent.metadata as any;
-      
-      // Check for status changes in the metadata.changes array
-      if (metadata?.changes) {
-        for (const change of metadata.changes) {
-          if (change.fieldName === 'status' && change.newValue) {
-            currentStatus = change.newValue;
-          }
-          if (change.fieldName === 'condition' && change.newValue) {
-            currentCondition = change.newValue;
-          }
-        }
-      }
-
-      // Also check for direct status/condition in metadata (for events like ASSET_ISSUED, ASSET_COLLECTED)
-      if (metadata?.newStatus) {
-        currentStatus = metadata.newStatus;
-      }
-      if (metadata?.newCondition) {
-        currentCondition = metadata.newCondition;
-      }
+      currentState = this.processMetadataChanges(metadata, currentState);
     }
 
-    return {
-      status: currentStatus,
-      condition: currentCondition
-    };
+    return currentState;
+  }
+
+  /**
+   * Get asset status and condition at the time of event
+   * Reconstructs the asset state by looking at all events up to that point
+   */
+  private async getAssetStateAtEvent(
+    assetId: number,
+    eventDate: Date,
+    event?: any,
+  ): Promise<{ status: string; condition: string }> {
+    // Get the asset's current state (fallback)
+    const asset = await this.prisma.asset.findUnique({
+      where: { id: assetId },
+      select: {
+        status: true,
+        condition: true,
+        createdAt: true,
+      },
+    });
+
+    if (!asset) {
+      return { status: 'UNKNOWN', condition: 'UNKNOWN' };
+    }
+
+    // Get initial state from creation event
+    const initialState = await this.getInitialAssetState(assetId);
+
+    // Process historical events to reconstruct the state
+    return await this.processHistoricalEvents(assetId, eventDate, initialState);
   }
 
   /**
    * Build asset issue/return event from AssetIssue table
    */
-  private async buildAssetIssueEvent(issue: any, asset: any, eventType: AssetEventType.ASSET_ISSUED | AssetEventType.ASSET_COLLECTED): Promise<AssetHistoryEventDto> {
+  private async buildAssetIssueEvent(
+    issue: any,
+    asset: any,
+    eventType: AssetEventType.ASSET_ISSUED | AssetEventType.ASSET_COLLECTED,
+  ): Promise<AssetHistoryEventDto> {
     const { icon, color } = this.getEventIconAndColor(eventType);
-    
+
     let userInfo;
     let eventDate;
     let description;
@@ -436,7 +549,7 @@ export class AssetHistoryService {
         employeeId: issue.employee.employeeId,
         businessDate: issue.issueDate, // Include business date in details
         reason: issue.issueReason,
-        notes: issue.notes
+        notes: issue.notes,
       };
     } else {
       userInfo = this.buildUserInfo(issue.updatedByUser);
@@ -447,12 +560,16 @@ export class AssetHistoryService {
         employeeId: issue.employee.employeeId,
         businessDate: issue.returnDate, // Include business date in details
         returnReason: issue.returnReason,
-        notes: issue.notes
+        notes: issue.notes,
       };
     }
 
     // Get asset state at the time of this event
-    const assetState = await this.getAssetStateAtEvent(asset.id, eventDate, issue);
+    const assetState = await this.getAssetStateAtEvent(
+      asset.id,
+      eventDate,
+      issue,
+    );
 
     return {
       id: `issue-${issue.id}-${eventType.toLowerCase()}`,
@@ -464,120 +581,105 @@ export class AssetHistoryService {
       icon,
       color,
       status: assetState.status,
-      condition: assetState.condition
+      condition: assetState.condition,
     };
+  }
+
+  /**
+   * Helper method to determine status display for events
+   */
+  private getStatusDisplay(
+    event: any,
+    assetState: { status: string; condition: string },
+  ): string {
+    if (event.eventType === AssetEventType.ASSET_UPDATED) {
+      // Check for status change in metadata changes array
+      const statusChange = event.metadata?.changes?.find(
+        (change: any) => change.fieldName === 'status',
+      );
+      if (statusChange) {
+        return `${statusChange.oldValue} → ${statusChange.newValue}`;
+      }
+      return assetState.status;
+    }
+
+    // For other event types, check for status transition in metadata
+    if (event.metadata?.previousStatus && event.metadata?.newStatus) {
+      return `${event.metadata.previousStatus} → ${event.metadata.newStatus}`;
+    }
+
+    return assetState.status;
+  }
+
+  /**
+   * Helper method to determine condition display for events
+   */
+  private getConditionDisplay(
+    event: any,
+    assetState: { status: string; condition: string },
+  ): string {
+    if (event.eventType === AssetEventType.ASSET_UPDATED) {
+      // Check for condition change in metadata changes array
+      const conditionChange = event.metadata?.changes?.find(
+        (change: any) => change.fieldName === 'condition',
+      );
+      if (conditionChange) {
+        return `${conditionChange.oldValue} → ${conditionChange.newValue}`;
+      }
+      return assetState.condition;
+    }
+
+    // For other event types, check for condition transition in metadata
+    if (event.metadata?.previousCondition && event.metadata?.newCondition) {
+      return `${event.metadata.previousCondition} → ${event.metadata.newCondition}`;
+    }
+
+    return assetState.condition;
+  }
+
+  /**
+   * Helper method to determine status display for events with special handling for maintenance updates
+   */
+  private getStatusDisplayForEvent(
+    event: any,
+    assetState: { status: string; condition: string },
+  ): string {
+    if (event.eventType === AssetEventType.MAINTENANCE_UPDATED) {
+      // For maintenance updates, check the maintenance status in metadata
+      const maintenanceStatus = event.metadata?.status;
+      if (
+        maintenanceStatus === 'SCHEDULED' ||
+        maintenanceStatus === 'IN_PROGRESS'
+      ) {
+        return assetState.status; // Keep asset status for maintenance events
+      }
+    }
+
+    return this.getStatusDisplay(event, assetState);
   }
 
   /**
    * Build consolidated asset history event
    */
-  private async buildAssetHistoryEvent(event: any, asset: any): Promise<AssetHistoryEventDto> {
+  private async buildAssetHistoryEvent(
+    event: any,
+    asset: any,
+  ): Promise<AssetHistoryEventDto> {
     const { icon, color } = this.getEventIconAndColor(event.eventType);
     const userInfo = this.buildUserInfo(event.performedByUser);
-    
+
     // Get asset state at the time of this event
-    const assetState = await this.getAssetStateAtEvent(asset.id, event.eventDate, event);
+    const assetState = await this.getAssetStateAtEvent(
+      asset.id,
+      event.eventDate,
+      event,
+    );
 
-    // Determine status display - show change if it's an asset update event with status change, otherwise show current status
-    let statusDisplay: string;
-    if (event.eventType === AssetEventType.ASSET_UPDATED) {
-      // Check for status change in metadata changes array
-      const statusChange = event.metadata?.changes?.find((change: any) => change.fieldName === 'status');
-      if (statusChange) {
-        statusDisplay = `${statusChange.oldValue} → ${statusChange.newValue}`;
-      } else {
-        // No status change occurred, show current status at that point
-        statusDisplay = assetState.status;
-      }
-    } else if (event.eventType === AssetEventType.ASSET_RETIRED) {
-      // Show status transition for retirement
-      if (event.metadata?.previousStatus && event.metadata?.newStatus) {
-        statusDisplay = `${event.metadata.previousStatus} → ${event.metadata.newStatus}`;
-      } else {
-        statusDisplay = assetState.status;
-      }
-    } else if (event.eventType === AssetEventType.ASSET_REACTIVATED) {
-      // Show status transition for reactivation
-      if (event.metadata?.previousStatus && event.metadata?.newStatus) {
-        statusDisplay = `${event.metadata.previousStatus} → ${event.metadata.newStatus}`;
-      } else {
-        statusDisplay = assetState.status;
-      }
-    } else if (event.eventType === AssetEventType.ASSET_ISSUED) {
-      // Show status transition for asset issue
-      if (event.metadata?.previousStatus && event.metadata?.newStatus) {
-        statusDisplay = `${event.metadata.previousStatus} → ${event.metadata.newStatus}`;
-      } else {
-        statusDisplay = assetState.status;
-      }
-    } else if (event.eventType === AssetEventType.ASSET_COLLECTED) {
-      // Show status transition for asset collection
-      if (event.metadata?.previousStatus && event.metadata?.newStatus) {
-        statusDisplay = `${event.metadata.previousStatus} → ${event.metadata.newStatus}`;
-      } else {
-        statusDisplay = assetState.status;
-      }
-    } else if (event.eventType === AssetEventType.MAINTENANCE_SCHEDULED) {
-      // Show status transition for maintenance scheduling
-      if (event.metadata?.previousStatus && event.metadata?.newStatus) {
-        statusDisplay = `${event.metadata.previousStatus} → ${event.metadata.newStatus}`;
-      } else {
-        statusDisplay = assetState.status;
-      }
-    } else if (event.eventType === AssetEventType.MAINTENANCE_UPDATED) {
-      // For maintenance updates, check the maintenance status in metadata
-      const maintenanceStatus = event.metadata?.status;
-      if (maintenanceStatus === 'SCHEDULED' || maintenanceStatus === 'IN_PROGRESS') {
-        statusDisplay = 'IN_MAINTENANCE';
-      } else {
-        statusDisplay = assetState.status; // AVAILABLE for COMPLETED/CANCELLED
-      }
-    } else if (event.eventType === AssetEventType.MAINTENANCE_COMPLETED) {
-      // For maintenance completion, show status transition
-      if (event.metadata?.previousStatus && event.metadata?.newStatus) {
-        statusDisplay = `${event.metadata.previousStatus} → ${event.metadata.newStatus}`;
-      } else {
-        statusDisplay = 'IN_MAINTENANCE → AVAILABLE';
-      }
-    } else if (event.eventType === AssetEventType.MAINTENANCE_CANCELLED) {
-      // For maintenance cancellation, show status transition
-      if (event.metadata?.previousStatus && event.metadata?.newStatus) {
-        statusDisplay = `${event.metadata.previousStatus} → ${event.metadata.newStatus}`;
-      } else {
-        statusDisplay = 'IN_MAINTENANCE → AVAILABLE';
-      }
-    } else {
-      statusDisplay = assetState.status;
-    }
+    // Determine status display using helper method
+    const statusDisplay = this.getStatusDisplayForEvent(event, assetState);
 
-    // Determine condition display - show change if it's an asset update event with condition change, otherwise show current condition
-    let conditionDisplay: string;
-    if (event.eventType === AssetEventType.ASSET_UPDATED) {
-      // Check for condition change in metadata changes array
-      const conditionChange = event.metadata?.changes?.find((change: any) => change.fieldName === 'condition');
-      if (conditionChange) {
-        conditionDisplay = `${conditionChange.oldValue} → ${conditionChange.newValue}`;
-      } else {
-        // No condition change occurred, show current condition at that point
-        conditionDisplay = assetState.condition;
-      }
-    } else if (event.eventType === AssetEventType.ASSET_REACTIVATED) {
-      // Show condition transition for reactivation
-      if (event.metadata?.previousCondition && event.metadata?.newCondition) {
-        conditionDisplay = `${event.metadata.previousCondition} → ${event.metadata.newCondition}`;
-      } else {
-        conditionDisplay = assetState.condition;
-      }
-    } else if (event.eventType === AssetEventType.ASSET_COLLECTED) {
-      // Show condition transition for asset collection
-      if (event.metadata?.previousCondition && event.metadata?.newCondition) {
-        conditionDisplay = `${event.metadata.previousCondition} → ${event.metadata.newCondition}`;
-      } else {
-        conditionDisplay = assetState.condition;
-      }
-    } else {
-      conditionDisplay = assetState.condition;
-    }
+    // Determine condition display using helper method
+    const conditionDisplay = this.getConditionDisplay(event, assetState);
 
     return {
       id: `event-${event.id}`,
@@ -590,24 +692,27 @@ export class AssetHistoryService {
       color,
       // Always show status and condition - with changes if applicable
       status: statusDisplay,
-      condition: conditionDisplay
+      condition: conditionDisplay,
     };
   }
 
   /**
    * Get asset history with pagination and filtering
    */
-  async getAssetHistory(idOrCode: string, query: AssetHistoryQueryDto): Promise<AssetHistoryResponseDto> {
+  async getAssetHistory(
+    idOrCode: string,
+    query: AssetHistoryQueryDto,
+  ): Promise<AssetHistoryResponseDto> {
     const asset = await this.getAssetByIdOrCode(idOrCode);
-    
+
     // Build where clause
     const where: any = {
-      assetId: asset.id
+      assetId: asset.id,
     };
 
     // Filter by event types
     if (query.eventTypes) {
-      const eventTypes = query.eventTypes.split(',').map(type => type.trim());
+      const eventTypes = query.eventTypes.split(',').map((type) => type.trim());
       where.eventType = { in: eventTypes };
     }
 
@@ -631,7 +736,7 @@ export class AssetHistoryService {
     if (query.search) {
       where.OR = [
         { notes: { contains: query.search, mode: 'insensitive' } },
-        { reason: { contains: query.search, mode: 'insensitive' } }
+        { reason: { contains: query.search, mode: 'insensitive' } },
       ];
     }
 
@@ -647,38 +752,43 @@ export class AssetHistoryService {
         where,
         include: {
           performedByUser: {
-            include: { employee: true }
-          }
+            include: { employee: true },
+          },
         },
         orderBy: {
-          eventDate: query.sortOrder === 'asc' ? 'asc' : 'desc'
-        }
+          eventDate: query.sortOrder === 'asc' ? 'asc' : 'desc',
+        },
       }),
-      this.prisma.assetEvent.count({ where })
+      this.prisma.assetEvent.count({ where }),
     ]);
 
     // Combine and sort all events (only AssetEvent records now)
     const allEvents = [
-      ...events.map(event => ({ type: 'event', data: event, date: event.eventDate }))
+      ...events.map((event) => ({
+        type: 'event',
+        data: event,
+        date: event.eventDate,
+      })),
     ];
 
     // Sort by date
     allEvents.sort((a, b) => {
       const dateA = new Date(a.date || new Date());
       const dateB = new Date(b.date || new Date());
-      return query.sortOrder === 'asc' ? dateA.getTime() - dateB.getTime() : dateB.getTime() - dateA.getTime();
+      return query.sortOrder === 'asc'
+        ? dateA.getTime() - dateB.getTime()
+        : dateB.getTime() - dateA.getTime();
     });
 
     // Apply pagination to combined results
     const paginatedEvents = allEvents.slice(skip, skip + limit);
 
     // Build timeline (only AssetEvent records now)
-    const timeline = (await Promise.all(paginatedEvents.map(item => {
-      if (item.type === 'event') {
-        return this.buildAssetHistoryEvent(item.data, asset);
-      }
-      return null;
-    }))).filter((event): event is AssetHistoryEventDto => event !== null);
+    const timeline = await Promise.all(
+      paginatedEvents
+        .filter((item) => item.type === 'event')
+        .map((item) => this.buildAssetHistoryEvent(item.data, asset)),
+    );
 
     // Build pagination info
     const totalCount = totalEvents;
@@ -689,7 +799,7 @@ export class AssetHistoryService {
       totalEvents: totalCount,
       hasNext: page < totalPages,
       hasPrevious: page > 1,
-      limit
+      limit,
     };
 
     return {
@@ -697,24 +807,27 @@ export class AssetHistoryService {
       description: 'Asset history retrieved successfully',
       asset: this.buildAssetBasicInfo(asset),
       timeline,
-      pagination
+      pagination,
     };
   }
 
   /**
    * Get asset history summary
    */
-  async getAssetHistorySummary(idOrCode: string, query: AssetHistoryQueryDto = {}): Promise<AssetHistorySummaryResponseDto> {
+  async getAssetHistorySummary(
+    idOrCode: string,
+    query: AssetHistoryQueryDto = {},
+  ): Promise<AssetHistorySummaryResponseDto> {
     const asset = await this.getAssetByIdOrCode(idOrCode);
 
     // Build where clause for filtering
     const where: any = {
-      assetId: asset.id
+      assetId: asset.id,
     };
 
     // Filter by event types
     if (query.eventTypes) {
-      const eventTypes = query.eventTypes.split(',').map(type => type.trim());
+      const eventTypes = query.eventTypes.split(',').map((type) => type.trim());
       where.eventType = { in: eventTypes };
     }
 
@@ -733,7 +846,7 @@ export class AssetHistoryService {
     if (query.search) {
       where.OR = [
         { notes: { contains: query.search, mode: 'insensitive' } },
-        { reason: { contains: query.search, mode: 'insensitive' } }
+        { reason: { contains: query.search, mode: 'insensitive' } },
       ];
     }
 
@@ -742,60 +855,83 @@ export class AssetHistoryService {
       where,
       include: {
         performedByUser: {
-          include: { employee: true }
-        }
+          include: { employee: true },
+        },
       },
-      orderBy: { eventDate: 'desc' }
+      orderBy: { eventDate: 'desc' },
     });
 
     // Combine and sort all events (only AssetEvent records now)
     const allEvents = [
-      ...events.map(event => ({ type: 'event', data: event, date: event.eventDate }))
+      ...events.map((event) => ({
+        type: 'event',
+        data: event,
+        date: event.eventDate,
+      })),
     ];
 
     // Sort by date (most recent first)
-    allEvents.sort((a, b) => new Date(b.date || new Date()).getTime() - new Date(a.date || new Date()).getTime());
+    allEvents.sort(
+      (a, b) =>
+        new Date(b.date || new Date()).getTime() -
+        new Date(a.date || new Date()).getTime(),
+    );
 
     // Calculate summary statistics
     const totalEvents = allEvents.length;
-    const lastActivity = allEvents.length > 0 ? (allEvents[0].date || asset.updatedAt) : asset.updatedAt;
+    const lastActivity =
+      allEvents.length > 0
+        ? allEvents[0].date || asset.updatedAt
+        : asset.updatedAt;
 
     // Count events by type
-    const eventCounts = allEvents.reduce((acc, item) => {
-      if (item.type === 'event' && 'eventType' in item.data) {
-        acc[item.data.eventType] = (acc[item.data.eventType] || 0) + 1;
-      } else if (item.type === 'issue') {
-        acc[AssetEventType.ASSET_ISSUED] = (acc[AssetEventType.ASSET_ISSUED] || 0) + 1;
-      } else if (item.type === 'return') {
-        acc[AssetEventType.ASSET_COLLECTED] = (acc[AssetEventType.ASSET_COLLECTED] || 0) + 1;
-      }
-      return acc;
-    }, {} as Record<string, number>);
+    const eventCounts = allEvents.reduce(
+      (acc, item) => {
+        if (item.type === 'event' && 'eventType' in item.data) {
+          acc[item.data.eventType] = (acc[item.data.eventType] || 0) + 1;
+        } else if (item.type === 'issue') {
+          acc[AssetEventType.ASSET_ISSUED] =
+            (acc[AssetEventType.ASSET_ISSUED] || 0) + 1;
+        } else if (item.type === 'return') {
+          acc[AssetEventType.ASSET_COLLECTED] =
+            (acc[AssetEventType.ASSET_COLLECTED] || 0) + 1;
+        }
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
     const totalAssignments = eventCounts[AssetEventType.ASSET_ISSUED] || 0;
-    const totalMaintenance = (eventCounts[AssetEventType.MAINTENANCE_SCHEDULED] || 0) +
-                           (eventCounts[AssetEventType.MAINTENANCE_UPDATED] || 0) +
-                           (eventCounts[AssetEventType.MAINTENANCE_COMPLETED] || 0) +
-                           (eventCounts[AssetEventType.MAINTENANCE_CANCELLED] || 0);
-    const totalStatusChanges = events.filter(event => 
-      event.eventType === AssetEventType.ASSET_UPDATED && event.fieldName === 'status'
+    const totalMaintenance =
+      (eventCounts[AssetEventType.MAINTENANCE_SCHEDULED] || 0) +
+      (eventCounts[AssetEventType.MAINTENANCE_UPDATED] || 0) +
+      (eventCounts[AssetEventType.MAINTENANCE_COMPLETED] || 0) +
+      (eventCounts[AssetEventType.MAINTENANCE_CANCELLED] || 0);
+    const totalStatusChanges = events.filter(
+      (event) =>
+        event.eventType === AssetEventType.ASSET_UPDATED &&
+        event.fieldName === 'status',
     ).length;
 
     // Calculate total cost (from asset updates with cost changes)
     const totalCost = events
-      .filter(event => event.eventType === AssetEventType.ASSET_UPDATED && event.fieldName === 'purchaseCost')
+      .filter(
+        (event) =>
+          event.eventType === AssetEventType.ASSET_UPDATED &&
+          event.fieldName === 'purchaseCost',
+      )
       .reduce((sum, event) => {
         const cost = this.formatDecimal((event as any).newValue);
         return sum + (cost || 0);
       }, 0);
 
     // Get recent events (last 5) - only AssetEvent records now
-    const recentEvents = (await Promise.all(allEvents.slice(0, 5).map(item => {
-      if (item.type === 'event') {
-        return this.buildAssetHistoryEvent(item.data, asset);
-      }
-      return null;
-    }))).filter((event): event is AssetHistoryEventDto => event !== null);
+    const recentEvents = await Promise.all(
+      allEvents
+        .slice(0, 5)
+        .filter((item) => item.type === 'event')
+        .map((item) => this.buildAssetHistoryEvent(item.data, asset)),
+    );
 
     // Build summary
     const summary: AssetHistorySummaryDto = {
@@ -807,7 +943,7 @@ export class AssetHistoryService {
       totalMaintenance,
       totalStatusChanges,
       totalCost,
-      eventCounts
+      eventCounts,
     };
 
     // Build quick stats
@@ -815,7 +951,7 @@ export class AssetHistoryService {
       mostCommonStatus: asset.status,
       mostCommonCondition: asset.condition,
       maintenanceFrequency: totalMaintenance > 0 ? 'Regular' : 'None',
-      avgAssignmentDuration: totalAssignments > 0 ? 'Active' : 'N/A'
+      avgAssignmentDuration: totalAssignments > 0 ? 'Active' : 'N/A',
     };
 
     return {
@@ -824,7 +960,7 @@ export class AssetHistoryService {
       asset: this.buildAssetBasicInfo(asset),
       summary,
       recentEvents,
-      quickStats
+      quickStats,
     };
   }
 
@@ -834,42 +970,76 @@ export class AssetHistoryService {
    */
   private formatDateValue(value: any): string | null {
     if (value === null || value === undefined) return null;
-    
+
     // Handle Date objects
     if (value instanceof Date) {
       return value.toISOString().split('T')[0]; // yyyy-mm-dd format
     }
-    
+
     // Handle date strings
     if (typeof value === 'string') {
       // Check if it's already in yyyy-mm-dd format
       if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
         return value; // Already in correct format
       }
-      
+
       // Try to parse as a date (handles ISO format, full timestamp strings, etc.)
       try {
         const date = new Date(value);
         // Check if it's a valid date and not a regular string
-        if (!isNaN(date.getTime()) && date.getFullYear() > 1900 && date.getFullYear() < 2100) {
+        if (
+          !Number.isNaN(date.getTime()) &&
+          date.getFullYear() > 1900 &&
+          date.getFullYear() < 2100
+        ) {
           return date.toISOString().split('T')[0]; // yyyy-mm-dd format
         }
       } catch (e) {
         // If parsing fails, return as-is
       }
     }
-    
+
     // Return as-is for all other values (numbers, non-date strings, etc.)
     return value.toString();
+  }
+
+  /**
+   * Process date string values for formatting
+   */
+  private processDateString(value: string): string | null {
+    // Check if it's already in yyyy-mm-dd format
+    if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return value; // Already in correct format
+    }
+
+    // Try to parse as a date (handles ISO format, full timestamp strings, etc.)
+    try {
+      const date = new Date(value);
+      // Check if it's a valid date
+      if (
+        !Number.isNaN(date.getTime()) &&
+        date.getFullYear() > 1900 &&
+        date.getFullYear() < 2100
+      ) {
+        return date.toISOString().split('T')[0]; // yyyy-mm-dd format
+      }
+    } catch (e) {
+      // If parsing fails, return as-is
+    }
+
+    return null;
   }
 
   /**
    * Format date values for display in changes array (field-specific formatting)
    * Only formats values for known date fields
    */
-  private formatDateValueForField(value: any, fieldName: string): string | null {
+  private formatDateValueForField(
+    value: any,
+    fieldName: string,
+  ): string | null {
     if (value === null || value === undefined) return null;
-    
+
     // List of known date fields
     const dateFields = [
       'purchaseDate',
@@ -882,36 +1052,25 @@ export class AssetHistoryService {
       'actualCompletionDate',
       'cancellationDate',
       'issueDate',
-      'returnDate'
+      'returnDate',
     ];
-    
+
     // Only format if it's a known date field
     if (dateFields.includes(fieldName)) {
       // Handle Date objects
       if (value instanceof Date) {
         return value.toISOString().split('T')[0]; // yyyy-mm-dd format
       }
-      
+
       // Handle date strings
       if (typeof value === 'string') {
-        // Check if it's already in yyyy-mm-dd format
-        if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
-          return value; // Already in correct format
-        }
-        
-        // Try to parse as a date (handles ISO format, full timestamp strings, etc.)
-        try {
-          const date = new Date(value);
-          // Check if it's a valid date
-          if (!isNaN(date.getTime()) && date.getFullYear() > 1900 && date.getFullYear() < 2100) {
-            return date.toISOString().split('T')[0]; // yyyy-mm-dd format
-          }
-        } catch (e) {
-          // If parsing fails, return as-is
+        const formattedDate = this.processDateString(value);
+        if (formattedDate !== null) {
+          return formattedDate;
         }
       }
     }
-    
+
     // For non-date fields, return as-is
     return value?.toString() || null;
   }

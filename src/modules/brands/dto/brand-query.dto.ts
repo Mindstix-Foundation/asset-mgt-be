@@ -54,4 +54,4 @@ export class BrandQueryDto {
   @IsString()
   @IsIn(['asc', 'desc'])
   sortOrder?: string = 'asc';
-} 
+}

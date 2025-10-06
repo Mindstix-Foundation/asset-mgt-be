@@ -70,4 +70,3 @@ import { NotificationModule } from './notifications/notification.module';
   ],
 })
 export class AppModule {}
-

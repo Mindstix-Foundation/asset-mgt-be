@@ -28,7 +28,10 @@ import {
 import { EmployeesService } from './employees.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
-import { QueryEmployeeDto, QueryEmployeeAssetEventsDto } from './dto/query-employee.dto';
+import {
+  QueryEmployeeDto,
+  QueryEmployeeAssetEventsDto,
+} from './dto/query-employee.dto';
 import {
   EmployeeListResponseDto,
   EmployeeDetailResponseDto,
@@ -64,14 +67,17 @@ export class EmployeesController {
             address: '123 Main Street, City',
             status: 'ACTIVE',
             createdAt: '2024-01-15T10:30:00Z',
-            assignedAssetsCount: 0
-          }
-        }
-      }
-    }
+            assignedAssetsCount: 0,
+          },
+        },
+      },
+    },
   })
   @ApiResponse({ status: 400, description: 'Bad Request - Validation failed' })
-  @ApiResponse({ status: 409, description: 'Conflict - Employee ID or email already exists' })
+  @ApiResponse({
+    status: 409,
+    description: 'Conflict - Employee ID or email already exists',
+  })
   async create(
     @Body() createEmployeeDto: CreateEmployeeDto,
     @Request() req: any,
@@ -82,23 +88,86 @@ export class EmployeesController {
   @Get('check-email')
   @ApiOperation({ summary: 'Check if an email is available for employee' })
   @ApiQuery({ name: 'email', required: true, type: String })
-  @ApiQuery({ name: 'excludeId', required: false, type: String, description: 'Employee ID to exclude from check (for edit mode)' })
-  @ApiResponse({ status: 200, description: 'Returns availability boolean', schema: { example: { available: true } } })
-  async checkEmail(@Query('email') email: string, @Query('excludeId') excludeId?: string) {
-    const available = await this.employeesService.isEmailAvailable(email, excludeId);
+  @ApiQuery({
+    name: 'excludeId',
+    required: false,
+    type: String,
+    description: 'Employee ID to exclude from check (for edit mode)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns availability boolean',
+    schema: { example: { available: true } },
+  })
+  async checkEmail(
+    @Query('email') email: string,
+    @Query('excludeId') excludeId?: string,
+  ) {
+    const available = await this.employeesService.isEmailAvailable(
+      email,
+      excludeId,
+    );
     return { message: 'Email availability', data: { available } };
   }
 
   @Get()
   @ApiOperation({ summary: 'Get all employees with filtering and pagination' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)', example: 1 })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 10, max: 100)', example: 10 })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search by name, employee ID, or email', example: 'john' })
-  @ApiQuery({ name: 'status', required: false, enum: ['ACTIVE', 'INACTIVE'], description: 'Filter by status', example: 'ACTIVE' })
-  @ApiQuery({ name: 'hasAssets', required: false, type: Boolean, description: 'Filter by asset assignment', example: true })
-  @ApiQuery({ name: 'assetCountRange', required: false, enum: ['0', '1-2', '3+'], description: 'Filter by asset count range', example: '1-2' })
-  @ApiQuery({ name: 'sortBy', required: false, enum: ['name', 'employeeId', 'email', 'status', 'createdAt'], description: 'Sort by field (default: name)', example: 'name' })
-  @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'], description: 'Sort order (default: asc)', example: 'asc' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Items per page (default: 10, max: 100)',
+    example: 10,
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search by name, employee ID, or email',
+    example: 'john',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['ACTIVE', 'INACTIVE'],
+    description: 'Filter by status',
+    example: 'ACTIVE',
+  })
+  @ApiQuery({
+    name: 'hasAssets',
+    required: false,
+    type: Boolean,
+    description: 'Filter by asset assignment',
+    example: true,
+  })
+  @ApiQuery({
+    name: 'assetCountRange',
+    required: false,
+    enum: ['0', '1-2', '3+'],
+    description: 'Filter by asset count range',
+    example: '1-2',
+  })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    enum: ['name', 'employeeId', 'email', 'status', 'createdAt'],
+    description: 'Sort by field (default: name)',
+    example: 'name',
+  })
+  @ApiQuery({
+    name: 'sortOrder',
+    required: false,
+    enum: ['asc', 'desc'],
+    description: 'Sort order (default: asc)',
+    example: 'asc',
+  })
   @ApiResponse({
     status: 200,
     description: 'Employees retrieved successfully',
@@ -121,30 +190,47 @@ export class EmployeesController {
                   assetId: 'AST001',
                   assetName: 'Laptop Dell Inspiron',
                   assignedDate: '2024-01-15',
-                  status: 'ACTIVE'
-                }
-              ]
-            }
+                  status: 'ACTIVE',
+                },
+              ],
+            },
           ],
           pagination: {
             totalCount: 153,
             currentPage: 1,
             totalPages: 16,
             hasNext: true,
-            hasPrevious: false
-          }
-        }
-      }
-    }
+            hasPrevious: false,
+          },
+        },
+      },
+    },
   })
-  async findAll(@Query() query: QueryEmployeeDto): Promise<EmployeeListResponseDto> {
+  async findAll(
+    @Query() query: QueryEmployeeDto,
+  ): Promise<EmployeeListResponseDto> {
     return this.employeesService.findAll(query);
   }
 
   @Get('dropdowns')
-  @ApiOperation({ summary: 'Get all employees for dropdown selection (ID and name only)' })
-  @ApiQuery({ name: 'status', required: false, enum: ['ACTIVE', 'INACTIVE'], description: 'Filter by status (default: ACTIVE)', example: 'ACTIVE' })
-  @ApiQuery({ name: 'hasAssignedAssets', required: false, type: 'boolean', description: 'Filter employees who have at least one asset currently assigned', example: true })
+  @ApiOperation({
+    summary: 'Get all employees for dropdown selection (ID and name only)',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['ACTIVE', 'INACTIVE'],
+    description: 'Filter by status (default: ACTIVE)',
+    example: 'ACTIVE',
+  })
+  @ApiQuery({
+    name: 'hasAssignedAssets',
+    required: false,
+    type: 'boolean',
+    description:
+      'Filter employees who have at least one asset currently assigned',
+    example: true,
+  })
   @ApiResponse({
     status: 200,
     description: 'Employees retrieved successfully for dropdown',
@@ -158,26 +244,29 @@ export class EmployeesController {
               employeeId: 'EMP001',
               firstName: 'John',
               lastName: 'Doe',
-              name: 'John Doe'
+              name: 'John Doe',
             },
             {
               id: 'uuid-string-2',
               employeeId: 'EMP002',
               firstName: 'Jane',
               lastName: 'Smith',
-              name: 'Jane Smith'
-            }
-          ]
-        }
-      }
-    }
+              name: 'Jane Smith',
+            },
+          ],
+        },
+      },
+    },
   })
   async findAllForDropdowns(
     @Query('status') status?: string,
-    @Query('hasAssignedAssets') hasAssignedAssets?: string
+    @Query('hasAssignedAssets') hasAssignedAssets?: string,
   ) {
     const hasAssignedAssetsBool = hasAssignedAssets === 'true';
-    return this.employeesService.findAllForDropdowns(status, hasAssignedAssetsBool);
+    return this.employeesService.findAllForDropdowns(
+      status,
+      hasAssignedAssetsBool,
+    );
   }
 
   @Get('test-route')
@@ -186,60 +275,106 @@ export class EmployeesController {
   }
 
   @Get('non-admin-dropdown')
-  @ApiOperation({ summary: 'Get active employees with email addresses excluding admins for dropdown selection' })
-  @ApiResponse({ status: 200, description: 'Active non-admin employees with email addresses retrieved successfully' })
+  @ApiOperation({
+    summary:
+      'Get active employees with email addresses excluding admins for dropdown selection',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Active non-admin employees with email addresses retrieved successfully',
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async getNonAdminEmployeesForDropdown() {
     return this.employeesService.getNonAdminEmployeesForDropdown();
   }
 
-
   @Get('export')
   @ApiOperation({ summary: 'Export employees to Excel with asset details' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Excel file generated successfully',
     content: {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
         schema: {
           type: 'string',
-          format: 'binary'
-        }
-      }
-    }
+          format: 'binary',
+        },
+      },
+    },
   })
   async exportEmployeesToExcel(
     @Query() queryDto: QueryEmployeeDto,
     @Res() res: any,
   ) {
     try {
-      const excelBuffer = await this.employeesService.exportEmployeesToExcel(queryDto);
-      
+      const excelBuffer =
+        await this.employeesService.exportEmployeesToExcel(queryDto);
+
       // Set response headers
       const filename = `employees_export_${new Date().toISOString().split('T')[0]}.xlsx`;
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${filename}"`,
+      );
       res.setHeader('Content-Length', excelBuffer.length);
-      
+
       // Send the Excel file
       res.send(excelBuffer);
     } catch (error) {
       console.error('Error exporting employees:', error);
-      res.status(500).json({ 
-        message: 'Failed to export employees', 
-        error: error.message 
+      res.status(500).json({
+        message: 'Failed to export employees',
+        error: error.message,
       });
     }
   }
 
   @Get('deletable')
-  @ApiOperation({ summary: 'Get employees who can be deleted (non-admin with no asset history)' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)', example: 1 })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 10, max: 100)', example: 10 })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search by name, employee ID, or email', example: 'john' })
-  @ApiQuery({ name: 'sortBy', required: false, enum: ['name', 'employeeId', 'email', 'status', 'createdAt'], description: 'Sort by field (default: name)', example: 'name' })
-  @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'], description: 'Sort order (default: asc)', example: 'asc' })
+  @ApiOperation({
+    summary:
+      'Get employees who can be deleted (non-admin with no asset history)',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Items per page (default: 10, max: 100)',
+    example: 10,
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search by name, employee ID, or email',
+    example: 'john',
+  })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    enum: ['name', 'employeeId', 'email', 'status', 'createdAt'],
+    description: 'Sort by field (default: name)',
+    example: 'name',
+  })
+  @ApiQuery({
+    name: 'sortOrder',
+    required: false,
+    enum: ['asc', 'desc'],
+    description: 'Sort order (default: asc)',
+    example: 'asc',
+  })
   @ApiResponse({
     status: 200,
     description: 'Deletable employees retrieved successfully',
@@ -258,28 +393,36 @@ export class EmployeesController {
               status: 'ACTIVE',
               assignedAssetsCount: 0,
               assignedAssets: [],
-              isAdmin: false
-            }
+              isAdmin: false,
+            },
           ],
           pagination: {
             totalCount: 5,
             currentPage: 1,
             totalPages: 1,
             hasNext: false,
-            hasPrevious: false
-          }
-        }
-      }
-    }
+            hasPrevious: false,
+          },
+        },
+      },
+    },
   })
-  async getDeletableEmployees(@Query() query: QueryEmployeeDto): Promise<EmployeeListResponseDto> {
+  async getDeletableEmployees(
+    @Query() query: QueryEmployeeDto,
+  ): Promise<EmployeeListResponseDto> {
     return this.employeesService.getDeletableEmployees(query);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get employee by ID' })
   @ApiParam({ name: 'id', description: 'Employee ID' })
-  @ApiQuery({ name: 'include_assets', required: false, type: Boolean, description: 'Include assigned assets (default: true)', example: true })
+  @ApiQuery({
+    name: 'include_assets',
+    required: false,
+    type: Boolean,
+    description: 'Include assigned assets (default: true)',
+    example: true,
+  })
   @ApiResponse({
     status: 200,
     description: 'Employee retrieved successfully',
@@ -304,13 +447,13 @@ export class EmployeesController {
                 assetId: 'AST001',
                 assetName: 'Laptop Dell Inspiron',
                 assignedDate: '2024-01-15',
-                status: 'ACTIVE'
-              }
-            ]
-          }
-        }
-      }
-    }
+                status: 'ACTIVE',
+              },
+            ],
+          },
+        },
+      },
+    },
   })
   @ApiResponse({ status: 404, description: 'Employee not found' })
   async findOne(
@@ -349,7 +492,7 @@ export class EmployeesController {
               notes: 'Asset returned in good condition',
               issuedBy: 'admin',
               returnedBy: 'admin',
-              duration: 31
+              duration: 31,
             },
             {
               id: 2,
@@ -364,12 +507,12 @@ export class EmployeesController {
               issueReason: 'Additional equipment needed',
               notes: 'For home office setup',
               issuedBy: 'admin',
-              duration: 15
-            }
-          ]
-        }
-      }
-    }
+              duration: 15,
+            },
+          ],
+        },
+      },
+    },
   })
   @ApiResponse({ status: 404, description: 'Employee not found' })
   async getAssetHistory(@Param('id') id: string) {
@@ -377,9 +520,15 @@ export class EmployeesController {
   }
 
   @Get(':id/asset-events')
-  @ApiOperation({ summary: 'Get per-event asset history (ASSIGNED/RETURNED as separate events)' })
+  @ApiOperation({
+    summary:
+      'Get per-event asset history (ASSIGNED/RETURNED as separate events)',
+  })
   @ApiParam({ name: 'id', description: 'Employee ID' })
-  @ApiResponse({ status: 200, description: 'Asset events retrieved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Asset events retrieved successfully',
+  })
   @ApiResponse({ status: 404, description: 'Employee not found' })
   async getAssetEvents(
     @Param('id') id: string,
@@ -405,15 +554,22 @@ export class EmployeesController {
             lastName: 'Doe',
             email: 'john.doe.updated@company.com',
             status: 'ACTIVE',
-            updatedAt: '2024-01-15T10:30:00Z'
-          }
-        }
-      }
-    }
+            updatedAt: '2024-01-15T10:30:00Z',
+          },
+        },
+      },
+    },
   })
-  @ApiResponse({ status: 400, description: 'Bad request - Cannot update email or deactivate admin employees' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Bad request - Cannot update email or deactivate admin employees',
+  })
   @ApiResponse({ status: 404, description: 'Employee not found' })
-  @ApiResponse({ status: 409, description: 'Conflict - Employee ID or email already exists' })
+  @ApiResponse({
+    status: 409,
+    description: 'Conflict - Employee ID or email already exists',
+  })
   async update(
     @Param('id') id: string,
     @Body() updateEmployeeDto: UpdateEmployeeDto,
@@ -431,33 +587,47 @@ export class EmployeesController {
     schema: {
       type: 'object',
       properties: {
-        file: { type: 'string', format: 'binary', description: 'CSV or Excel file containing employee data' }
-      }
-    }
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'CSV or Excel file containing employee data',
+        },
+      },
+    },
   })
   @ApiResponse({ status: 200, description: 'File validation completed' })
-  @ApiResponse({ status: 400, description: 'Invalid file format or validation errors' })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid file format or validation errors',
+  })
   async validateBulkUpload(
     @UploadedFile() file: Express.Multer.File,
     @Request() req: any,
   ) {
-    console.log('EmployeesController.validateBulkUpload: Received validation request')
+    console.log(
+      'EmployeesController.validateBulkUpload: Received validation request',
+    );
     console.log('EmployeesController.validateBulkUpload: File details:', {
       fieldname: file?.fieldname,
       originalname: file?.originalname,
       mimetype: file?.mimetype,
       size: file?.size,
-      buffer: file?.buffer ? `Buffer(${file.buffer.length} bytes)` : 'undefined'
-    })
-    console.log('EmployeesController.validateBulkUpload: User ID:', req.user?.id || 1)
-    
+      buffer: file?.buffer
+        ? `Buffer(${file.buffer.length} bytes)`
+        : 'undefined',
+    });
+    console.log(
+      'EmployeesController.validateBulkUpload: User ID:',
+      req.user?.id || 1,
+    );
+
     if (!file) {
-      console.error('EmployeesController.validateBulkUpload: No file received')
-      throw new BadRequestException('File is required')
+      console.error('EmployeesController.validateBulkUpload: No file received');
+      throw new BadRequestException('File is required');
     }
-    
-    const userId = req.user?.id || 1
-    return this.employeesService.bulkUpload(file, userId, true)
+
+    const userId = req.user?.id || 1;
+    return this.employeesService.bulkUpload(file, userId, true);
   }
 
   @Post('bulk-upload')
@@ -469,21 +639,33 @@ export class EmployeesController {
     schema: {
       type: 'object',
       properties: {
-        file: { type: 'string', format: 'binary', description: 'CSV or Excel file containing employee data' },
-        validateOnly: { type: 'string', enum: ['true', 'false'], description: 'Validate only without inserting', example: 'false' }
-      }
-    }
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'CSV or Excel file containing employee data',
+        },
+        validateOnly: {
+          type: 'string',
+          enum: ['true', 'false'],
+          description: 'Validate only without inserting',
+          example: 'false',
+        },
+      },
+    },
   })
   @ApiResponse({ status: 200, description: 'Employees uploaded successfully' })
-  @ApiResponse({ status: 400, description: 'Invalid file format or validation errors' })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid file format or validation errors',
+  })
   async bulkUpload(
     @UploadedFile() file: Express.Multer.File,
     @Body('validateOnly') validateOnly: string,
     @Request() req: any,
   ) {
-    const userId = req.user?.id || 1
-    const isValidateOnly = validateOnly === 'true'
-    return this.employeesService.bulkUpload(file, userId, isValidateOnly)
+    const userId = req.user?.id || 1;
+    const isValidateOnly = validateOnly === 'true';
+    return this.employeesService.bulkUpload(file, userId, isValidateOnly);
   }
 
   @Delete(':id')
@@ -498,11 +680,11 @@ export class EmployeesController {
         reassign_assets_to: {
           type: 'string',
           description: 'Employee ID to reassign assets to',
-          example: 'EMP002'
-        }
-      }
+          example: 'EMP002',
+        },
+      },
     },
-    required: false
+    required: false,
   })
   @ApiResponse({
     status: 200,
@@ -515,14 +697,18 @@ export class EmployeesController {
             id: 'uuid-string',
             employeeId: 'EMP001',
             status: 'INACTIVE',
-            deletedAt: '2024-01-15T10:30:00Z'
-          }
-        }
-      }
-    }
+            deletedAt: '2024-01-15T10:30:00Z',
+          },
+        },
+      },
+    },
   })
   @ApiResponse({ status: 404, description: 'Employee not found' })
-  @ApiResponse({ status: 400, description: 'Cannot delete employee with assigned assets without reassignment' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Cannot delete employee with assigned assets without reassignment',
+  })
   async remove(
     @Param('id') id: string,
     @Request() req: any,
@@ -530,5 +716,4 @@ export class EmployeesController {
   ): Promise<EmployeeDetailResponseDto> {
     return this.employeesService.remove(id, req.user.id, reassignAssetsTo);
   }
-
-} 
+}

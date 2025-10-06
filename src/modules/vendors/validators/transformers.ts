@@ -10,7 +10,7 @@ export function ToTitleCase() {
       return value
         .toLowerCase()
         .split(' ')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
     }
     return value;
@@ -42,7 +42,7 @@ export function ToTrimmedTitleCase() {
         .replace(/\s+/g, ' ') // Replace multiple spaces with single space
         .toLowerCase()
         .split(' ')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
     }
     return value;
@@ -71,17 +71,22 @@ export function ToPhoneFormat() {
     if (typeof value === 'string') {
       // Remove all non-digit characters except + at the beginning
       const cleaned = value.replace(/[^\d+]/g, '');
-      
+
       // If it starts with +, keep it, otherwise format as needed
       if (cleaned.startsWith('+')) {
         return cleaned;
       }
-      
+
       // For Indian numbers, add +91 if not present
-      if (cleaned.length === 10 && cleaned.startsWith('6') || cleaned.startsWith('7') || cleaned.startsWith('8') || cleaned.startsWith('9')) {
+      if (
+        (cleaned.length === 10 && cleaned.startsWith('6')) ||
+        cleaned.startsWith('7') ||
+        cleaned.startsWith('8') ||
+        cleaned.startsWith('9')
+      ) {
         return `+91${cleaned}`;
       }
-      
+
       return cleaned;
     }
     return value;

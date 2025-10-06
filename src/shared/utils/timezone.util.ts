@@ -9,7 +9,7 @@ export class TimezoneUtil {
    */
   static toISTString(date: Date | string): string {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
-    
+
     if (Number.isNaN(dateObj.getTime())) {
       return date.toString();
     }
@@ -24,7 +24,7 @@ export class TimezoneUtil {
       second: '2-digit',
       hour12: false,
     });
-    
+
     return formatter.format(dateObj);
   }
 
@@ -35,7 +35,7 @@ export class TimezoneUtil {
    */
   static toISTDateString(date: Date | string): string {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
-    
+
     if (Number.isNaN(dateObj.getTime())) {
       return date.toString();
     }
@@ -46,7 +46,7 @@ export class TimezoneUtil {
       month: '2-digit',
       day: '2-digit',
     });
-    
+
     return formatter.format(dateObj);
   }
 
@@ -57,7 +57,7 @@ export class TimezoneUtil {
    */
   static toISTTimeString(date: Date | string): string {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
-    
+
     if (Number.isNaN(dateObj.getTime())) {
       return date.toString();
     }
@@ -69,7 +69,7 @@ export class TimezoneUtil {
       second: '2-digit',
       hour12: false,
     });
-    
+
     return formatter.format(dateObj);
   }
 
@@ -87,7 +87,10 @@ export class TimezoneUtil {
    * @param timestampFields - Array of field names to convert
    * @returns Object with converted timestamps
    */
-  static transformAuditTimestamps<T>(obj: T, timestampFields: string[] = ['createdAt', 'updatedAt']): T {
+  static transformAuditTimestamps<T>(
+    obj: T,
+    timestampFields: string[] = ['createdAt', 'updatedAt'],
+  ): T {
     if (!obj || typeof obj !== 'object') {
       return obj;
     }
@@ -110,13 +113,15 @@ export class TimezoneUtil {
    * @returns Array with converted timestamps
    */
   static transformAuditTimestampsArray<T>(
-    array: T[], 
-    timestampFields: string[] = ['createdAt', 'updatedAt']
+    array: T[],
+    timestampFields: string[] = ['createdAt', 'updatedAt'],
   ): T[] {
     if (!Array.isArray(array)) {
       return array;
     }
 
-    return array.map(item => this.transformAuditTimestamps(item, timestampFields));
+    return array.map((item) =>
+      this.transformAuditTimestamps(item, timestampFields),
+    );
   }
 }

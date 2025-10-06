@@ -50,12 +50,17 @@ export class NotificationService {
         take: limit,
       });
 
-      return notifications.map(notification => ({
+      return notifications.map((notification) => ({
         ...notification,
-        data: notification.data ? JSON.parse(notification.data as string) : null,
+        data: notification.data
+          ? JSON.parse(notification.data as string)
+          : null,
       }));
     } catch (error) {
-      this.logger.error('Failed to fetch user notifications', error?.stack || error);
+      this.logger.error(
+        'Failed to fetch user notifications',
+        error?.stack || error,
+      );
       throw error;
     }
   }
@@ -76,7 +81,10 @@ export class NotificationService {
 
       return notification.count > 0;
     } catch (error) {
-      this.logger.error('Failed to mark notification as read', error?.stack || error);
+      this.logger.error(
+        'Failed to mark notification as read',
+        error?.stack || error,
+      );
       throw error;
     }
   }
@@ -94,10 +102,15 @@ export class NotificationService {
         },
       });
 
-      this.logger.log(`Marked ${result.count} notifications as read for user ${userId}`);
+      this.logger.log(
+        `Marked ${result.count} notifications as read for user ${userId}`,
+      );
       return result.count;
     } catch (error) {
-      this.logger.error('Failed to mark all notifications as read', error?.stack || error);
+      this.logger.error(
+        'Failed to mark all notifications as read',
+        error?.stack || error,
+      );
       throw error;
     }
   }
@@ -113,7 +126,10 @@ export class NotificationService {
 
       return count;
     } catch (error) {
-      this.logger.error('Failed to get unread notification count', error?.stack || error);
+      this.logger.error(
+        'Failed to get unread notification count',
+        error?.stack || error,
+      );
       throw error;
     }
   }
@@ -136,7 +152,9 @@ export class NotificationService {
       const smtpPass = this.configService.get('SMTP_PASS');
 
       if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
-        this.logger.error('SMTP configuration is incomplete. Cannot send maintenance reminder email.');
+        this.logger.error(
+          'SMTP configuration is incomplete. Cannot send maintenance reminder email.',
+        );
         return false;
       }
 
@@ -150,10 +168,13 @@ export class NotificationService {
         },
       });
 
-      const frontendUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:5173';
+      const frontendUrl =
+        this.configService.get('FRONTEND_URL') || 'http://localhost:5173';
 
       await transporter.sendMail({
-        from: this.configService.get('SMTP_FROM') || '"TrackStix Support" <trackstix.noreply@gmail.com>',
+        from:
+          this.configService.get('SMTP_FROM') ||
+          '"TrackStix Support" <trackstix.noreply@gmail.com>',
         to: userEmail,
         subject: 'Maintenance Reminder - TrackStix Asset Management',
         html: `
@@ -241,7 +262,10 @@ export class NotificationService {
       this.logger.log(`Maintenance reminder email sent to ${userEmail}`);
       return true;
     } catch (error) {
-      this.logger.error('Failed to send maintenance reminder email', error?.stack || error);
+      this.logger.error(
+        'Failed to send maintenance reminder email',
+        error?.stack || error,
+      );
       return false;
     }
   }
@@ -256,48 +280,51 @@ export class NotificationService {
       endOfToday.setHours(23, 59, 59, 999);
 
       // Find all scheduled maintenance for today
-      const scheduledMaintenances = await this.prisma.maintenanceSchedule.findMany({
-        where: {
-          isActive: true,
-          status: 'SCHEDULED',
-          scheduledDate: {
-            gte: startOfToday,
-            lte: endOfToday,
-          },
-        },
-        include: {
-          asset: {
-            select: {
-              assetId: true,
-              assetType: { select: { name: true } },
-              brand: { select: { name: true } },
-              model: { select: { name: true } },
+      const scheduledMaintenances =
+        await this.prisma.maintenanceSchedule.findMany({
+          where: {
+            isActive: true,
+            status: 'SCHEDULED',
+            scheduledDate: {
+              gte: startOfToday,
+              lte: endOfToday,
             },
           },
-          createdByUser: {
-            select: {
-              id: true,
-              employee: {
-                select: {
-                  email: true,
-                  firstName: true,
-                  lastName: true,
+          include: {
+            asset: {
+              select: {
+                assetId: true,
+                assetType: { select: { name: true } },
+                brand: { select: { name: true } },
+                model: { select: { name: true } },
+              },
+            },
+            createdByUser: {
+              select: {
+                id: true,
+                employee: {
+                  select: {
+                    email: true,
+                    firstName: true,
+                    lastName: true,
+                  },
                 },
               },
             },
           },
-        },
-      });
+        });
 
-      this.logger.log(`Found ${scheduledMaintenances.length} scheduled maintenances for today`);
+      this.logger.log(
+        `Found ${scheduledMaintenances.length} scheduled maintenances for today`,
+      );
 
       for (const maintenance of scheduledMaintenances) {
         const user = maintenance.createdByUser;
         const asset = maintenance.asset;
-        
+
         const title = 'Maintenance Reminder';
         const message = `Scheduled maintenance for ${asset.assetType.name} - ${asset.brand.name} ${asset.model.name} (${asset.assetId}) is due today. Please start the maintenance process.`;
-        
+
         const notificationData = {
           maintenanceId: maintenance.id,
           assetId: asset.assetId,
@@ -322,14 +349,21 @@ export class NotificationService {
             brand: asset.brand.name,
             model: asset.model.name,
             maintenanceType: maintenance.maintenanceType,
-            scheduledDate: maintenance.scheduledDate.toISOString().split('T')[0],
+            scheduledDate: maintenance.scheduledDate
+              .toISOString()
+              .split('T')[0],
           });
         }
       }
 
-      this.logger.log(`Created ${scheduledMaintenances.length} maintenance reminder notifications`);
+      this.logger.log(
+        `Created ${scheduledMaintenances.length} maintenance reminder notifications`,
+      );
     } catch (error) {
-      this.logger.error('Failed to create maintenance reminder notifications', error?.stack || error);
+      this.logger.error(
+        'Failed to create maintenance reminder notifications',
+        error?.stack || error,
+      );
     }
   }
 
@@ -347,7 +381,7 @@ export class NotificationService {
       // If user has more than 10 notifications, delete the oldest ones
       if (totalCount > 10) {
         const notificationsToDelete = totalCount - 10;
-        
+
         // Get the IDs of the oldest notifications to delete
         const oldestNotifications = await this.prisma.notification.findMany({
           where: { userId },
@@ -357,8 +391,8 @@ export class NotificationService {
         });
 
         if (oldestNotifications.length > 0) {
-          const idsToDelete = oldestNotifications.map(n => n.id);
-          
+          const idsToDelete = oldestNotifications.map((n) => n.id);
+
           // Delete the oldest notifications
           const deleteResult = await this.prisma.notification.deleteMany({
             where: {
@@ -366,11 +400,16 @@ export class NotificationService {
             },
           });
 
-          this.logger.log(`Cleaned up ${deleteResult.count} old notifications for user ${userId}. Kept last 10 notifications.`);
+          this.logger.log(
+            `Cleaned up ${deleteResult.count} old notifications for user ${userId}. Kept last 10 notifications.`,
+          );
         }
       }
     } catch (error) {
-      this.logger.error(`Failed to cleanup old notifications for user ${userId}`, error?.stack || error);
+      this.logger.error(
+        `Failed to cleanup old notifications for user ${userId}`,
+        error?.stack || error,
+      );
       // Don't throw error to avoid breaking notification creation
     }
   }
@@ -382,7 +421,7 @@ export class NotificationService {
   async cleanupAllOldNotifications() {
     try {
       this.logger.log('Starting cleanup of old notifications for all users...');
-      
+
       // Get all unique user IDs that have notifications
       const usersWithNotifications = await this.prisma.notification.findMany({
         select: { userId: true },
@@ -390,7 +429,7 @@ export class NotificationService {
       });
 
       let totalCleanedUp = 0;
-      
+
       for (const user of usersWithNotifications) {
         const beforeCount = await this.prisma.notification.count({
           where: { userId: user.userId },
@@ -406,10 +445,15 @@ export class NotificationService {
         totalCleanedUp += cleanedForUser;
       }
 
-      this.logger.log(`Cleanup completed. Removed ${totalCleanedUp} old notifications across all users.`);
+      this.logger.log(
+        `Cleanup completed. Removed ${totalCleanedUp} old notifications across all users.`,
+      );
       return totalCleanedUp;
     } catch (error) {
-      this.logger.error('Failed to cleanup old notifications for all users', error?.stack || error);
+      this.logger.error(
+        'Failed to cleanup old notifications for all users',
+        error?.stack || error,
+      );
       throw error;
     }
   }

@@ -47,22 +47,27 @@ export class BrandsController {
             updatedAt: '2024-01-15T10:30:00Z',
             createdByUser: {
               id: 1,
-              username: 'admin'
+              username: 'admin',
             },
             _count: {
               models: 0,
-              assets: 0
-            }
-          }
-        }
-      }
-    }
+              assets: 0,
+            },
+          },
+        },
+      },
+    },
   })
   @ApiResponse({ status: 400, description: 'Bad Request - Validation failed' })
-  @ApiResponse({ status: 409, description: 'Conflict - Brand name already exists' })
+  @ApiResponse({
+    status: 409,
+    description: 'Conflict - Brand name already exists',
+  })
   async create(@Body() createBrandDto: CreateBrandDto, @Request() req: any) {
     if (!req.user?.id) {
-      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
+      throw new UnauthorizedException(
+        'User authentication required. Please login to perform this action.',
+      );
     }
     const userId = req.user.id;
     return this.brandsService.create(createBrandDto, userId);
@@ -70,11 +75,31 @@ export class BrandsController {
 
   @Get()
   @ApiOperation({ summary: 'Get all brands with filtering and pagination' })
-  @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Items per page (default: 10, max: 100)' })
-  @ApiQuery({ name: 'search', required: false, description: 'Search by name or description' })
-  @ApiQuery({ name: 'sortBy', required: false, description: 'Sort by field (name, createdAt, updatedAt)' })
-  @ApiQuery({ name: 'sortOrder', required: false, description: 'Sort order (asc, desc)' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Items per page (default: 10, max: 100)',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search by name or description',
+  })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    description: 'Sort by field (name, createdAt, updatedAt)',
+  })
+  @ApiQuery({
+    name: 'sortOrder',
+    required: false,
+    description: 'Sort order (asc, desc)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Brands retrieved successfully',
@@ -90,24 +115,24 @@ export class BrandsController {
               createdAt: '2024-01-15T10:30:00Z',
               createdByUser: {
                 id: 1,
-                username: 'admin'
+                username: 'admin',
               },
               _count: {
                 models: 5,
-                assets: 25
-              }
-            }
+                assets: 25,
+              },
+            },
           ],
           pagination: {
             totalCount: 1,
             currentPage: 1,
             totalPages: 1,
             hasNext: false,
-            hasPrevious: false
-          }
-        }
-      }
-    }
+            hasPrevious: false,
+          },
+        },
+      },
+    },
   })
   async findAll(@Query() queryDto: BrandQueryDto) {
     return this.brandsService.findAll(queryDto);
@@ -131,11 +156,11 @@ export class BrandsController {
             updatedAt: '2024-01-15T10:30:00Z',
             createdByUser: {
               id: 1,
-              username: 'admin'
+              username: 'admin',
             },
             updatedByUser: {
               id: 1,
-              username: 'admin'
+              username: 'admin',
             },
             models: [
               {
@@ -143,35 +168,34 @@ export class BrandsController {
                 name: 'MacBook Pro 16"',
                 assetType: {
                   id: 1,
-                  name: 'Laptop'
+                  name: 'Laptop',
                 },
                 _count: {
-                  assets: 10
-                }
-              }
+                  assets: 10,
+                },
+              },
             ],
             assets: [
               {
                 id: 1,
                 assetId: 'AST001',
                 status: 'AVAILABLE',
-                condition: 'GOOD'
-              }
+                condition: 'GOOD',
+              },
             ],
             _count: {
               models: 5,
-              assets: 25
-            }
-          }
-        }
-      }
-    }
+              assets: 25,
+            },
+          },
+        },
+      },
+    },
   })
   @ApiResponse({ status: 404, description: 'Brand not found' })
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.brandsService.findOne(id);
   }
-
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
@@ -182,14 +206,16 @@ export class BrandsController {
     description: 'Brand deleted successfully',
     schema: {
       example: {
-        message: 'Brand deleted successfully'
-      }
-    }
+        message: 'Brand deleted successfully',
+      },
+    },
   })
   @ApiResponse({ status: 404, description: 'Brand not found' })
-  @ApiResponse({ status: 400, description: 'Cannot delete brand with associated models or assets' })
+  @ApiResponse({
+    status: 400,
+    description: 'Cannot delete brand with associated models or assets',
+  })
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.brandsService.remove(id);
   }
-
-} 
+}

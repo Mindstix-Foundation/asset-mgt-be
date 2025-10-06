@@ -1,4 +1,14 @@
-import { IsOptional, IsString, IsInt, IsNumber, Min, Max, IsIn, IsEnum, IsDateString } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsInt,
+  IsNumber,
+  Min,
+  Max,
+  IsIn,
+  IsEnum,
+  IsDateString,
+} from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -123,11 +133,25 @@ export class AssetQueryDto {
   @ApiPropertyOptional({
     description: 'Field to sort by',
     example: 'assetId',
-    enum: ['assetId', 'status', 'condition', 'purchaseDate', 'createdAt', 'updatedAt'],
+    enum: [
+      'assetId',
+      'status',
+      'condition',
+      'purchaseDate',
+      'createdAt',
+      'updatedAt',
+    ],
   })
   @IsOptional()
   @IsString()
-  @IsIn(['assetId', 'status', 'condition', 'purchaseDate', 'createdAt', 'updatedAt'])
+  @IsIn([
+    'assetId',
+    'status',
+    'condition',
+    'purchaseDate',
+    'createdAt',
+    'updatedAt',
+  ])
   sortBy?: string = 'assetId';
 
   @ApiPropertyOptional({
@@ -139,4 +163,4 @@ export class AssetQueryDto {
   @IsString()
   @IsIn(['asc', 'desc'])
   sortOrder?: string = 'asc';
-} 
+}

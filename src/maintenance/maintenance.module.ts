@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { MaintenanceService } from './maintenance.service';
-import { MaintenanceController, MaintenanceTypesController } from './maintenance.controller';
+import {
+  MaintenanceController,
+  MaintenanceTypesController,
+} from './maintenance.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { MaintenanceScheduler } from './maintenance.scheduler';
 import { NotificationModule } from '../notifications/notification.module';
@@ -12,4 +15,4 @@ import { NotificationModule } from '../notifications/notification.module';
   providers: [MaintenanceService, MaintenanceScheduler],
   exports: [MaintenanceService],
 })
-export class MaintenanceModule {} 
+export class MaintenanceModule {}

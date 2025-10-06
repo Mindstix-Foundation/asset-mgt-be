@@ -7,7 +7,7 @@ export class UpdateAssetDto extends PartialType(CreateAssetDto) {
     description: 'Retirement date of the asset',
     example: '2024-12-31',
     type: 'string',
-    format: 'date'
+    format: 'date',
   })
   @IsOptional()
   @IsDateString()
@@ -16,17 +16,31 @@ export class UpdateAssetDto extends PartialType(CreateAssetDto) {
   @ApiPropertyOptional({
     description: 'Reason for asset retirement',
     example: 'END_OF_LIFE',
-    enum: ['END_OF_LIFE', 'DAMAGED_BEYOND_REPAIR', 'OBSOLETE', 'COST_INEFFECTIVE', 'SECURITY_CONCERNS', 'OTHER']
+    enum: [
+      'END_OF_LIFE',
+      'DAMAGED_BEYOND_REPAIR',
+      'OBSOLETE',
+      'COST_INEFFECTIVE',
+      'SECURITY_CONCERNS',
+      'OTHER',
+    ],
   })
   @IsOptional()
-  @IsEnum(['END_OF_LIFE', 'DAMAGED_BEYOND_REPAIR', 'OBSOLETE', 'COST_INEFFECTIVE', 'SECURITY_CONCERNS', 'OTHER'])
+  @IsEnum([
+    'END_OF_LIFE',
+    'DAMAGED_BEYOND_REPAIR',
+    'OBSOLETE',
+    'COST_INEFFECTIVE',
+    'SECURITY_CONCERNS',
+    'OTHER',
+  ])
   retirementReason?: string;
 
   @ApiPropertyOptional({
     description: 'Reactivation date of the asset',
     example: '2024-12-31',
     type: 'string',
-    format: 'date'
+    format: 'date',
   })
   @IsOptional()
   @IsDateString()
@@ -34,7 +48,7 @@ export class UpdateAssetDto extends PartialType(CreateAssetDto) {
 
   @ApiPropertyOptional({
     description: 'Reason for asset reactivation',
-    example: 'Asset repaired and ready for use'
+    example: 'Asset repaired and ready for use',
   })
   @IsOptional()
   @IsString()
@@ -58,4 +72,4 @@ export class UpdateAssetDto extends PartialType(CreateAssetDto) {
   @IsOptional()
   @IsEnum(['AVAILABLE', 'ASSIGNED', 'IN_MAINTENANCE', 'RETIRED', 'LOST'])
   status?: 'AVAILABLE' | 'ASSIGNED' | 'IN_MAINTENANCE' | 'RETIRED' | 'LOST';
-} 
+}

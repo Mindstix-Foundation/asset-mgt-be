@@ -27,7 +27,9 @@ import { CreateAssetCategoryDto, AssetCategoryQueryDto } from './dto';
 @ApiBearerAuth('JWT-auth')
 @Controller('asset-categories')
 export class AssetCategoriesController {
-  constructor(private readonly assetCategoriesService: AssetCategoriesService) {}
+  constructor(
+    private readonly assetCategoriesService: AssetCategoriesService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -47,33 +49,63 @@ export class AssetCategoriesController {
             updatedAt: '2024-01-15T10:30:00Z',
             createdByUser: {
               id: 1,
-              username: 'admin'
+              username: 'admin',
             },
             _count: {
-              assetTypes: 0
-            }
-          }
-        }
-      }
-    }
+              assetTypes: 0,
+            },
+          },
+        },
+      },
+    },
   })
   @ApiResponse({ status: 400, description: 'Bad Request - Validation failed' })
-  @ApiResponse({ status: 409, description: 'Conflict - Category name already exists' })
-  async create(@Body() createAssetCategoryDto: CreateAssetCategoryDto, @Request() req: any) {
+  @ApiResponse({
+    status: 409,
+    description: 'Conflict - Category name already exists',
+  })
+  async create(
+    @Body() createAssetCategoryDto: CreateAssetCategoryDto,
+    @Request() req: any,
+  ) {
     if (!req.user?.id) {
-      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
+      throw new UnauthorizedException(
+        'User authentication required. Please login to perform this action.',
+      );
     }
     const userId = req.user.id;
     return this.assetCategoriesService.create(createAssetCategoryDto, userId);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all asset categories with filtering and pagination' })
-  @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Items per page (default: 10, max: 100)' })
-  @ApiQuery({ name: 'search', required: false, description: 'Search by name or description' })
-  @ApiQuery({ name: 'sortBy', required: false, description: 'Sort by field (name, createdAt, updatedAt)' })
-  @ApiQuery({ name: 'sortOrder', required: false, description: 'Sort order (asc, desc)' })
+  @ApiOperation({
+    summary: 'Get all asset categories with filtering and pagination',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Items per page (default: 10, max: 100)',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search by name or description',
+  })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    description: 'Sort by field (name, createdAt, updatedAt)',
+  })
+  @ApiQuery({
+    name: 'sortOrder',
+    required: false,
+    description: 'Sort order (asc, desc)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Asset categories retrieved successfully',
@@ -89,23 +121,23 @@ export class AssetCategoriesController {
               createdAt: '2024-01-15T10:30:00Z',
               createdByUser: {
                 id: 1,
-                username: 'admin'
+                username: 'admin',
               },
               _count: {
-                assetTypes: 5
-              }
-            }
+                assetTypes: 5,
+              },
+            },
           ],
           pagination: {
             totalCount: 1,
             currentPage: 1,
             totalPages: 1,
             hasNext: false,
-            hasPrevious: false
-          }
-        }
-      }
-    }
+            hasPrevious: false,
+          },
+        },
+      },
+    },
   })
   async findAll(@Query() queryDto: AssetCategoryQueryDto) {
     return this.assetCategoriesService.findAll(queryDto);
@@ -129,11 +161,11 @@ export class AssetCategoriesController {
             updatedAt: '2024-01-15T10:30:00Z',
             createdByUser: {
               id: 1,
-              username: 'admin'
+              username: 'admin',
             },
             updatedByUser: {
               id: 1,
-              username: 'admin'
+              username: 'admin',
             },
             assetTypes: [
               {
@@ -141,23 +173,22 @@ export class AssetCategoriesController {
                 name: 'Laptop',
                 isActive: true,
                 _count: {
-                  assets: 10
-                }
-              }
+                  assets: 10,
+                },
+              },
             ],
             _count: {
-              assetTypes: 5
-            }
-          }
-        }
-      }
-    }
+              assetTypes: 5,
+            },
+          },
+        },
+      },
+    },
   })
   @ApiResponse({ status: 404, description: 'Asset category not found' })
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.assetCategoriesService.findOne(id);
   }
-
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
@@ -168,14 +199,16 @@ export class AssetCategoriesController {
     description: 'Asset category deleted successfully',
     schema: {
       example: {
-        message: 'Asset category deleted successfully'
-      }
-    }
+        message: 'Asset category deleted successfully',
+      },
+    },
   })
   @ApiResponse({ status: 404, description: 'Asset category not found' })
-  @ApiResponse({ status: 400, description: 'Cannot delete category with associated asset types' })
+  @ApiResponse({
+    status: 400,
+    description: 'Cannot delete category with associated asset types',
+  })
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.assetCategoriesService.remove(id);
   }
-
-} 
+}

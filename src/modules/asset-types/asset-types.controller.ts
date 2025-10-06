@@ -1,5 +1,25 @@
-import { Controller, Get, Post, Body, Param, Delete, Query, ParseIntPipe, HttpStatus, HttpCode, Request, UnauthorizedException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Delete,
+  Query,
+  ParseIntPipe,
+  HttpStatus,
+  HttpCode,
+  Request,
+  UnauthorizedException,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiQuery,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { AssetTypesService } from './asset-types.service';
 import { CreateAssetTypeDto, AssetTypeQueryDto } from './dto';
 
@@ -12,16 +32,23 @@ export class AssetTypesController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new asset type' })
-  async create(@Body() createAssetTypeDto: CreateAssetTypeDto, @Request() req: any) {
+  async create(
+    @Body() createAssetTypeDto: CreateAssetTypeDto,
+    @Request() req: any,
+  ) {
     if (!req.user?.id) {
-      throw new UnauthorizedException('User authentication required. Please login to create asset types.');
+      throw new UnauthorizedException(
+        'User authentication required. Please login to create asset types.',
+      );
     }
     const userId = req.user.id;
     return this.assetTypesService.create(createAssetTypeDto, userId);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all asset types with filtering and pagination' })
+  @ApiOperation({
+    summary: 'Get all asset types with filtering and pagination',
+  })
   async findAll(@Query() queryDto: AssetTypeQueryDto) {
     return this.assetTypesService.findAll(queryDto);
   }
@@ -40,7 +67,6 @@ export class AssetTypesController {
     return this.assetTypesService.findOne(id);
   }
 
-
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete asset type by ID' })
@@ -48,5 +74,4 @@ export class AssetTypesController {
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.assetTypesService.remove(id);
   }
-
-} 
+}

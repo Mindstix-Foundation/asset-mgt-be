@@ -1,4 +1,12 @@
-import { IsOptional, IsString, IsInt, Min, Max, IsIn, IsBoolean } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsInt,
+  Min,
+  Max,
+  IsIn,
+  IsBoolean,
+} from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -77,4 +85,4 @@ export class AssetTypeQueryDto {
   @IsString()
   @IsIn(['asc', 'desc'])
   sortOrder?: string = 'asc';
-} 
+}

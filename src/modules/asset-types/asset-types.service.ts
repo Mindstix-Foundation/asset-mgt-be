@@ -1,16 +1,21 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateAssetTypeDto, AssetTypeQueryDto } from './dto';
 
 @Injectable()
 export class AssetTypesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(createAssetTypeDto: CreateAssetTypeDto, userId: number) {
     try {
       // Verify category exists
       const category = await this.prisma.assetCategory.findUnique({
-        where: { id: createAssetTypeDto.categoryId }
+        where: { id: createAssetTypeDto.categoryId },
       });
 
       if (!category) {
@@ -25,14 +30,14 @@ export class AssetTypesService {
         },
         include: {
           category: {
-            select: { id: true, name: true }
+            select: { id: true, name: true },
           },
           createdByUser: {
-            select: { id: true, username: true }
+            select: { id: true, username: true },
           },
           _count: {
-            select: { assets: true, models: true }
-          }
+            select: { assets: true, models: true },
+          },
         },
       });
 
@@ -42,14 +47,24 @@ export class AssetTypesService {
       };
     } catch (error) {
       if (error.code === 'P2002') {
-        throw new ConflictException('Asset type name already exists in this category');
+        throw new ConflictException(
+          'Asset type name already exists in this category',
+        );
       }
       throw error;
     }
   }
 
   async findAll(queryDto: AssetTypeQueryDto) {
-    const { page = 1, limit = 10, search, categoryId, isActive, sortBy = 'name', sortOrder = 'asc' } = queryDto;
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      categoryId,
+      isActive,
+      sortBy = 'name',
+      sortOrder = 'asc',
+    } = queryDto;
     const skip = (page - 1) * limit;
 
     const where: any = {};
@@ -79,14 +94,14 @@ export class AssetTypesService {
         orderBy,
         include: {
           category: {
-            select: { id: true, name: true }
+            select: { id: true, name: true },
           },
           createdByUser: {
-            select: { id: true, username: true }
+            select: { id: true, username: true },
           },
           _count: {
-            select: { assets: true, models: true }
-          }
+            select: { assets: true, models: true },
+          },
         },
       }),
       this.prisma.assetType.count({ where }),
@@ -112,7 +127,7 @@ export class AssetTypesService {
   async findByCategory(categoryId: number) {
     // First verify the category exists
     const category = await this.prisma.assetCategory.findUnique({
-      where: { id: categoryId }
+      where: { id: categoryId },
     });
 
     if (!category) {
@@ -120,22 +135,22 @@ export class AssetTypesService {
     }
 
     const assetTypes = await this.prisma.assetType.findMany({
-      where: { 
+      where: {
         categoryId: categoryId,
-        isActive: true 
+        isActive: true,
       },
       include: {
         category: {
-          select: { id: true, name: true }
+          select: { id: true, name: true },
         },
         createdByUser: {
-          select: { id: true, username: true }
+          select: { id: true, username: true },
         },
         _count: {
-          select: { assets: true, models: true }
-        }
+          select: { assets: true, models: true },
+        },
       },
-      orderBy: { name: 'asc' }
+      orderBy: { name: 'asc' },
     });
 
     return {
@@ -149,25 +164,25 @@ export class AssetTypesService {
       where: { id },
       include: {
         category: {
-          select: { id: true, name: true, description: true }
+          select: { id: true, name: true, description: true },
         },
         createdByUser: {
-          select: { id: true, username: true }
+          select: { id: true, username: true },
         },
         updatedByUser: {
-          select: { id: true, username: true }
+          select: { id: true, username: true },
         },
         models: {
           select: {
             id: true,
             name: true,
             brand: {
-              select: { id: true, name: true }
+              select: { id: true, name: true },
             },
             _count: {
-              select: { assets: true }
-            }
-          }
+              select: { assets: true },
+            },
+          },
         },
         assets: {
           select: {
@@ -176,14 +191,14 @@ export class AssetTypesService {
             status: true,
             condition: true,
             brand: {
-              select: { id: true, name: true }
-            }
+              select: { id: true, name: true },
+            },
           },
-          take: 10 // Limit to first 10 assets
+          take: 10, // Limit to first 10 assets
         },
         _count: {
-          select: { assets: true, models: true }
-        }
+          select: { assets: true, models: true },
+        },
       },
     });
 
@@ -197,7 +212,6 @@ export class AssetTypesService {
     };
   }
 
-
   async remove(id: number) {
     try {
       // Check if asset type has associated models or assets
@@ -205,18 +219,21 @@ export class AssetTypesService {
         where: { id },
         include: {
           _count: {
-            select: { models: true, assets: true }
-          }
-        }
+            select: { models: true, assets: true },
+          },
+        },
       });
 
       if (!assetTypeWithRelations) {
         throw new NotFoundException('Asset type not found');
       }
 
-      if (assetTypeWithRelations._count.models > 0 || assetTypeWithRelations._count.assets > 0) {
+      if (
+        assetTypeWithRelations._count.models > 0 ||
+        assetTypeWithRelations._count.assets > 0
+      ) {
         throw new BadRequestException(
-          'Cannot delete asset type with associated models or assets'
+          'Cannot delete asset type with associated models or assets',
         );
       }
 
@@ -235,8 +252,5 @@ export class AssetTypesService {
     }
   }
 
-
   // Helper method for creating default user
-
-
-} 
+}

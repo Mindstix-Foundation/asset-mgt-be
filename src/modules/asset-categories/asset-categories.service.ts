@@ -1,10 +1,15 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateAssetCategoryDto, AssetCategoryQueryDto } from './dto';
 
 @Injectable()
 export class AssetCategoriesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(createAssetCategoryDto: CreateAssetCategoryDto, userId: number) {
     try {
@@ -16,11 +21,11 @@ export class AssetCategoriesService {
         },
         include: {
           createdByUser: {
-            select: { id: true, username: true }
+            select: { id: true, username: true },
           },
           _count: {
-            select: { assetTypes: true }
-          }
+            select: { assetTypes: true },
+          },
         },
       });
 
@@ -37,7 +42,13 @@ export class AssetCategoriesService {
   }
 
   async findAll(queryDto: AssetCategoryQueryDto) {
-    const { page = 1, limit = 10, search, sortBy = 'name', sortOrder = 'asc' } = queryDto;
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      sortBy = 'name',
+      sortOrder = 'asc',
+    } = queryDto;
     const skip = (page - 1) * limit;
 
     const where = search
@@ -59,11 +70,11 @@ export class AssetCategoriesService {
         orderBy,
         include: {
           createdByUser: {
-            select: { id: true, username: true }
+            select: { id: true, username: true },
           },
           _count: {
-            select: { assetTypes: true }
-          }
+            select: { assetTypes: true },
+          },
         },
       }),
       this.prisma.assetCategory.count({ where }),
@@ -91,10 +102,10 @@ export class AssetCategoriesService {
       where: { id },
       include: {
         createdByUser: {
-          select: { id: true, username: true }
+          select: { id: true, username: true },
         },
         updatedByUser: {
-          select: { id: true, username: true }
+          select: { id: true, username: true },
         },
         assetTypes: {
           select: {
@@ -102,13 +113,13 @@ export class AssetCategoriesService {
             name: true,
             isActive: true,
             _count: {
-              select: { assets: true }
-            }
-          }
+              select: { assets: true },
+            },
+          },
         },
         _count: {
-          select: { assetTypes: true }
-        }
+          select: { assetTypes: true },
+        },
       },
     });
 
@@ -122,7 +133,6 @@ export class AssetCategoriesService {
     };
   }
 
-
   async remove(id: number) {
     try {
       // Check if category has associated asset types
@@ -130,9 +140,9 @@ export class AssetCategoriesService {
         where: { id },
         include: {
           _count: {
-            select: { assetTypes: true }
-          }
-        }
+            select: { assetTypes: true },
+          },
+        },
       });
 
       if (!categoryWithTypes) {
@@ -141,7 +151,7 @@ export class AssetCategoriesService {
 
       if (categoryWithTypes._count.assetTypes > 0) {
         throw new BadRequestException(
-          'Cannot delete asset category with associated asset types'
+          'Cannot delete asset category with associated asset types',
         );
       }
 
@@ -159,5 +169,4 @@ export class AssetCategoriesService {
       throw error;
     }
   }
-
-} 
+}

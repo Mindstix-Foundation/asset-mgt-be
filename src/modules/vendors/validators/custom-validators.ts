@@ -1,11 +1,15 @@
-import { registerDecorator, ValidationOptions, ValidationArguments } from 'class-validator';
+import {
+  registerDecorator,
+  ValidationOptions,
+  ValidationArguments,
+} from 'class-validator';
 
 /**
  * Custom validator for title case formatting
  * Ensures the string is in proper title case (first letter of each word capitalized)
  */
 export function IsTitleCase(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       name: 'isTitleCase',
       target: object.constructor,
@@ -16,7 +20,7 @@ export function IsTitleCase(validationOptions?: ValidationOptions) {
           if (typeof value !== 'string') {
             return false;
           }
-          
+
           // Check if the string is in title case
           const titleCaseRegex = /^[A-Z][a-z]*(?:\s+[A-Z][a-z]*)*$/;
           return titleCaseRegex.test(value);
@@ -34,7 +38,7 @@ export function IsTitleCase(validationOptions?: ValidationOptions) {
  * Ensures PAN follows the format: 5 letters + 4 digits + 1 letter
  */
 export function IsPanNumber(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       name: 'isPanNumber',
       target: object.constructor,
@@ -45,7 +49,7 @@ export function IsPanNumber(validationOptions?: ValidationOptions) {
           if (typeof value !== 'string') {
             return false;
           }
-          
+
           // PAN format: 5 letters + 4 digits + 1 letter
           const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
           return panRegex.test(value.toUpperCase());
@@ -63,7 +67,7 @@ export function IsPanNumber(validationOptions?: ValidationOptions) {
  * Accepts various international phone number formats
  */
 export function IsPhoneNumber(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       name: 'isPhoneNumber',
       target: object.constructor,
@@ -74,10 +78,10 @@ export function IsPhoneNumber(validationOptions?: ValidationOptions) {
           if (typeof value !== 'string') {
             return false;
           }
-          
+
           // Remove all non-digit characters except + at the beginning
           const cleaned = value.replace(/[^\d+]/g, '');
-          
+
           // Check if it's a valid phone number (7-15 digits, optionally starting with +)
           const phoneRegex = /^(\+?[1-9]\d{6,14})$/;
           return phoneRegex.test(cleaned);
@@ -95,7 +99,7 @@ export function IsPhoneNumber(validationOptions?: ValidationOptions) {
  * Accepts various GST number formats
  */
 export function IsGstNumber(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       name: 'isGstNumber',
       target: object.constructor,
@@ -106,15 +110,16 @@ export function IsGstNumber(validationOptions?: ValidationOptions) {
           if (typeof value !== 'string') {
             return false;
           }
-          
+
           const upperValue = value.toUpperCase();
-          
+
           // GST format: 2 digits + 5 letters + 4 digits + 1 letter + 1 letter + 1 letter + 1 letter
-          const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
-          
+          const gstRegex =
+            /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+
           // Also accept simpler tax ID formats for international vendors
           const simpleTaxIdRegex = /^[A-Z0-9]{5,20}$/;
-          
+
           return gstRegex.test(upperValue) || simpleTaxIdRegex.test(upperValue);
         },
         defaultMessage(args: ValidationArguments) {
@@ -130,7 +135,7 @@ export function IsGstNumber(validationOptions?: ValidationOptions) {
  * Ensures vendor name follows proper business naming conventions
  */
 export function IsVendorName(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       name: 'isVendorName',
       target: object.constructor,
@@ -141,9 +146,9 @@ export function IsVendorName(validationOptions?: ValidationOptions) {
           if (typeof value !== 'string') {
             return false;
           }
-          
+
           // Vendor name should start with letter, contain letters, numbers, spaces, and common business suffixes
-          const vendorNameRegex = /^[A-Za-z][A-Za-z0-9\s&.,'-]*(?:Inc|LLC|Ltd|Corp|Corporation|Company|Co|Pvt|Private|Limited|Solutions|Technologies|Tech|Systems|Services|Group|Enterprises|International|Global)?\.?$/i;
+          const vendorNameRegex = /^[A-Za-z][-0-9\s&.,']*(?:Inc|LLC|Ltd|Corp|Company|Co|Pvt|Limited|Solutions|Tech|Systems|Services|Group|Global)?\.?$/i;
           return vendorNameRegex.test(value.trim());
         },
         defaultMessage(args: ValidationArguments) {

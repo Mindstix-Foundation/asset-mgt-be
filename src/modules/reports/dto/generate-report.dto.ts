@@ -1,4 +1,11 @@
-import { IsString, IsOptional, IsEnum, IsDateString, IsInt, Min } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsEnum,
+  IsDateString,
+  IsInt,
+  Min,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -6,10 +13,36 @@ export class GenerateReportDto {
   @ApiProperty({
     description: 'Type of report to generate',
     example: 'assets',
-    enum: ['assets', 'assignments', 'asset-categories', 'asset-types', 'brands', 'models', 'employees', 'vendors'],
+    enum: [
+      'assets',
+      'assignments',
+      'asset-categories',
+      'asset-types',
+      'brands',
+      'models',
+      'employees',
+      'vendors',
+    ],
   })
-  @IsEnum(['assets', 'assignments', 'asset-categories', 'asset-types', 'brands', 'models', 'employees', 'vendors'])
-  reportType: 'assets' | 'assignments' | 'asset-categories' | 'asset-types' | 'brands' | 'models' | 'employees' | 'vendors';
+  @IsEnum([
+    'assets',
+    'assignments',
+    'asset-categories',
+    'asset-types',
+    'brands',
+    'models',
+    'employees',
+    'vendors',
+  ])
+  reportType:
+    | 'assets'
+    | 'assignments'
+    | 'asset-categories'
+    | 'asset-types'
+    | 'brands'
+    | 'models'
+    | 'employees'
+    | 'vendors';
 
   @ApiProperty({
     description: 'Export format',
@@ -87,4 +120,4 @@ export class GenerateReportDto {
   @IsOptional()
   @IsString()
   title?: string;
-} 
+}

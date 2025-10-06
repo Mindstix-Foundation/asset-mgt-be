@@ -39,10 +39,15 @@ export class MaintenanceScheduler {
       });
 
       if (result.count > 0) {
-        this.logger.log(`Activated ${result.count} maintenance schedule(s) to IN_PROGRESS`);
+        this.logger.log(
+          `Activated ${result.count} maintenance schedule(s) to IN_PROGRESS`,
+        );
       }
     } catch (error) {
-      this.logger.error('Failed to activate scheduled maintenances', error?.stack || error);
+      this.logger.error(
+        'Failed to activate scheduled maintenances',
+        error?.stack || error,
+      );
     }
   }
 
@@ -54,7 +59,10 @@ export class MaintenanceScheduler {
       await this.notificationService.createMaintenanceReminderNotifications();
       this.logger.log('Maintenance reminder notification process completed');
     } catch (error) {
-      this.logger.error('Failed to send maintenance reminders', error?.stack || error);
+      this.logger.error(
+        'Failed to send maintenance reminders',
+        error?.stack || error,
+      );
     }
   }
 }

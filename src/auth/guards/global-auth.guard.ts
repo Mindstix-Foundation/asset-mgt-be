@@ -10,7 +10,9 @@ export class GlobalAuthGuard extends JwtAuthGuard implements CanActivate {
     super();
   }
 
-  canActivate(context: ExecutionContext): boolean | Promise<boolean> | Observable<boolean> {
+  canActivate(
+    context: ExecutionContext,
+  ): boolean | Promise<boolean> | Observable<boolean> {
     // Check if the route is marked as public
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
@@ -24,4 +26,4 @@ export class GlobalAuthGuard extends JwtAuthGuard implements CanActivate {
     // For all other routes, require authentication
     return super.canActivate(context);
   }
-} 
+}

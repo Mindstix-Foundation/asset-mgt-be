@@ -70,4 +70,4 @@ export class EmployeeSearchResponseDto {
     searchQuery: string;
     searchTimeMs: number;
   };
-} 
+}

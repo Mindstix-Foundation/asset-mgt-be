@@ -1,4 +1,11 @@
-import { IsEmail, IsOptional, IsString, IsDateString, MinLength, MaxLength } from 'class-validator';
+import {
+  IsEmail,
+  IsOptional,
+  IsString,
+  IsDateString,
+  MinLength,
+  MaxLength,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateEmployeeDto {
@@ -6,7 +13,7 @@ export class CreateEmployeeDto {
     description: 'Employee first name',
     example: 'John',
     minLength: 2,
-    maxLength: 50
+    maxLength: 50,
   })
   @IsString()
   @MinLength(2)
@@ -17,7 +24,7 @@ export class CreateEmployeeDto {
     description: 'Employee last name',
     example: 'Doe',
     minLength: 2,
-    maxLength: 50
+    maxLength: 50,
   })
   @IsString()
   @MinLength(2)
@@ -27,7 +34,7 @@ export class CreateEmployeeDto {
   @ApiProperty({
     description: 'Employee email address',
     example: 'john.doe@company.com',
-    maxLength: 255
+    maxLength: 255,
   })
   @IsEmail()
   @MaxLength(255)
@@ -37,7 +44,7 @@ export class CreateEmployeeDto {
     description: 'Employee phone number',
     example: '+91 9876543210',
     maxLength: 15,
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsString()
@@ -48,7 +55,7 @@ export class CreateEmployeeDto {
     description: 'Employee date of birth',
     example: '1990-05-15',
     format: 'date',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsDateString()
@@ -58,10 +65,10 @@ export class CreateEmployeeDto {
     description: 'Employee address',
     example: '123 Main Street, City, State, Country',
     maxLength: 500,
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsString()
   @MaxLength(500)
   address?: string;
-} 
+}

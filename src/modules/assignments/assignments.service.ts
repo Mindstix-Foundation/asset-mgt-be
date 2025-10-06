@@ -1,26 +1,37 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateAssignmentDto, ReturnAssignmentDto, AssignmentQueryDto } from './dto';
+import {
+  CreateAssignmentDto,
+  ReturnAssignmentDto,
+  AssignmentQueryDto,
+} from './dto';
 import { AssetEventType } from '@prisma/client';
 
 @Injectable()
 export class AssignmentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(createAssignmentDto: CreateAssignmentDto, userId: number) {
     try {
       // Verify asset and employee exist
       const [asset, employee] = await Promise.all([
-        this.prisma.asset.findUnique({ 
+        this.prisma.asset.findUnique({
           where: { id: createAssignmentDto.assetId },
           include: {
             assetIssues: {
               where: { returnDate: null },
-              select: { id: true }
-            }
-          }
+              select: { id: true },
+            },
+          },
         }),
-        this.prisma.employee.findUnique({ where: { id: createAssignmentDto.employeeId } }),
+        this.prisma.employee.findUnique({
+          where: { id: createAssignmentDto.employeeId },
+        }),
       ]);
 
       if (!asset) {
@@ -32,12 +43,16 @@ export class AssignmentsService {
 
       // Check if asset is available
       if (asset.status !== 'AVAILABLE') {
-        throw new BadRequestException(`Asset is currently ${asset.status.toLowerCase()} and cannot be assigned`);
+        throw new BadRequestException(
+          `Asset is currently ${asset.status.toLowerCase()} and cannot be assigned`,
+        );
       }
 
       // Check if asset has active assignments
       if (asset.assetIssues.length > 0) {
-        throw new BadRequestException('Asset is already assigned to another employee');
+        throw new BadRequestException(
+          'Asset is already assigned to another employee',
+        );
       }
 
       // Create assignment and update asset status in a transaction
@@ -66,7 +81,7 @@ export class AssignmentsService {
                 model: { select: { id: true, name: true } },
                 condition: true,
                 status: true,
-              }
+              },
             },
             employee: {
               select: {
@@ -75,18 +90,18 @@ export class AssignmentsService {
                 firstName: true,
                 lastName: true,
                 email: true,
-              }
+              },
             },
             issuedByUser: {
-              select: { id: true, username: true }
-            }
+              select: { id: true, username: true },
+            },
           },
         });
 
         // Update asset status to ASSIGNED
         await prisma.asset.update({
           where: { id: createAssignmentDto.assetId },
-          data: { 
+          data: {
             status: 'ASSIGNED',
             updatedBy: userId,
           },
@@ -111,9 +126,9 @@ export class AssignmentsService {
               notes: assignment.notes,
               previousStatus: 'AVAILABLE',
               newStatus: 'ASSIGNED',
-              issuedVia: 'IssueAssetView'
-            }
-          }
+              issuedVia: 'IssueAssetView',
+            },
+          },
         });
 
         return assignment;
@@ -132,7 +147,15 @@ export class AssignmentsService {
   }
 
   async findAllActiveForCollect(queryDto: AssignmentQueryDto) {
-    const { page = 1, limit = 10, search, assetId, employeeId, sortBy = 'issueDate', sortOrder = 'desc' } = queryDto;
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      assetId,
+      employeeId,
+      sortBy = 'issueDate',
+      sortOrder = 'desc',
+    } = queryDto;
     const skip = (page - 1) * limit;
 
     const where: any = {
@@ -141,9 +164,21 @@ export class AssignmentsService {
 
     if (search) {
       where.OR = [
-        { asset: { assetId: { contains: search, mode: 'insensitive' as const } } },
-        { employee: { firstName: { contains: search, mode: 'insensitive' as const } } },
-        { employee: { lastName: { contains: search, mode: 'insensitive' as const } } },
+        {
+          asset: {
+            assetId: { contains: search, mode: 'insensitive' as const },
+          },
+        },
+        {
+          employee: {
+            firstName: { contains: search, mode: 'insensitive' as const },
+          },
+        },
+        {
+          employee: {
+            lastName: { contains: search, mode: 'insensitive' as const },
+          },
+        },
         { notes: { contains: search, mode: 'insensitive' as const } },
       ];
     }
@@ -167,17 +202,17 @@ export class AssignmentsService {
               serialNumber: true,
               assetType: { select: { id: true, name: true } },
               brand: { select: { id: true, name: true } },
-              model: { 
-                select: { 
-                  id: true, 
+              model: {
+                select: {
+                  id: true,
                   name: true,
-                  specifications: true
-                } 
+                  specifications: true,
+                },
               },
               condition: true,
               status: true,
               location: true,
-            }
+            },
           },
           employee: {
             select: {
@@ -186,11 +221,11 @@ export class AssignmentsService {
               firstName: true,
               lastName: true,
               email: true,
-            }
+            },
           },
           issuedByUser: {
-            select: { id: true, username: true }
-          }
+            select: { id: true, username: true },
+          },
         },
       }),
       this.prisma.assetIssue.count({ where }),
@@ -214,7 +249,15 @@ export class AssignmentsService {
   }
 
   async findAllActive(queryDto: AssignmentQueryDto) {
-    const { page = 1, limit = 10, search, assetId, employeeId, sortBy = 'issueDate', sortOrder = 'desc' } = queryDto;
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      assetId,
+      employeeId,
+      sortBy = 'issueDate',
+      sortOrder = 'desc',
+    } = queryDto;
     const skip = (page - 1) * limit;
 
     const where: any = {
@@ -223,9 +266,21 @@ export class AssignmentsService {
 
     if (search) {
       where.OR = [
-        { asset: { assetId: { contains: search, mode: 'insensitive' as const } } },
-        { employee: { firstName: { contains: search, mode: 'insensitive' as const } } },
-        { employee: { lastName: { contains: search, mode: 'insensitive' as const } } },
+        {
+          asset: {
+            assetId: { contains: search, mode: 'insensitive' as const },
+          },
+        },
+        {
+          employee: {
+            firstName: { contains: search, mode: 'insensitive' as const },
+          },
+        },
+        {
+          employee: {
+            lastName: { contains: search, mode: 'insensitive' as const },
+          },
+        },
         { notes: { contains: search, mode: 'insensitive' as const } },
       ];
     }
@@ -252,7 +307,7 @@ export class AssignmentsService {
               condition: true,
               status: true,
               location: true,
-            }
+            },
           },
           employee: {
             select: {
@@ -261,11 +316,11 @@ export class AssignmentsService {
               firstName: true,
               lastName: true,
               email: true,
-            }
+            },
           },
           issuedByUser: {
-            select: { id: true, username: true }
-          }
+            select: { id: true, username: true },
+          },
         },
       }),
       this.prisma.assetIssue.count({ where }),
@@ -289,23 +344,44 @@ export class AssignmentsService {
   }
 
   async findAll(queryDto: AssignmentQueryDto) {
-    const { page = 1, limit = 10, search, assetId, employeeId, active, sortBy = 'issueDate', sortOrder = 'desc' } = queryDto;
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      assetId,
+      employeeId,
+      active,
+      sortBy = 'issueDate',
+      sortOrder = 'desc',
+    } = queryDto;
     const skip = (page - 1) * limit;
 
     const where: any = {};
 
     if (search) {
       where.OR = [
-        { asset: { assetId: { contains: search, mode: 'insensitive' as const } } },
-        { employee: { firstName: { contains: search, mode: 'insensitive' as const } } },
-        { employee: { lastName: { contains: search, mode: 'insensitive' as const } } },
+        {
+          asset: {
+            assetId: { contains: search, mode: 'insensitive' as const },
+          },
+        },
+        {
+          employee: {
+            firstName: { contains: search, mode: 'insensitive' as const },
+          },
+        },
+        {
+          employee: {
+            lastName: { contains: search, mode: 'insensitive' as const },
+          },
+        },
         { notes: { contains: search, mode: 'insensitive' as const } },
       ];
     }
 
     if (assetId) where.assetId = assetId;
     if (employeeId) where.employeeId = employeeId;
-    
+
     // Filter by active/inactive assignments
     if (active !== undefined) {
       if (active) {
@@ -334,7 +410,7 @@ export class AssignmentsService {
               condition: true,
               status: true,
               location: true,
-            }
+            },
           },
           employee: {
             select: {
@@ -343,11 +419,11 @@ export class AssignmentsService {
               firstName: true,
               lastName: true,
               email: true,
-            }
+            },
           },
           issuedByUser: {
-            select: { id: true, username: true }
-          }
+            select: { id: true, username: true },
+          },
         },
       }),
       this.prisma.assetIssue.count({ where }),
@@ -379,12 +455,12 @@ export class AssignmentsService {
             id: true,
             assetId: true,
             serialNumber: true,
-            assetType: { 
-              select: { 
-                id: true, 
+            assetType: {
+              select: {
+                id: true,
                 name: true,
-                category: { select: { id: true, name: true } }
-              } 
+                category: { select: { id: true, name: true } },
+              },
             },
             brand: { select: { id: true, name: true } },
             model: { select: { id: true, name: true, specifications: true } },
@@ -393,7 +469,7 @@ export class AssignmentsService {
             location: true,
             purchaseDate: true,
             warrantyEndDate: true,
-          }
+          },
         },
         employee: {
           select: {
@@ -403,17 +479,17 @@ export class AssignmentsService {
             lastName: true,
             email: true,
             phone: true,
-          }
+          },
         },
         issuedByUser: {
-          select: { id: true, username: true }
+          select: { id: true, username: true },
         },
         createdByUser: {
-          select: { id: true, username: true }
+          select: { id: true, username: true },
         },
         updatedByUser: {
-          select: { id: true, username: true }
-        }
+          select: { id: true, username: true },
+        },
       },
     });
 
@@ -427,14 +503,18 @@ export class AssignmentsService {
     };
   }
 
-  async returnAsset(id: number, returnAssignmentDto: ReturnAssignmentDto, userId: number) {
+  async returnAsset(
+    id: number,
+    returnAssignmentDto: ReturnAssignmentDto,
+    userId: number,
+  ) {
     try {
       // Find the active assignment
       const assignment = await this.prisma.assetIssue.findUnique({
         where: { id },
         include: {
-          asset: { select: { id: true, status: true } }
-        }
+          asset: { select: { id: true, status: true } },
+        },
       });
 
       if (!assignment) {
@@ -468,7 +548,7 @@ export class AssignmentsService {
                 model: { select: { id: true, name: true } },
                 condition: true,
                 status: true,
-              }
+              },
             },
             employee: {
               select: {
@@ -477,14 +557,14 @@ export class AssignmentsService {
                 firstName: true,
                 lastName: true,
                 email: true,
-              }
+              },
             },
             issuedByUser: {
-              select: { id: true, username: true }
+              select: { id: true, username: true },
             },
             updatedByUser: {
-              select: { id: true, username: true }
-            }
+              select: { id: true, username: true },
+            },
           },
         });
 
@@ -523,9 +603,9 @@ export class AssignmentsService {
               newStatus: 'AVAILABLE',
               previousCondition: updatedAssignment.asset.condition,
               newCondition: returnAssignmentDto.returnCondition,
-              collectedVia: 'CollectAssetView'
-            }
-          }
+              collectedVia: 'CollectAssetView',
+            },
+          },
         });
 
         return updatedAssignment;
@@ -544,5 +624,4 @@ export class AssignmentsService {
   }
 
   // Helper method for creating default user
-
-} 
+}

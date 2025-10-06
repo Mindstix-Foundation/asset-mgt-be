@@ -20,4 +20,4 @@ export class CreateBrandDto {
   @IsOptional()
   @IsString()
   description?: string;
-} 
+}

@@ -3,4 +3,4 @@ export * from './update-asset.dto';
 export * from './asset-query.dto';
 export * from './retire-asset.dto';
 export * from './reactivate-asset.dto';
-export * from './bulk-delete-asset.dto'; 
+export * from './bulk-delete-asset.dto';

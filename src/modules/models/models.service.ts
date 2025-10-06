@@ -1,17 +1,24 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateModelDto, ModelQueryDto } from './dto';
 
 @Injectable()
 export class ModelsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(createModelDto: CreateModelDto, userId: number) {
     try {
       // Verify brand and asset type exist
       const [brand, assetType] = await Promise.all([
         this.prisma.brand.findUnique({ where: { id: createModelDto.brandId } }),
-        this.prisma.assetType.findUnique({ where: { id: createModelDto.assetTypeId } }),
+        this.prisma.assetType.findUnique({
+          where: { id: createModelDto.assetTypeId },
+        }),
       ]);
 
       if (!brand) {
@@ -29,17 +36,21 @@ export class ModelsService {
         },
         include: {
           brand: {
-            select: { id: true, name: true }
+            select: { id: true, name: true },
           },
           assetType: {
-            select: { id: true, name: true, category: { select: { id: true, name: true } } }
+            select: {
+              id: true,
+              name: true,
+              category: { select: { id: true, name: true } },
+            },
           },
           createdByUser: {
-            select: { id: true, username: true }
+            select: { id: true, username: true },
           },
           _count: {
-            select: { assets: true }
-          }
+            select: { assets: true },
+          },
         },
       });
 
@@ -49,14 +60,24 @@ export class ModelsService {
       };
     } catch (error) {
       if (error.code === 'P2002') {
-        throw new ConflictException('Model name already exists for this brand and asset type');
+        throw new ConflictException(
+          'Model name already exists for this brand and asset type',
+        );
       }
       throw error;
     }
   }
 
   async findAll(queryDto: ModelQueryDto) {
-    const { page = 1, limit = 10, search, brandId, assetTypeId, sortBy = 'name', sortOrder = 'asc' } = queryDto;
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      brandId,
+      assetTypeId,
+      sortBy = 'name',
+      sortOrder = 'asc',
+    } = queryDto;
     const skip = (page - 1) * limit;
 
     const where: any = {};
@@ -83,17 +104,21 @@ export class ModelsService {
         orderBy,
         include: {
           brand: {
-            select: { id: true, name: true }
+            select: { id: true, name: true },
           },
           assetType: {
-            select: { id: true, name: true, category: { select: { id: true, name: true } } }
+            select: {
+              id: true,
+              name: true,
+              category: { select: { id: true, name: true } },
+            },
           },
           createdByUser: {
-            select: { id: true, username: true }
+            select: { id: true, username: true },
           },
           _count: {
-            select: { assets: true }
-          }
+            select: { assets: true },
+          },
         },
       }),
       this.prisma.model.count({ where }),
@@ -120,7 +145,7 @@ export class ModelsService {
     // First verify both brand and asset type exist
     const [brand, assetType] = await Promise.all([
       this.prisma.brand.findUnique({ where: { id: brandId } }),
-      this.prisma.assetType.findUnique({ where: { id: assetTypeId } })
+      this.prisma.assetType.findUnique({ where: { id: assetTypeId } }),
     ]);
 
     if (!brand) {
@@ -131,25 +156,29 @@ export class ModelsService {
     }
 
     const models = await this.prisma.model.findMany({
-      where: { 
+      where: {
         brandId: brandId,
-        assetTypeId: assetTypeId
+        assetTypeId: assetTypeId,
       },
       include: {
         brand: {
-          select: { id: true, name: true }
+          select: { id: true, name: true },
         },
         assetType: {
-          select: { id: true, name: true, category: { select: { id: true, name: true } } }
+          select: {
+            id: true,
+            name: true,
+            category: { select: { id: true, name: true } },
+          },
         },
         createdByUser: {
-          select: { id: true, username: true }
+          select: { id: true, username: true },
         },
         _count: {
-          select: { assets: true }
-        }
+          select: { assets: true },
+        },
       },
-      orderBy: { name: 'asc' }
+      orderBy: { name: 'asc' },
     });
 
     return {
@@ -163,21 +192,21 @@ export class ModelsService {
       where: { id },
       include: {
         brand: {
-          select: { id: true, name: true, description: true }
+          select: { id: true, name: true, description: true },
         },
         assetType: {
-          select: { 
-            id: true, 
-            name: true, 
+          select: {
+            id: true,
+            name: true,
             description: true,
-            category: { select: { id: true, name: true, description: true } }
-          }
+            category: { select: { id: true, name: true, description: true } },
+          },
         },
         createdByUser: {
-          select: { id: true, username: true }
+          select: { id: true, username: true },
         },
         updatedByUser: {
-          select: { id: true, username: true }
+          select: { id: true, username: true },
         },
         assets: {
           select: {
@@ -186,13 +215,13 @@ export class ModelsService {
             status: true,
             condition: true,
             purchaseDate: true,
-            purchaseCost: true
+            purchaseCost: true,
           },
-          take: 10 // Limit to first 10 assets
+          take: 10, // Limit to first 10 assets
         },
         _count: {
-          select: { assets: true }
-        }
+          select: { assets: true },
+        },
       },
     });
 
@@ -206,7 +235,6 @@ export class ModelsService {
     };
   }
 
-
   async remove(id: number) {
     try {
       // Check if model has associated assets
@@ -214,9 +242,9 @@ export class ModelsService {
         where: { id },
         include: {
           _count: {
-            select: { assets: true }
-          }
-        }
+            select: { assets: true },
+          },
+        },
       });
 
       if (!modelWithAssets) {
@@ -225,7 +253,7 @@ export class ModelsService {
 
       if (modelWithAssets._count.assets > 0) {
         throw new BadRequestException(
-          'Cannot delete model with associated assets'
+          'Cannot delete model with associated assets',
         );
       }
 
@@ -243,9 +271,4 @@ export class ModelsService {
       throw error;
     }
   }
-
-
-
-
-
-} 
+}

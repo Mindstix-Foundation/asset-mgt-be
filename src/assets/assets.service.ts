@@ -40,10 +40,11 @@ export class AssetsService {
     return {
       message: 'Assets retrieved successfully',
       data: {
-        assets: assets.map(asset => ({
+        assets: assets.map((asset) => ({
           id: asset.id.toString(),
           assetId: asset.assetId,
-          assetName: `${asset.brand?.name || ''} ${asset.model?.name || ''} ${asset.assetType?.name || ''}`.trim(),
+          assetName:
+            `${asset.brand?.name || ''} ${asset.model?.name || ''} ${asset.assetType?.name || ''}`.trim(),
           assetType: asset.assetType?.name || '',
           brand: asset.brand?.name || '',
           model: asset.model?.name || '',
@@ -52,4 +53,4 @@ export class AssetsService {
       },
     };
   }
-} 
+}

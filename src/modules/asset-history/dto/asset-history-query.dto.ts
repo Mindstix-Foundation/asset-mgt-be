@@ -1,24 +1,34 @@
-import { IsOptional, IsArray, IsDateString, IsEnum, IsInt, Min, Max, IsString, IsIn } from 'class-validator';
+import {
+  IsOptional,
+  IsArray,
+  IsDateString,
+  IsEnum,
+  IsInt,
+  Min,
+  Max,
+  IsString,
+  IsIn,
+} from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 // Actual Asset Events - Only events that can be triggered from specific pages/modals
 export enum AssetEventType {
   // === ASSET LIFECYCLE EVENTS ===
-  ASSET_CREATED = 'ASSET_CREATED',           // @AddAssetView.vue or Bulk Upload in @AssetsView.vue
-  ASSET_UPDATED = 'ASSET_UPDATED',           // @EditAssetView.vue
-  ASSET_RETIRED = 'ASSET_RETIRED',           // Retirement modal in @AssetsView.vue
-  ASSET_REACTIVATED = 'ASSET_REACTIVATED',   // Reactivation modal in @AssetsView.vue
-  
+  ASSET_CREATED = 'ASSET_CREATED', // @AddAssetView.vue or Bulk Upload in @AssetsView.vue
+  ASSET_UPDATED = 'ASSET_UPDATED', // @EditAssetView.vue
+  ASSET_RETIRED = 'ASSET_RETIRED', // Retirement modal in @AssetsView.vue
+  ASSET_REACTIVATED = 'ASSET_REACTIVATED', // Reactivation modal in @AssetsView.vue
+
   // === ASSIGNMENT EVENTS ===
-  ASSET_ISSUED = 'ASSET_ISSUED',             // @IssueAssetView.vue
-  ASSET_COLLECTED = 'ASSET_COLLECTED',       // @CollectAssetView.vue
-  
+  ASSET_ISSUED = 'ASSET_ISSUED', // @IssueAssetView.vue
+  ASSET_COLLECTED = 'ASSET_COLLECTED', // @CollectAssetView.vue
+
   // === MAINTENANCE EVENTS ===
-  MAINTENANCE_SCHEDULED = 'MAINTENANCE_SCHEDULED',   // @ScheduleMaintenanceView.vue
-  MAINTENANCE_UPDATED = 'MAINTENANCE_UPDATED',       // @EditMaintenanceView.vue
-  MAINTENANCE_COMPLETED = 'MAINTENANCE_COMPLETED',   // Completion modal in @MaintenanceView.vue
-  MAINTENANCE_CANCELLED = 'MAINTENANCE_CANCELLED'    // Cancellation modal in @MaintenanceView.vue
+  MAINTENANCE_SCHEDULED = 'MAINTENANCE_SCHEDULED', // @ScheduleMaintenanceView.vue
+  MAINTENANCE_UPDATED = 'MAINTENANCE_UPDATED', // @EditMaintenanceView.vue
+  MAINTENANCE_COMPLETED = 'MAINTENANCE_COMPLETED', // Completion modal in @MaintenanceView.vue
+  MAINTENANCE_CANCELLED = 'MAINTENANCE_CANCELLED', // Cancellation modal in @MaintenanceView.vue
 }
 
 export class AssetHistoryQueryDto {
@@ -26,7 +36,7 @@ export class AssetHistoryQueryDto {
     description: 'Page number for pagination',
     minimum: 1,
     default: 1,
-    example: 1
+    example: 1,
   })
   @IsOptional()
   @Type(() => Number)
@@ -39,7 +49,7 @@ export class AssetHistoryQueryDto {
     minimum: 1,
     maximum: 100,
     default: 20,
-    example: 20
+    example: 20,
   })
   @IsOptional()
   @Type(() => Number)
@@ -51,7 +61,7 @@ export class AssetHistoryQueryDto {
   @ApiPropertyOptional({
     description: 'Filter by event types (comma-separated)',
     example: 'ASSET_ASSIGNED,ASSET_RETURNED,MAINTENANCE_SCHEDULED',
-    type: String
+    type: String,
   })
   @IsOptional()
   @IsString()
@@ -60,7 +70,7 @@ export class AssetHistoryQueryDto {
   @ApiPropertyOptional({
     description: 'Filter events from this date (YYYY-MM-DD)',
     example: '2024-01-01',
-    type: String
+    type: String,
   })
   @IsOptional()
   @IsDateString()
@@ -69,7 +79,7 @@ export class AssetHistoryQueryDto {
   @ApiPropertyOptional({
     description: 'Filter events to this date (YYYY-MM-DD)',
     example: '2024-12-31',
-    type: String
+    type: String,
   })
   @IsOptional()
   @IsDateString()
@@ -78,7 +88,7 @@ export class AssetHistoryQueryDto {
   @ApiPropertyOptional({
     description: 'Filter by user ID who performed the action',
     example: 1,
-    type: Number
+    type: Number,
   })
   @IsOptional()
   @Type(() => Number)
@@ -88,7 +98,7 @@ export class AssetHistoryQueryDto {
   @ApiPropertyOptional({
     description: 'Search in event descriptions and notes',
     example: 'maintenance',
-    type: String
+    type: String,
   })
   @IsOptional()
   @IsString()
@@ -98,7 +108,7 @@ export class AssetHistoryQueryDto {
     description: 'Sort by field',
     enum: ['date', 'eventType'],
     default: 'date',
-    example: 'date'
+    example: 'date',
   })
   @IsOptional()
   @IsString()
@@ -109,7 +119,7 @@ export class AssetHistoryQueryDto {
     description: 'Sort order',
     enum: ['asc', 'desc'],
     default: 'desc',
-    example: 'desc'
+    example: 'desc',
   })
   @IsOptional()
   @IsString()
@@ -118,7 +128,7 @@ export class AssetHistoryQueryDto {
 
   @ApiPropertyOptional({
     description: 'Cache busting parameter (timestamp)',
-    type: Number
+    type: Number,
   })
   @IsOptional()
   @Type(() => Number)

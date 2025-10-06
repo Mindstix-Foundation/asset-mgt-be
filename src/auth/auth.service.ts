@@ -1,11 +1,22 @@
-import { Injectable, UnauthorizedException, InternalServerErrorException, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  InternalServerErrorException,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import * as nodemailer from 'nodemailer';
 import { LoginDto } from './dto/login.dto';
-import { ForgotPasswordDto, ResetPasswordDto, ChangePasswordDto } from './dto/password.dto';
+import {
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  ChangePasswordDto,
+} from './dto/password.dto';
 
 @Injectable()
 export class AuthService {
@@ -18,7 +29,10 @@ export class AuthService {
     private readonly configService: ConfigService,
   ) {}
 
-  async login(loginDto: LoginDto, deviceInfo?: { ipAddress?: string; userAgent?: string; deviceId?: string }) {
+  async login(
+    loginDto: LoginDto,
+    deviceInfo?: { ipAddress?: string; userAgent?: string; deviceId?: string },
+  ) {
     const { username, password } = loginDto;
 
     try {
@@ -28,9 +42,9 @@ export class AuthService {
           OR: [
             { username: username },
             { employee: { email: username } },
-            { employee: { employeeId: username } }
+            { employee: { employeeId: username } },
           ],
-          isActive: true
+          isActive: true,
         },
         include: {
           employee: {
@@ -38,18 +52,18 @@ export class AuthService {
               firstName: true,
               lastName: true,
               email: true,
-              employeeId: true
-            }
+              employeeId: true,
+            },
           },
           userRoles: {
             where: {
-              isActive: true
+              isActive: true,
             },
             include: {
-              role: true
-            }
-          }
-        }
+              role: true,
+            },
+          },
+        },
       });
 
       if (!user) {
@@ -58,24 +72,29 @@ export class AuthService {
 
       // Check if account is locked
       if (user.lockedUntil && user.lockedUntil > new Date()) {
-        const lockTimeRemaining = Math.ceil((user.lockedUntil.getTime() - new Date().getTime()) / 60000);
-        throw new UnauthorizedException(`Account locked. Try again in ${lockTimeRemaining} minutes.`);
+        const lockTimeRemaining = Math.ceil(
+          (user.lockedUntil.getTime() - new Date().getTime()) / 60000,
+        );
+        throw new UnauthorizedException(
+          `Account locked. Try again in ${lockTimeRemaining} minutes.`,
+        );
       }
 
       // Verify password
       const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-      
+
       if (!isPasswordValid) {
         // Increment failed login attempts
         const failedAttempts = user.failedLoginAttempts + 1;
-        const lockUntil = failedAttempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null; // Lock for 15 minutes after 5 failed attempts
-        
+        const lockUntil =
+          failedAttempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null; // Lock for 15 minutes after 5 failed attempts
+
         await this.prisma.user.update({
           where: { id: user.id },
           data: {
             failedLoginAttempts: failedAttempts,
-            lockedUntil: lockUntil
-          }
+            lockedUntil: lockUntil,
+          },
         });
 
         throw new UnauthorizedException('Invalid credentials');
@@ -83,7 +102,7 @@ export class AuthService {
 
       // Check if user has ADMIN role
       const hasAdminRole = user.userRoles.some(
-        userRole => userRole.role.roleName === 'ADMIN' && userRole.isActive
+        (userRole) => userRole.role.roleName === 'ADMIN' && userRole.isActive,
       );
 
       if (!hasAdminRole) {
@@ -92,7 +111,9 @@ export class AuthService {
 
       // Generate tokens
       const refreshToken = this.generateRefreshToken();
-      const refreshTokenExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      const refreshTokenExpires = new Date(
+        Date.now() + 7 * 24 * 60 * 60 * 1000,
+      ); // 7 days
 
       // Create refresh session with device tracking
       await this.prisma.refreshSession.create({
@@ -102,8 +123,8 @@ export class AuthService {
           expiresAt: refreshTokenExpires,
           deviceId: deviceInfo?.deviceId,
           ipAddress: deviceInfo?.ipAddress,
-          userAgent: deviceInfo?.userAgent
-        }
+          userAgent: deviceInfo?.userAgent,
+        },
       });
 
       // Reset failed login attempts on successful login
@@ -112,8 +133,8 @@ export class AuthService {
         data: {
           lastLogin: new Date(),
           failedLoginAttempts: 0,
-          lockedUntil: null
-        }
+          lockedUntil: null,
+        },
       });
 
       const payload = {
@@ -141,7 +162,7 @@ export class AuthService {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-      
+
       console.error('Database error during login:', error);
       throw new UnauthorizedException('Authentication failed');
     }
@@ -157,10 +178,10 @@ export class AuthService {
             firstName: true,
             lastName: true,
             email: true,
-            employeeId: true
-          }
-        }
-      }
+            employeeId: true,
+          },
+        },
+      },
     });
 
     if (!user || !user.isActive) {
@@ -191,8 +212,8 @@ export class AuthService {
               phone: true,
               dateOfBirth: true,
               address: true,
-              status: true
-            }
+              status: true,
+            },
           },
           userRoles: {
             include: {
@@ -202,7 +223,7 @@ export class AuthService {
               isActive: true,
             },
           },
-        }
+        },
       });
 
       if (!user || !user.isActive) {
@@ -221,8 +242,8 @@ export class AuthService {
           roles: user.userRoles.map((userRole) => userRole.role.roleName),
           lastLogin: user.lastLogin,
           createdAt: user.createdAt,
-          updatedAt: user.updatedAt
-        }
+          updatedAt: user.updatedAt,
+        },
       };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
@@ -233,15 +254,18 @@ export class AuthService {
     }
   }
 
-  async refreshToken(refreshToken: string, deviceInfo?: { ipAddress?: string; userAgent?: string; deviceId?: string }) {
+  async refreshToken(
+    refreshToken: string,
+    deviceInfo?: { ipAddress?: string; userAgent?: string; deviceId?: string },
+  ) {
     try {
       // Find refresh session
       const session = await this.prisma.refreshSession.findFirst({
         where: {
           token: refreshToken,
           expiresAt: {
-            gt: new Date()
-          }
+            gt: new Date(),
+          },
         },
         include: {
           user: {
@@ -251,12 +275,12 @@ export class AuthService {
                   firstName: true,
                   lastName: true,
                   email: true,
-                  employeeId: true
-                }
-              }
-            }
-          }
-        }
+                  employeeId: true,
+                },
+              },
+            },
+          },
+        },
       });
 
       if (!session || !session.user.isActive) {
@@ -265,12 +289,14 @@ export class AuthService {
 
       // Generate new tokens
       const newRefreshToken = this.generateRefreshToken();
-      const refreshTokenExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      const refreshTokenExpires = new Date(
+        Date.now() + 7 * 24 * 60 * 60 * 1000,
+      ); // 7 days
 
       // Delete old session and create new one (token rotation)
       await this.prisma.$transaction([
         this.prisma.refreshSession.delete({
-          where: { id: session.id }
+          where: { id: session.id },
         }),
         this.prisma.refreshSession.create({
           data: {
@@ -279,9 +305,9 @@ export class AuthService {
             expiresAt: refreshTokenExpires,
             deviceId: deviceInfo?.deviceId || session.deviceId,
             ipAddress: deviceInfo?.ipAddress || session.ipAddress,
-            userAgent: deviceInfo?.userAgent || session.userAgent
-          }
-        })
+            userAgent: deviceInfo?.userAgent || session.userAgent,
+          },
+        }),
       ]);
 
       const payload = {
@@ -295,7 +321,7 @@ export class AuthService {
         success: true,
         access_token: this.jwtService.sign(payload),
         refresh_token: newRefreshToken,
-        expires_in: 900 // 15 minutes in seconds
+        expires_in: 900, // 15 minutes in seconds
       };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
@@ -316,21 +342,21 @@ export class AuthService {
       // Delete specific refresh session or all sessions for user
       if (refreshToken) {
         await this.prisma.refreshSession.deleteMany({
-          where: { 
+          where: {
             userId,
-            token: refreshToken
-          }
+            token: refreshToken,
+          },
         });
       } else {
         // Logout from all devices
         await this.prisma.refreshSession.deleteMany({
-          where: { userId }
+          where: { userId },
         });
       }
 
       return {
         success: true,
-        message: 'Logged out successfully'
+        message: 'Logged out successfully',
       };
     } catch (error) {
       this.logger.error('Logout error:', error);
@@ -353,12 +379,12 @@ export class AuthService {
       await this.prisma.blacklistedToken.upsert({
         where: { token },
         update: {
-          expiresAt: new Date((decoded.exp * 1000))
+          expiresAt: new Date(decoded.exp * 1000),
         },
         create: {
           token,
-          expiresAt: new Date((decoded.exp * 1000))
-        }
+          expiresAt: new Date(decoded.exp * 1000),
+        },
       });
 
       // Also add to in-memory blacklist for faster lookup
@@ -378,9 +404,9 @@ export class AuthService {
     // Check database for blacklisted tokens
     try {
       const blacklistedToken = await this.prisma.blacklistedToken.findUnique({
-        where: { 
+        where: {
           token,
-        }
+        },
       });
 
       if (blacklistedToken) {
@@ -392,7 +418,7 @@ export class AuthService {
         } else {
           // Token has expired, remove from database
           await this.prisma.blacklistedToken.delete({
-            where: { token }
+            where: { token },
           });
         }
       }
@@ -400,24 +426,30 @@ export class AuthService {
       // Also check for user-specific invalidation
       try {
         const decoded = this.jwtService.decode(token);
-        if (decoded && typeof decoded === 'object' && decoded.sub && decoded.iat) {
+        if (
+          decoded &&
+          typeof decoded === 'object' &&
+          decoded.sub &&
+          decoded.iat
+        ) {
           const userId = decoded.sub;
           const tokenIssuedAt = new Date(decoded.iat * 1000); // Convert JWT iat to Date
-          
+
           // Check if there's a user invalidation token for this user that was created AFTER this token was issued
-          const userInvalidationTokens = await this.prisma.blacklistedToken.findMany({
-            where: {
-              token: {
-                startsWith: `USER_INVALIDATION_${userId}_`
+          const userInvalidationTokens =
+            await this.prisma.blacklistedToken.findMany({
+              where: {
+                token: {
+                  startsWith: `USER_INVALIDATION_${userId}_`,
+                },
+                expiresAt: {
+                  gt: new Date(),
+                },
+                createdAt: {
+                  gt: tokenIssuedAt,
+                },
               },
-              expiresAt: {
-                gt: new Date()
-              },
-              createdAt: {
-                gt: tokenIssuedAt
-              }
-            }
-          });
+            });
 
           if (userInvalidationTokens.length > 0) {
             // User has been invalidated after this token was issued, blacklist this token too
@@ -426,7 +458,10 @@ export class AuthService {
           }
         }
       } catch (decodeError) {
-        this.logger.warn('Failed to decode token for user invalidation check:', decodeError);
+        this.logger.warn(
+          'Failed to decode token for user invalidation check:',
+          decodeError,
+        );
       }
 
       return false;
@@ -441,26 +476,28 @@ export class AuthService {
     try {
       // Clean up expired tokens first
       await this.cleanupExpiredUserInvalidationTokens();
-      
+
       // Delete all refresh sessions for this user (NEW - cookie-based sessions)
       await this.prisma.refreshSession.deleteMany({
-        where: { userId }
+        where: { userId },
       });
-      
+
       // Create a special blacklist entry that will invalidate all access tokens for this user
       const userInvalidationToken = `USER_INVALIDATION_${userId}_${Date.now()}`;
-      
+
       await this.prisma.blacklistedToken.create({
         data: {
           token: userInvalidationToken,
-          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year from now
-        }
+          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year from now
+        },
       });
 
       // Also add to in-memory blacklist
       this.tokenBlacklist.add(userInvalidationToken);
 
-      this.logger.log(`Invalidated all tokens and sessions for user ID: ${userId}`);
+      this.logger.log(
+        `Invalidated all tokens and sessions for user ID: ${userId}`,
+      );
     } catch (error) {
       this.logger.error('Failed to invalidate user tokens:', error);
       throw error;
@@ -472,19 +509,24 @@ export class AuthService {
       const result = await this.prisma.blacklistedToken.deleteMany({
         where: {
           token: {
-            startsWith: 'USER_INVALIDATION_'
+            startsWith: 'USER_INVALIDATION_',
           },
           expiresAt: {
-            lt: new Date()
-          }
-        }
+            lt: new Date(),
+          },
+        },
       });
-      
+
       if (result.count > 0) {
-        this.logger.log(`Cleaned up ${result.count} expired user invalidation tokens`);
+        this.logger.log(
+          `Cleaned up ${result.count} expired user invalidation tokens`,
+        );
       }
     } catch (error) {
-      this.logger.error('Failed to cleanup expired user invalidation tokens:', error);
+      this.logger.error(
+        'Failed to cleanup expired user invalidation tokens:',
+        error,
+      );
     }
   }
 
@@ -499,38 +541,43 @@ export class AuthService {
 
       // Check if user exists with the given email
       const user = await this.prisma.user.findFirst({
-        where: { 
-          employee: { 
-            email: forgotPasswordDto.email 
+        where: {
+          employee: {
+            email: forgotPasswordDto.email,
           },
-          isActive: true
+          isActive: true,
         },
         include: {
           employee: {
             select: {
               email: true,
               firstName: true,
-              lastName: true
-            }
-          }
-        }
+              lastName: true,
+            },
+          },
+        },
       });
 
       // Always log the attempt, but don't expose if user exists or not
       if (!user) {
-        this.logger.warn(`Password reset attempted for non-existent email: ${forgotPasswordDto.email}`);
+        this.logger.warn(
+          `Password reset attempted for non-existent email: ${forgotPasswordDto.email}`,
+        );
         // Return success message even if user doesn't exist
-        return { message: 'If your email is registered with us, you will receive a password reset link shortly.' };
+        return {
+          message:
+            'If your email is registered with us, you will receive a password reset link shortly.',
+        };
       }
 
       // Generate reset token only if user exists
       const token = this.jwtService.sign(
-        { 
+        {
           email: user.employee.email,
           userId: user.id,
-          type: 'password_reset'
+          type: 'password_reset',
         },
-        { expiresIn: '15m' }
+        { expiresIn: '15m' },
       );
 
       // Store reset token in database
@@ -539,7 +586,7 @@ export class AuthService {
           token,
           userId: user.id,
           expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
-          used: false
+          used: false,
         },
       });
 
@@ -550,8 +597,12 @@ export class AuthService {
       const smtpPass = this.configService.get('SMTP_PASS');
 
       if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
-        this.logger.error('SMTP configuration is incomplete. Please check your .env file.');
-        throw new InternalServerErrorException('Email service is not configured. Please contact support.');
+        this.logger.error(
+          'SMTP configuration is incomplete. Please check your .env file.',
+        );
+        throw new InternalServerErrorException(
+          'Email service is not configured. Please contact support.',
+        );
       }
 
       // Send email only if user exists
@@ -565,10 +616,13 @@ export class AuthService {
         },
       });
 
-      const frontendUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:5173';
+      const frontendUrl =
+        this.configService.get('FRONTEND_URL') || 'http://localhost:5173';
 
       await transporter.sendMail({
-        from: this.configService.get('SMTP_FROM') || '"TrackStix Support" <trackstix.noreply@gmail.com>',
+        from:
+          this.configService.get('SMTP_FROM') ||
+          '"TrackStix Support" <trackstix.noreply@gmail.com>',
         to: user.employee.email,
         subject: 'Password Reset Request - TrackStix Asset Management',
         html: `
@@ -661,43 +715,47 @@ export class AuthService {
             </div>
           </body>
           </html>
-        `
+        `,
       });
 
       this.logger.log(`Password reset email sent to: ${user.employee.email}`);
-      
-      // Return the same message whether user exists or not
-      return { 
-        message: 'If your email is registered with us, you will receive a password reset link shortly.' 
-      };
 
+      // Return the same message whether user exists or not
+      return {
+        message:
+          'If your email is registered with us, you will receive a password reset link shortly.',
+      };
     } catch (error) {
       this.logger.error('Password reset request failed:', error);
-      
+
       // Handle specific error types
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-      
+
       if (error instanceof InternalServerErrorException) {
         throw error;
       }
-      
+
       // Log detailed error for debugging
       if (error.code === 'EAUTH' || error.code === 'ECONNECTION') {
         this.logger.error('SMTP Authentication or Connection Error:', error);
-        throw new InternalServerErrorException('Email service is currently unavailable. Please contact support or try again later.');
+        throw new InternalServerErrorException(
+          'Email service is currently unavailable. Please contact support or try again later.',
+        );
       }
-      
+
       // Generic error message to avoid information disclosure
-      throw new InternalServerErrorException('Unable to process your request. Please try again later.');
+      throw new InternalServerErrorException(
+        'Unable to process your request. Please try again later.',
+      );
     }
   }
 
   async resetPassword(resetPasswordDto: ResetPasswordDto) {
     try {
       this.jwtService.verify(resetPasswordDto.token);
-      
+
       const resetRecord = await this.prisma.passwordReset.findFirst({
         where: {
           token: resetPasswordDto.token,
@@ -712,7 +770,10 @@ export class AuthService {
         throw new UnauthorizedException('Invalid or expired reset token');
       }
 
-      const hashedPassword = await bcrypt.hash(resetPasswordDto.newPassword, 10);
+      const hashedPassword = await bcrypt.hash(
+        resetPasswordDto.newPassword,
+        10,
+      );
 
       // Update password
       await this.prisma.user.update({
@@ -739,12 +800,12 @@ export class AuthService {
   async changePassword(
     userId: number,
     currentPassword: string,
-    newPassword: string
+    newPassword: string,
   ): Promise<{ message: string }> {
     try {
       // Get user with current password
       const user = await this.prisma.user.findUnique({
-        where: { id: userId }
+        where: { id: userId },
       });
 
       if (!user) {
@@ -752,7 +813,10 @@ export class AuthService {
       }
 
       // Verify current password
-      const isPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+      const isPasswordValid = await bcrypt.compare(
+        currentPassword,
+        user.passwordHash,
+      );
       if (!isPasswordValid) {
         throw new BadRequestException('Current password is incorrect');
       }
@@ -763,7 +827,7 @@ export class AuthService {
       // Update password
       await this.prisma.user.update({
         where: { id: userId },
-        data: { passwordHash: hashedPassword }
+        data: { passwordHash: hashedPassword },
       });
 
       // Invalidate all existing tokens for this user
@@ -772,11 +836,13 @@ export class AuthService {
       return { message: 'Password changed successfully' };
     } catch (error) {
       this.logger.error('Failed to change password:', error);
-      if (error instanceof BadRequestException || 
-          error instanceof NotFoundException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
         throw error;
       }
       throw new InternalServerErrorException('Failed to change password');
     }
   }
-} 
+}

@@ -1,4 +1,12 @@
-import { IsString, IsInt, IsOptional, IsObject, MaxLength, MinLength, Min } from 'class-validator';
+import {
+  IsString,
+  IsInt,
+  IsOptional,
+  IsObject,
+  MaxLength,
+  MinLength,
+  Min,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -38,10 +46,10 @@ export class CreateModelDto {
       processor: 'Apple M2 Pro',
       ram: '16GB',
       storage: '512GB SSD',
-      display: '16.2-inch Liquid Retina XDR'
+      display: '16.2-inch Liquid Retina XDR',
     },
   })
   @IsOptional()
   @IsObject()
   specifications?: Record<string, any>;
-} 
+}

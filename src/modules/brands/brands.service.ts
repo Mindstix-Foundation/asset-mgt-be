@@ -1,10 +1,15 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBrandDto, BrandQueryDto } from './dto';
 
 @Injectable()
 export class BrandsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(createBrandDto: CreateBrandDto, userId: number) {
     try {
@@ -13,9 +18,9 @@ export class BrandsService {
         where: {
           name: {
             equals: createBrandDto.name,
-            mode: 'insensitive'
-          }
-        }
+            mode: 'insensitive',
+          },
+        },
       });
 
       if (existingBrand) {
@@ -23,7 +28,9 @@ export class BrandsService {
       }
 
       // Auto-capitalize first letter
-      const capitalizedName = createBrandDto.name.charAt(0).toUpperCase() + createBrandDto.name.slice(1).toLowerCase();
+      const capitalizedName =
+        createBrandDto.name.charAt(0).toUpperCase() +
+        createBrandDto.name.slice(1).toLowerCase();
 
       const brand = await this.prisma.brand.create({
         data: {
@@ -34,11 +41,11 @@ export class BrandsService {
         },
         include: {
           createdByUser: {
-            select: { id: true, username: true }
+            select: { id: true, username: true },
           },
           _count: {
-            select: { models: true, assets: true }
-          }
+            select: { models: true, assets: true },
+          },
         },
       });
 
@@ -58,7 +65,13 @@ export class BrandsService {
   }
 
   async findAll(queryDto: BrandQueryDto) {
-    const { page = 1, limit = 10, search, sortBy = 'name', sortOrder = 'asc' } = queryDto;
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      sortBy = 'name',
+      sortOrder = 'asc',
+    } = queryDto;
     const skip = (page - 1) * limit;
 
     const where = search
@@ -80,11 +93,11 @@ export class BrandsService {
         orderBy,
         include: {
           createdByUser: {
-            select: { id: true, username: true }
+            select: { id: true, username: true },
           },
           _count: {
-            select: { models: true, assets: true }
-          }
+            select: { models: true, assets: true },
+          },
         },
       }),
       this.prisma.brand.count({ where }),
@@ -112,35 +125,35 @@ export class BrandsService {
       where: { id },
       include: {
         createdByUser: {
-          select: { id: true, username: true }
+          select: { id: true, username: true },
         },
         updatedByUser: {
-          select: { id: true, username: true }
+          select: { id: true, username: true },
         },
         models: {
           select: {
             id: true,
             name: true,
             assetType: {
-              select: { id: true, name: true }
+              select: { id: true, name: true },
             },
             _count: {
-              select: { assets: true }
-            }
-          }
+              select: { assets: true },
+            },
+          },
         },
         assets: {
           select: {
             id: true,
             assetId: true,
             status: true,
-            condition: true
+            condition: true,
           },
-          take: 10 // Limit to first 10 assets
+          take: 10, // Limit to first 10 assets
         },
         _count: {
-          select: { models: true, assets: true }
-        }
+          select: { models: true, assets: true },
+        },
       },
     });
 
@@ -154,31 +167,34 @@ export class BrandsService {
     };
   }
 
-
   async remove(id: number) {
-      // Check if brand has associated models or assets
-      const brandWithRelations = await this.prisma.brand.findUnique({
-        where: { id },
-        include: {
-          _count: {
-            select: { models: true, assets: true }
-          }
-        }
-      });
+    // Check if brand has associated models or assets
+    const brandWithRelations = await this.prisma.brand.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { models: true, assets: true },
+        },
+      },
+    });
 
-      if (!brandWithRelations) {
-        throw new NotFoundException('Brand not found');
-      }
+    if (!brandWithRelations) {
+      throw new NotFoundException('Brand not found');
+    }
 
-      if (brandWithRelations._count.models > 0 || brandWithRelations._count.assets > 0) {
-      throw new BadRequestException('Cannot delete brand with associated models or assets');
-      }
+    if (
+      brandWithRelations._count.models > 0 ||
+      brandWithRelations._count.assets > 0
+    ) {
+      throw new BadRequestException(
+        'Cannot delete brand with associated models or assets',
+      );
+    }
 
     await this.prisma.brand.delete({ where: { id } });
 
-      return {
-        message: 'Brand deleted successfully',
+    return {
+      message: 'Brand deleted successfully',
     };
   }
-
-} 
+}

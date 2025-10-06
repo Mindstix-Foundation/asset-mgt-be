@@ -1,4 +1,12 @@
-import { IsString, IsInt, IsOptional, IsDateString, IsEnum, MaxLength, Min } from 'class-validator';
+import {
+  IsString,
+  IsInt,
+  IsOptional,
+  IsDateString,
+  IsEnum,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -54,4 +62,4 @@ export class CreateAssignmentDto {
   @IsOptional()
   @IsString()
   notes?: string;
-} 
+}

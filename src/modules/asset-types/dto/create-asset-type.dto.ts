@@ -1,4 +1,12 @@
-import { IsString, IsInt, IsOptional, IsBoolean, MaxLength, MinLength, Min } from 'class-validator';
+import {
+  IsString,
+  IsInt,
+  IsOptional,
+  IsBoolean,
+  MaxLength,
+  MinLength,
+  Min,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -39,4 +47,4 @@ export class CreateAssetTypeDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean = true;
-} 
+}

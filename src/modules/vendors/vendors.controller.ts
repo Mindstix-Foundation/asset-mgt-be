@@ -31,7 +31,15 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { VendorsService } from './vendors.service';
-import { CreateVendorDto, UpdateVendorDto, VendorQueryDto, VendorSearchDto, VendorStatusDto, CheckVendorNameDto, VendorNameCheckResponseDto } from './dto';
+import {
+  CreateVendorDto,
+  UpdateVendorDto,
+  VendorQueryDto,
+  VendorSearchDto,
+  VendorStatusDto,
+  CheckVendorNameDto,
+  VendorNameCheckResponseDto,
+} from './dto';
 
 @ApiTags('vendors')
 @ApiBearerAuth('JWT-auth')
@@ -57,19 +65,24 @@ export class VendorsController {
             email: 'contact@apple.com',
             phone: '+1-800-275-2273',
             status: 'ACTIVE',
-            createdAt: '2024-01-15T10:30:00Z'
-          }
-        }
-      }
-    }
+            createdAt: '2024-01-15T10:30:00Z',
+          },
+        },
+      },
+    },
   })
   @ApiResponse({ status: 400, description: 'Bad Request - Validation failed' })
-  @ApiResponse({ status: 409, description: 'Conflict - Vendor name or email already exists' })
+  @ApiResponse({
+    status: 409,
+    description: 'Conflict - Vendor name or email already exists',
+  })
   async create(@Body() createVendorDto: CreateVendorDto, @Request() req: any) {
     // For now, we'll create a default user if none exists
     // TODO: Implement proper authentication and get real user ID
     if (!req.user?.id) {
-      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
+      throw new UnauthorizedException(
+        'User authentication required. Please login to perform this action.',
+      );
     }
     const userId = req.user.id;
     const vendor = await this.vendorsService.create(createVendorDto, userId);
@@ -81,13 +94,42 @@ export class VendorsController {
 
   @Get()
   @ApiOperation({ summary: 'Get all vendors with filtering and pagination' })
-  @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Items per page (default: 10, max: 100)' })
-  @ApiQuery({ name: 'search', required: false, description: 'Search by name, contact, email, phone' })
-  @ApiQuery({ name: 'vendorType', required: false, description: 'Filter by vendor type (SUPPLIER, SERVICE, MANUFACTURER, DISTRIBUTOR, CONTRACTOR, BOTH)' })
-  @ApiQuery({ name: 'status', required: false, description: 'Filter by status (ACTIVE, INACTIVE)' })
-  @ApiQuery({ name: 'sortBy', required: false, description: 'Sort by field (name, type, status, createdAt)' })
-  @ApiQuery({ name: 'sortOrder', required: false, description: 'Sort order (asc, desc)' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Items per page (default: 10, max: 100)',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search by name, contact, email, phone',
+  })
+  @ApiQuery({
+    name: 'vendorType',
+    required: false,
+    description:
+      'Filter by vendor type (SUPPLIER, SERVICE, MANUFACTURER, DISTRIBUTOR, CONTRACTOR, BOTH)',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    description: 'Filter by status (ACTIVE, INACTIVE)',
+  })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    description: 'Sort by field (name, type, status, createdAt)',
+  })
+  @ApiQuery({
+    name: 'sortOrder',
+    required: false,
+    description: 'Sort order (asc, desc)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Vendors retrieved successfully',
@@ -103,19 +145,19 @@ export class VendorsController {
               contactPerson: 'John Smith',
               email: 'contact@apple.com',
               phone: '+1-800-275-2273',
-              status: 'ACTIVE'
-            }
+              status: 'ACTIVE',
+            },
           ],
           pagination: {
             totalCount: 150,
             currentPage: 1,
             totalPages: 15,
             hasNext: true,
-            hasPrevious: false
-          }
-        }
-      }
-    }
+            hasPrevious: false,
+          },
+        },
+      },
+    },
   })
   async findAll(@Query() queryDto: VendorQueryDto) {
     return this.vendorsService.findAll(queryDto);
@@ -124,7 +166,11 @@ export class VendorsController {
   @Get('search')
   @ApiOperation({ summary: 'Search vendors by query' })
   @ApiQuery({ name: 'q', required: true, description: 'Search query' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Max results (default: 10, max: 50)' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Max results (default: 10, max: 50)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Vendor search completed',
@@ -139,13 +185,13 @@ export class VendorsController {
               vendorType: 'SUPPLIER',
               contactPerson: 'John Smith',
               email: 'contact@apple.com',
-              status: 'ACTIVE'
-            }
+              status: 'ACTIVE',
+            },
           ],
-          totalFound: 5
-        }
-      }
-    }
+          totalFound: 5,
+        },
+      },
+    },
   })
   async search(@Query() searchDto: VendorSearchDto) {
     return this.vendorsService.search(searchDto);
@@ -174,11 +220,11 @@ export class VendorsController {
             notes: 'Premium electronics supplier',
             status: 'ACTIVE',
             assets: [],
-            maintenanceSchedules: []
-          }
-        }
-      }
-    }
+            maintenanceSchedules: [],
+          },
+        },
+      },
+    },
   })
   @ApiResponse({ status: 404, description: 'Vendor not found' })
   async findOne(@Param('id', ParseIntPipe) id: number) {
@@ -200,21 +246,26 @@ export class VendorsController {
             name: 'Updated Vendor Name',
             vendorType: 'SUPPLIER',
             status: 'ACTIVE',
-            updatedAt: '2024-01-15T10:30:00Z'
-          }
-        }
-      }
-    }
+            updatedAt: '2024-01-15T10:30:00Z',
+          },
+        },
+      },
+    },
   })
   @ApiResponse({ status: 404, description: 'Vendor not found' })
-  @ApiResponse({ status: 409, description: 'Conflict - Vendor name or email already exists' })
+  @ApiResponse({
+    status: 409,
+    description: 'Conflict - Vendor name or email already exists',
+  })
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateVendorDto: UpdateVendorDto,
     @Request() req: any,
   ) {
     if (!req.user?.id) {
-      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
+      throw new UnauthorizedException(
+        'User authentication required. Please login to perform this action.',
+      );
     }
     const userId = req.user.id;
     return this.vendorsService.update(id, updateVendorDto, userId);
@@ -229,12 +280,16 @@ export class VendorsController {
     description: 'Vendor deleted successfully',
     schema: {
       example: {
-        message: 'Vendor deleted successfully'
-      }
-    }
+        message: 'Vendor deleted successfully',
+      },
+    },
   })
   @ApiResponse({ status: 404, description: 'Vendor not found' })
-  @ApiResponse({ status: 400, description: 'Cannot delete vendor with associated assets or maintenance schedules' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Cannot delete vendor with associated assets or maintenance schedules',
+  })
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.vendorsService.remove(id);
   }
@@ -250,10 +305,10 @@ export class VendorsController {
         status: {
           type: 'string',
           enum: ['ACTIVE', 'INACTIVE', 'PENDING', 'SUSPENDED'],
-          example: 'ACTIVE'
-        }
-      }
-    }
+          example: 'ACTIVE',
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 200,
@@ -265,11 +320,11 @@ export class VendorsController {
           vendor: {
             id: 1,
             status: 'INACTIVE',
-            updatedAt: '2024-01-15T10:30:00Z'
-          }
-        }
-      }
-    }
+            updatedAt: '2024-01-15T10:30:00Z',
+          },
+        },
+      },
+    },
   })
   @ApiResponse({ status: 404, description: 'Vendor not found' })
   async updateStatus(
@@ -278,7 +333,9 @@ export class VendorsController {
     @Request() req: any,
   ) {
     if (!req.user?.id) {
-      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
+      throw new UnauthorizedException(
+        'User authentication required. Please login to perform this action.',
+      );
     }
     const userId = req.user.id;
     return this.vendorsService.updateStatus(id, statusDto, userId);
@@ -292,55 +349,57 @@ export class VendorsController {
     schema: {
       example: {
         name: 'TechCorp Solutions',
-        excludeId: '123'
-      }
-    }
+        excludeId: '123',
+      },
+    },
   })
   @ApiResponse({
     status: 200,
     description: 'Vendor name availability check completed',
-    type: VendorNameCheckResponseDto
+    type: VendorNameCheckResponseDto,
   })
-  @ApiResponse({ 
-    status: 400, 
+  @ApiResponse({
+    status: 400,
     description: 'Invalid vendor name or validation error',
     schema: {
       example: {
         message: 'Validation failed',
         error: 'Bad Request',
-        statusCode: 400
-      }
-    }
+        statusCode: 400,
+      },
+    },
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: 'Unauthorized - User authentication required',
     schema: {
       example: {
         message: 'Unauthorized',
-        statusCode: 401
-      }
-    }
+        statusCode: 401,
+      },
+    },
   })
   async checkVendorName(
     @Body() checkVendorNameDto: CheckVendorNameDto,
     @Request() req: any,
   ): Promise<VendorNameCheckResponseDto> {
     if (!req.user?.id) {
-      throw new UnauthorizedException('User authentication required. Please login to check vendor names.');
+      throw new UnauthorizedException(
+        'User authentication required. Please login to check vendor names.',
+      );
     }
-    
+
     const userId = req.user.id;
     let excludeIdNumber: number | undefined;
-    
+
     if (checkVendorNameDto.excludeId) {
-      excludeIdNumber = parseInt(checkVendorNameDto.excludeId);
+      excludeIdNumber = Number.parseInt(checkVendorNameDto.excludeId);
     }
-    
+
     return this.vendorsService.checkVendorNameExists(
-      checkVendorNameDto.name.trim(), 
-      excludeIdNumber, 
-      userId
+      checkVendorNameDto.name.trim(),
+      excludeIdNumber,
+      userId,
     );
   }
 
@@ -357,10 +416,10 @@ export class VendorsController {
         file: {
           type: 'string',
           format: 'binary',
-          description: 'CSV or Excel file containing vendor data'
-        }
-      }
-    }
+          description: 'CSV or Excel file containing vendor data',
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 200,
@@ -377,40 +436,47 @@ export class VendorsController {
               row: 5,
               field: 'name',
               message: 'Vendor name already exists in database',
-              value: 'TechCorp Solutions'
+              value: 'TechCorp Solutions',
             },
             {
               row: 12,
               field: 'email',
               message: 'Invalid email format',
-              value: 'invalid-email'
+              value: 'invalid-email',
             },
             {
               row: 15,
               field: 'vendorType',
-              message: 'Invalid vendor type. Must be one of: SUPPLIER, SERVICE, MANUFACTURER, DISTRIBUTOR, CONTRACTOR, BOTH',
-              value: 'INVALID_TYPE'
+              message:
+                'Invalid vendor type. Must be one of: SUPPLIER, SERVICE, MANUFACTURER, DISTRIBUTOR, CONTRACTOR, BOTH',
+              value: 'INVALID_TYPE',
             },
             {
               row: 20,
               field: 'status',
-              message: 'Invalid vendor status. Must be one of: ACTIVE, INACTIVE',
-              value: 'INVALID_STATUS'
-            }
+              message:
+                'Invalid vendor status. Must be one of: ACTIVE, INACTIVE',
+              value: 'INVALID_STATUS',
+            },
           ],
-          validationOnly: true
-        }
-      }
-    }
+          validationOnly: true,
+        },
+      },
+    },
   })
-  @ApiResponse({ status: 400, description: 'Invalid file format or validation errors' })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid file format or validation errors',
+  })
   @ApiResponse({ status: 413, description: 'File size too large (max 10MB)' })
   async validateBulkUpload(
     @UploadedFile() file: Express.Multer.File,
     @Request() req: any,
   ) {
     if (!req.user?.id) {
-      throw new UnauthorizedException('User authentication required. Please login to validate vendors.');
+      throw new UnauthorizedException(
+        'User authentication required. Please login to validate vendors.',
+      );
     }
     const userId = req.user.id;
     return this.vendorsService.validateBulkUpload(file, userId);
@@ -429,16 +495,16 @@ export class VendorsController {
         file: {
           type: 'string',
           format: 'binary',
-          description: 'CSV or Excel file containing vendor data'
+          description: 'CSV or Excel file containing vendor data',
         },
         validate_only: {
           type: 'string',
           enum: ['true', 'false'],
           description: 'Set to "true" to only validate without importing',
-          example: 'false'
-        }
-      }
-    }
+          example: 'false',
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 200,
@@ -452,19 +518,22 @@ export class VendorsController {
             {
               row: 5,
               field: 'email',
-              message: 'Invalid email format'
-            }
+              message: 'Invalid email format',
+            },
           ],
           summary: {
             totalRows: 100,
             successfulImports: 95,
-            failedImports: 5
-          }
-        }
-      }
-    }
+            failedImports: 5,
+          },
+        },
+      },
+    },
   })
-  @ApiResponse({ status: 400, description: 'Invalid file format or validation errors' })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid file format or validation errors',
+  })
   @ApiResponse({ status: 413, description: 'File size too large (max 10MB)' })
   async bulkUpload(
     @UploadedFile() file: Express.Multer.File,
@@ -472,7 +541,9 @@ export class VendorsController {
     @Request() req: any,
   ) {
     if (!req.user?.id) {
-      throw new UnauthorizedException('User authentication required. Please login to perform this action.');
+      throw new UnauthorizedException(
+        'User authentication required. Please login to perform this action.',
+      );
     }
     const userId = req.user.id;
     const isValidateOnly = validateOnly === 'true';

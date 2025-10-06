@@ -74,4 +74,4 @@ export class ModelQueryDto {
   @IsString()
   @IsIn(['asc', 'desc'])
   sortOrder?: string = 'asc';
-} 
+}

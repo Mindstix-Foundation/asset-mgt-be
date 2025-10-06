@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  Logger,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import { CreateAdminDto, UpdateAdminStatusDto } from './dto/admin.dto';
@@ -13,7 +19,7 @@ export class AdminService {
     try {
       // Get ADMIN role ID
       const adminRole = await this.prisma.role.findFirst({
-        where: { roleName: 'ADMIN' }
+        where: { roleName: 'ADMIN' },
       });
 
       if (!adminRole) {
@@ -25,9 +31,9 @@ export class AdminService {
           userRoles: {
             some: {
               roleId: adminRole.id,
-              isActive: true
-            }
-          }
+              isActive: true,
+            },
+          },
         },
         include: {
           employee: {
@@ -38,18 +44,18 @@ export class AdminService {
               email: true,
               employeeId: true,
               phone: true,
-              status: true
-            }
-          }
+              status: true,
+            },
+          },
         },
         orderBy: {
-          createdAt: 'desc'
-        }
+          createdAt: 'desc',
+        },
       });
 
       return {
         success: true,
-        data: users
+        data: users,
       };
     } catch (error) {
       this.logger.error('Error fetching admin users:', error);
@@ -59,11 +65,16 @@ export class AdminService {
 
   async createAdminUser(createAdminDto: CreateAdminDto, currentUserId: number) {
     try {
-      const { employeeId, username, password, roles = ['ADMIN'] } = createAdminDto;
+      const {
+        employeeId,
+        username,
+        password,
+        roles = ['ADMIN'],
+      } = createAdminDto;
 
       // Check if employee exists
       const employee = await this.prisma.employee.findUnique({
-        where: { id: employeeId }
+        where: { id: employeeId },
       });
 
       if (!employee) {
@@ -75,9 +86,9 @@ export class AdminService {
         where: {
           employeeId: employee.id,
           roles: {
-            has: 'ADMIN'
-          }
-        }
+            has: 'ADMIN',
+          },
+        },
       });
 
       if (existingAdmin) {
@@ -86,7 +97,7 @@ export class AdminService {
 
       // Check if username is already taken
       const existingUser = await this.prisma.user.findUnique({
-        where: { username }
+        where: { username },
       });
 
       if (existingUser) {
@@ -98,7 +109,7 @@ export class AdminService {
 
       // Get ADMIN role ID
       const adminRole = await this.prisma.role.findFirst({
-        where: { roleName: 'ADMIN' }
+        where: { roleName: 'ADMIN' },
       });
 
       if (!adminRole) {
@@ -119,9 +130,9 @@ export class AdminService {
             create: {
               roleId: adminRole.id,
               assignedBy: currentUserId,
-              isActive: true
-            }
-          }
+              isActive: true,
+            },
+          },
         },
         include: {
           employee: {
@@ -132,40 +143,51 @@ export class AdminService {
               email: true,
               employeeId: true,
               phone: true,
-              status: true
-            }
-          }
-        }
+              status: true,
+            },
+          },
+        },
       });
 
-      this.logger.log(`Admin user created: ${adminUser.username} for employee ${employee.firstName} ${employee.lastName}`);
+      this.logger.log(
+        `Admin user created: ${adminUser.username} for employee ${employee.firstName} ${employee.lastName}`,
+      );
 
       return {
         success: true,
         message: 'Admin user created successfully',
-        data: adminUser
+        data: adminUser,
       };
     } catch (error) {
       this.logger.error('Error creating admin user:', error);
-      if (error instanceof NotFoundException || error instanceof ConflictException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ConflictException
+      ) {
         throw error;
       }
       throw new BadRequestException('Failed to create admin user');
     }
   }
 
-  async updateAdminStatus(id: number, updateStatusDto: UpdateAdminStatusDto, currentUserId: number) {
+  async updateAdminStatus(
+    id: number,
+    updateStatusDto: UpdateAdminStatusDto,
+    currentUserId: number,
+  ) {
     try {
       const { isActive } = updateStatusDto;
 
       // Prevent self-deactivation/activation toggling
       if (id === currentUserId) {
-        throw new BadRequestException('You cannot change your own admin status');
+        throw new BadRequestException(
+          'You cannot change your own admin status',
+        );
       }
 
       // Get ADMIN role ID
       const adminRole = await this.prisma.role.findFirst({
-        where: { roleName: 'ADMIN' }
+        where: { roleName: 'ADMIN' },
       });
 
       if (!adminRole) {
@@ -179,13 +201,13 @@ export class AdminService {
           userRoles: {
             some: {
               roleId: adminRole.id,
-              isActive: true
-            }
-          }
+              isActive: true,
+            },
+          },
         },
         include: {
-          employee: true
-        }
+          employee: true,
+        },
       });
 
       if (!adminUser) {
@@ -195,9 +217,9 @@ export class AdminService {
       // Update status
       const updatedUser = await this.prisma.user.update({
         where: { id },
-        data: { 
+        data: {
           isActive,
-          updatedBy: currentUserId
+          updatedBy: currentUserId,
         },
         include: {
           employee: {
@@ -208,18 +230,20 @@ export class AdminService {
               email: true,
               employeeId: true,
               phone: true,
-              status: true
-            }
-          }
-        }
+              status: true,
+            },
+          },
+        },
       });
 
-      this.logger.log(`Admin user ${adminUser.username} ${isActive ? 'activated' : 'deactivated'}`);
+      this.logger.log(
+        `Admin user ${adminUser.username} ${isActive ? 'activated' : 'deactivated'}`,
+      );
 
       return {
         success: true,
         message: `Admin user ${isActive ? 'activated' : 'deactivated'} successfully`,
-        data: updatedUser
+        data: updatedUser,
       };
     } catch (error) {
       this.logger.error('Error updating admin status:', error);
@@ -239,10 +263,10 @@ export class AdminService {
           employee: true,
           userRoles: {
             include: {
-              role: true
-            }
-          }
-        }
+              role: true,
+            },
+          },
+        },
       });
 
       if (!user) {
@@ -251,12 +275,14 @@ export class AdminService {
 
       // Prevent self-deletion
       if (user.id === currentUserId) {
-        throw new BadRequestException('You cannot delete your own admin account');
+        throw new BadRequestException(
+          'You cannot delete your own admin account',
+        );
       }
 
       // Get ADMIN role ID
       const adminRole = await this.prisma.role.findFirst({
-        where: { roleName: 'ADMIN' }
+        where: { roleName: 'ADMIN' },
       });
 
       if (!adminRole) {
@@ -265,7 +291,7 @@ export class AdminService {
 
       // Check if user has ADMIN role
       const hasAdminRole = user.userRoles.some(
-        userRole => userRole.roleId === adminRole.id && userRole.isActive
+        (userRole) => userRole.roleId === adminRole.id && userRole.isActive,
       );
 
       if (!hasAdminRole) {
@@ -275,20 +301,22 @@ export class AdminService {
       // Delete all UserRole entries for this user
       await this.prisma.userRole.deleteMany({
         where: {
-          userId: id
-        }
+          userId: id,
+        },
       });
 
       // Delete the user from User table
       await this.prisma.user.delete({
-        where: { id }
+        where: { id },
       });
 
-      this.logger.log(`Admin user ${user.username} completely removed from system`);
+      this.logger.log(
+        `Admin user ${user.username} completely removed from system`,
+      );
 
       return {
         success: true,
-        message: 'Admin user removed successfully'
+        message: 'Admin user removed successfully',
       };
     } catch (error) {
       this.logger.error('Error removing admin user:', error);

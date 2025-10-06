@@ -26,7 +26,19 @@ export interface StatusOverviewData {
 
 export interface RecentActivityData {
   id: string;
-  type: 'asset_added' | 'asset_edited' | 'asset_issued' | 'asset_collected' | 'employee_added' | 'employee_edited' | 'maintenance_added' | 'maintenance_edited' | 'maintenance_completed' | 'maintenance_cancelled' | 'vendor_added' | 'vendor_edited';
+  type:
+    | 'asset_added'
+    | 'asset_edited'
+    | 'asset_issued'
+    | 'asset_collected'
+    | 'employee_added'
+    | 'employee_edited'
+    | 'maintenance_added'
+    | 'maintenance_edited'
+    | 'maintenance_completed'
+    | 'maintenance_cancelled'
+    | 'vendor_added'
+    | 'vendor_edited';
   description: string;
   timestamp: Date;
   timeAgo: string;
@@ -48,7 +60,10 @@ export interface AnalyticsData {
 export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private formatTimeAgo(date: Date): { timeAgo: string; needsRealTimeUpdate: boolean } {
+  private formatTimeAgo(date: Date): {
+    timeAgo: string;
+    needsRealTimeUpdate: boolean;
+  } {
     const now = new Date();
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
@@ -57,17 +72,48 @@ export class ReportsService {
     }
 
     const thresholds = [
-      { limit: 60 * 60, unit: 60, singular: 'minute', plural: 'minutes', realtime: true },
-      { limit: 24 * 60 * 60, unit: 60 * 60, singular: 'hour', plural: 'hours', realtime: false },
-      { limit: 7 * 24 * 60 * 60, unit: 24 * 60 * 60, singular: 'day', plural: 'days', realtime: false },
-      { limit: 4 * 7 * 24 * 60 * 60, unit: 7 * 24 * 60 * 60, singular: 'week', plural: 'weeks', realtime: false },
-      { limit: 12 * 30 * 24 * 60 * 60, unit: 30 * 24 * 60 * 60, singular: 'month', plural: 'months', realtime: false },
+      {
+        limit: 60 * 60,
+        unit: 60,
+        singular: 'minute',
+        plural: 'minutes',
+        realtime: true,
+      },
+      {
+        limit: 24 * 60 * 60,
+        unit: 60 * 60,
+        singular: 'hour',
+        plural: 'hours',
+        realtime: false,
+      },
+      {
+        limit: 7 * 24 * 60 * 60,
+        unit: 24 * 60 * 60,
+        singular: 'day',
+        plural: 'days',
+        realtime: false,
+      },
+      {
+        limit: 4 * 7 * 24 * 60 * 60,
+        unit: 7 * 24 * 60 * 60,
+        singular: 'week',
+        plural: 'weeks',
+        realtime: false,
+      },
+      {
+        limit: 12 * 30 * 24 * 60 * 60,
+        unit: 30 * 24 * 60 * 60,
+        singular: 'month',
+        plural: 'months',
+        realtime: false,
+      },
     ] as const;
 
     for (const t of thresholds) {
       if (diffInSeconds < t.limit) {
         const amount = Math.floor(diffInSeconds / t.unit);
-        const label = amount === 1 ? `1 ${t.singular} ago` : `${amount} ${t.plural} ago`;
+        const label =
+          amount === 1 ? `1 ${t.singular} ago` : `${amount} ${t.plural} ago`;
         return { timeAgo: label, needsRealTimeUpdate: t.realtime };
       }
     }
@@ -102,7 +148,9 @@ export class ReportsService {
       },
     });
 
-    const assetTypeMap = new Map(assetTypes.map(type => [type.id, type.name]));
+    const assetTypeMap = new Map(
+      assetTypes.map((type) => [type.id, type.name]),
+    );
 
     // Count only active assets (exclude RETIRED and LOST)
     const totalAssets = await this.prisma.asset.count({
@@ -112,14 +160,19 @@ export class ReportsService {
         },
       },
     });
-    const totalValue = assetsByType.reduce((sum, item) => sum + Number(item._sum.purchaseCost || 0), 0);
+    const totalValue = assetsByType.reduce(
+      (sum, item) => sum + Number(item._sum.purchaseCost || 0),
+      0,
+    );
 
-    const assetDistribution: AssetDistributionData[] = assetsByType.map(item => ({
-      type: assetTypeMap.get(item.assetTypeId) || 'Unknown',
-      count: item._count.id,
-      percentage: Math.round((item._count.id / totalAssets) * 100),
-      value: Number(item._sum.purchaseCost || 0),
-    }));
+    const assetDistribution: AssetDistributionData[] = assetsByType.map(
+      (item) => ({
+        type: assetTypeMap.get(item.assetTypeId) || 'Unknown',
+        count: item._count.id,
+        percentage: Math.round((item._count.id / totalAssets) * 100),
+        value: Number(item._sum.purchaseCost || 0),
+      }),
+    );
 
     // Get status overview (exclude RETIRED and LOST)
     const assetsByStatus = await this.prisma.asset.groupBy({
@@ -134,7 +187,7 @@ export class ReportsService {
       },
     });
 
-    const statusOverview: StatusOverviewData[] = assetsByStatus.map(item => ({
+    const statusOverview: StatusOverviewData[] = assetsByStatus.map((item) => ({
       status: item.status,
       count: item._count.id,
       percentage: Math.round((item._count.id / totalAssets) * 100),
@@ -142,7 +195,7 @@ export class ReportsService {
 
     // Get comprehensive recent activities from last 24 hours
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    
+
     const recentActivity = await this.getRecentActivities(twentyFourHoursAgo);
 
     return {
@@ -153,16 +206,15 @@ export class ReportsService {
     };
   }
 
-  private async getRecentActivities(since: Date): Promise<RecentActivityData[]> {
+  private async getRecentActivities(
+    since: Date,
+  ): Promise<RecentActivityData[]> {
     const activities: RecentActivityData[] = [];
 
     // Get recent asset activities (added and edited)
     const recentAssets = await this.prisma.asset.findMany({
       where: {
-        OR: [
-          { createdAt: { gte: since } },
-          { updatedAt: { gte: since } }
-        ]
+        OR: [{ createdAt: { gte: since } }, { updatedAt: { gte: since } }],
       },
       include: {
         assetType: true,
@@ -170,30 +222,28 @@ export class ReportsService {
         model: true,
         createdByUser: {
           include: {
-            employee: true
-          }
+            employee: true,
+          },
         },
         updatedByUser: {
           include: {
-            employee: true
-          }
-        }
+            employee: true,
+          },
+        },
       },
       orderBy: {
-        createdAt: 'desc'
+        createdAt: 'desc',
       },
-      take: 10
+      take: 10,
     });
 
-    for (const asset of recentAssets) activities.push(...this.activitiesFromAsset(asset, since));
+    for (const asset of recentAssets)
+      activities.push(...this.activitiesFromAsset(asset, since));
 
     // Get recent asset issues (issued and collected)
     const recentAssetIssues = await this.prisma.assetIssue.findMany({
       where: {
-        OR: [
-          { createdAt: { gte: since } },
-          { updatedAt: { gte: since } }
-        ]
+        OR: [{ createdAt: { gte: since } }, { updatedAt: { gte: since } }],
       },
       include: {
         asset: {
@@ -206,45 +256,44 @@ export class ReportsService {
         employee: true,
         issuedByUser: {
           include: {
-            employee: true
-          }
-        }
+            employee: true,
+          },
+        },
       },
       orderBy: {
-        createdAt: 'desc'
+        createdAt: 'desc',
       },
-      take: 10
+      take: 10,
     });
 
-    for (const issue of recentAssetIssues) activities.push(...this.activitiesFromIssue(issue, since));
+    for (const issue of recentAssetIssues)
+      activities.push(...this.activitiesFromIssue(issue, since));
 
     // Get recent employee activities (added and edited)
     const recentEmployees = await this.prisma.employee.findMany({
       where: {
-        OR: [
-          { createdAt: { gte: since } },
-          { updatedAt: { gte: since } }
-        ]
+        OR: [{ createdAt: { gte: since } }, { updatedAt: { gte: since } }],
       },
       include: {
         createdByUser: {
           include: {
-            employee: true
-          }
+            employee: true,
+          },
         },
         updatedByUser: {
           include: {
-            employee: true
-          }
-        }
+            employee: true,
+          },
+        },
       },
       orderBy: {
-        createdAt: 'desc'
+        createdAt: 'desc',
       },
-      take: 10
+      take: 10,
     });
 
-    for (const employee of recentEmployees) activities.push(...this.activitiesFromEmployee(employee, since));
+    for (const employee of recentEmployees)
+      activities.push(...this.activitiesFromEmployee(employee, since));
 
     // Get recent maintenance activities
     const recentMaintenance = await this.prisma.maintenanceSchedule.findMany({
@@ -253,8 +302,8 @@ export class ReportsService {
           { createdAt: { gte: since } },
           { updatedAt: { gte: since } },
           { actualCompletionDate: { gte: since } },
-          { cancellationDate: { gte: since } }
-        ]
+          { cancellationDate: { gte: since } },
+        ],
       },
       include: {
         asset: {
@@ -266,53 +315,54 @@ export class ReportsService {
         },
         createdByUser: {
           include: {
-            employee: true
-          }
+            employee: true,
+          },
         },
         updatedByUser: {
           include: {
-            employee: true
-          }
-        }
+            employee: true,
+          },
+        },
       },
       orderBy: {
-        createdAt: 'desc'
+        createdAt: 'desc',
       },
-      take: 10
+      take: 10,
     });
 
-    for (const maintenance of recentMaintenance) activities.push(...this.activitiesFromMaintenance(maintenance, since));
+    for (const maintenance of recentMaintenance)
+      activities.push(...this.activitiesFromMaintenance(maintenance, since));
 
     // Get recent vendor activities (added and edited)
     const recentVendors = await this.prisma.vendor.findMany({
       where: {
-        OR: [
-          { createdAt: { gte: since } },
-          { updatedAt: { gte: since } }
-        ]
+        OR: [{ createdAt: { gte: since } }, { updatedAt: { gte: since } }],
       },
       include: {
         createdByUser: {
           include: {
-            employee: true
-          }
+            employee: true,
+          },
         },
         updatedByUser: {
           include: {
-            employee: true
-          }
-        }
+            employee: true,
+          },
+        },
       },
       orderBy: {
-        createdAt: 'desc'
+        createdAt: 'desc',
       },
-      take: 10
+      take: 10,
     });
 
-    for (const vendor of recentVendors) activities.push(...this.activitiesFromVendor(vendor, since));
+    for (const vendor of recentVendors)
+      activities.push(...this.activitiesFromVendor(vendor, since));
 
     // Sort all activities by timestamp (most recent first) and return top 20
-    const sorted = activities.toSorted((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    const sorted = activities.toSorted(
+      (a, b) => b.timestamp.getTime() - a.timestamp.getTime(),
+    );
     return sorted.slice(0, 20);
   }
 
@@ -321,7 +371,7 @@ export class ReportsService {
     type: RecentActivityData['type'],
     description: string,
     timestamp: Date,
-    extra: Partial<RecentActivityData>
+    extra: Partial<RecentActivityData>,
   ): RecentActivityData {
     const timeInfo = this.formatTimeAgo(timestamp);
     return {
@@ -338,22 +388,26 @@ export class ReportsService {
   private activitiesFromAsset(asset: any, since: Date): RecentActivityData[] {
     const out: RecentActivityData[] = [];
     if (asset.createdAt >= since) {
-      out.push(this.buildActivity(
-        `asset_added_${asset.id}`,
-        'asset_added',
-        `${asset.brand.name} ${asset.model.name} (${asset.assetId}) added`,
-        asset.createdAt,
-        { assetId: asset.assetId }
-      ));
+      out.push(
+        this.buildActivity(
+          `asset_added_${asset.id}`,
+          'asset_added',
+          `${asset.brand.name} ${asset.model.name} (${asset.assetId}) added`,
+          asset.createdAt,
+          { assetId: asset.assetId },
+        ),
+      );
     }
     if (asset.updatedAt > asset.createdAt && asset.updatedAt >= since) {
-      out.push(this.buildActivity(
-        `asset_edited_${asset.id}`,
-        'asset_edited',
-        `${asset.brand.name} ${asset.model.name} (${asset.assetId}) updated`,
-        asset.updatedAt,
-        { assetId: asset.assetId }
-      ));
+      out.push(
+        this.buildActivity(
+          `asset_edited_${asset.id}`,
+          'asset_edited',
+          `${asset.brand.name} ${asset.model.name} (${asset.assetId}) updated`,
+          asset.updatedAt,
+          { assetId: asset.assetId },
+        ),
+      );
     }
     return out;
   }
@@ -361,86 +415,139 @@ export class ReportsService {
   private activitiesFromIssue(issue: any, since: Date): RecentActivityData[] {
     const out: RecentActivityData[] = [];
     if (issue.createdAt >= since) {
-      out.push(this.buildActivity(
-        `asset_issued_${issue.id}`,
-        'asset_issued',
-        `${issue.asset.brand.name} ${issue.asset.model.name} (${issue.asset.assetId}) issued to ${issue.employee.firstName} ${issue.employee.lastName}`,
-        issue.createdAt,
-        { assetId: issue.asset.assetId, employeeId: issue.employee.employeeId }
-      ));
+      out.push(
+        this.buildActivity(
+          `asset_issued_${issue.id}`,
+          'asset_issued',
+          `${issue.asset.brand.name} ${issue.asset.model.name} (${issue.asset.assetId}) issued to ${issue.employee.firstName} ${issue.employee.lastName}`,
+          issue.createdAt,
+          {
+            assetId: issue.asset.assetId,
+            employeeId: issue.employee.employeeId,
+          },
+        ),
+      );
     }
-    if (issue.returnDate && issue.updatedAt >= since && issue.updatedAt > issue.createdAt) {
-      out.push(this.buildActivity(
-        `asset_collected_${issue.id}`,
-        'asset_collected',
-        `${issue.asset.brand.name} ${issue.asset.model.name} (${issue.asset.assetId}) collected from ${issue.employee.firstName} ${issue.employee.lastName}`,
-        issue.updatedAt,
-        { assetId: issue.asset.assetId, employeeId: issue.employee.employeeId }
-      ));
+    if (
+      issue.returnDate &&
+      issue.updatedAt >= since &&
+      issue.updatedAt > issue.createdAt
+    ) {
+      out.push(
+        this.buildActivity(
+          `asset_collected_${issue.id}`,
+          'asset_collected',
+          `${issue.asset.brand.name} ${issue.asset.model.name} (${issue.asset.assetId}) collected from ${issue.employee.firstName} ${issue.employee.lastName}`,
+          issue.updatedAt,
+          {
+            assetId: issue.asset.assetId,
+            employeeId: issue.employee.employeeId,
+          },
+        ),
+      );
     }
     return out;
   }
 
-  private activitiesFromEmployee(employee: any, since: Date): RecentActivityData[] {
+  private activitiesFromEmployee(
+    employee: any,
+    since: Date,
+  ): RecentActivityData[] {
     const out: RecentActivityData[] = [];
     if (employee.createdAt >= since) {
-      out.push(this.buildActivity(
-        `employee_added_${employee.id}`,
-        'employee_added',
-        `Employee ${employee.firstName} ${employee.lastName} (${employee.employeeId}) added`,
-        employee.createdAt,
-        { employeeId: employee.employeeId }
-      ));
+      out.push(
+        this.buildActivity(
+          `employee_added_${employee.id}`,
+          'employee_added',
+          `Employee ${employee.firstName} ${employee.lastName} (${employee.employeeId}) added`,
+          employee.createdAt,
+          { employeeId: employee.employeeId },
+        ),
+      );
     }
-    if (employee.updatedAt > employee.createdAt && employee.updatedAt >= since) {
-      out.push(this.buildActivity(
-        `employee_edited_${employee.id}`,
-        'employee_edited',
-        `Employee ${employee.firstName} ${employee.lastName} (${employee.employeeId}) updated`,
-        employee.updatedAt,
-        { employeeId: employee.employeeId }
-      ));
+    if (
+      employee.updatedAt > employee.createdAt &&
+      employee.updatedAt >= since
+    ) {
+      out.push(
+        this.buildActivity(
+          `employee_edited_${employee.id}`,
+          'employee_edited',
+          `Employee ${employee.firstName} ${employee.lastName} (${employee.employeeId}) updated`,
+          employee.updatedAt,
+          { employeeId: employee.employeeId },
+        ),
+      );
     }
     return out;
   }
 
-  private activitiesFromMaintenance(maintenance: any, since: Date): RecentActivityData[] {
+  private activitiesFromMaintenance(
+    maintenance: any,
+    since: Date,
+  ): RecentActivityData[] {
     const out: RecentActivityData[] = [];
     if (maintenance.createdAt >= since) {
-      out.push(this.buildActivity(
-        `maintenance_added_${maintenance.id}`,
-        'maintenance_added',
-        `Maintenance scheduled for ${maintenance.asset.brand.name} ${maintenance.asset.model.name} (${maintenance.asset.assetId})`,
-        maintenance.createdAt,
-        { assetId: maintenance.asset.assetId, maintenanceId: maintenance.id.toString() }
-      ));
+      out.push(
+        this.buildActivity(
+          `maintenance_added_${maintenance.id}`,
+          'maintenance_added',
+          `Maintenance scheduled for ${maintenance.asset.brand.name} ${maintenance.asset.model.name} (${maintenance.asset.assetId})`,
+          maintenance.createdAt,
+          {
+            assetId: maintenance.asset.assetId,
+            maintenanceId: maintenance.id.toString(),
+          },
+        ),
+      );
     }
-    if (maintenance.updatedAt > maintenance.createdAt && maintenance.updatedAt >= since) {
-      out.push(this.buildActivity(
-        `maintenance_edited_${maintenance.id}`,
-        'maintenance_edited',
-        `Maintenance updated for ${maintenance.asset.brand.name} ${maintenance.asset.model.name} (${maintenance.asset.assetId})`,
-        maintenance.updatedAt,
-        { assetId: maintenance.asset.assetId, maintenanceId: maintenance.id.toString() }
-      ));
+    if (
+      maintenance.updatedAt > maintenance.createdAt &&
+      maintenance.updatedAt >= since
+    ) {
+      out.push(
+        this.buildActivity(
+          `maintenance_edited_${maintenance.id}`,
+          'maintenance_edited',
+          `Maintenance updated for ${maintenance.asset.brand.name} ${maintenance.asset.model.name} (${maintenance.asset.assetId})`,
+          maintenance.updatedAt,
+          {
+            assetId: maintenance.asset.assetId,
+            maintenanceId: maintenance.id.toString(),
+          },
+        ),
+      );
     }
-    if (maintenance.actualCompletionDate && maintenance.actualCompletionDate >= since) {
-      out.push(this.buildActivity(
-        `maintenance_completed_${maintenance.id}`,
-        'maintenance_completed',
-        `Maintenance completed for ${maintenance.asset.brand.name} ${maintenance.asset.model.name} (${maintenance.asset.assetId})`,
-        maintenance.actualCompletionDate,
-        { assetId: maintenance.asset.assetId, maintenanceId: maintenance.id.toString() }
-      ));
+    if (
+      maintenance.actualCompletionDate &&
+      maintenance.actualCompletionDate >= since
+    ) {
+      out.push(
+        this.buildActivity(
+          `maintenance_completed_${maintenance.id}`,
+          'maintenance_completed',
+          `Maintenance completed for ${maintenance.asset.brand.name} ${maintenance.asset.model.name} (${maintenance.asset.assetId})`,
+          maintenance.actualCompletionDate,
+          {
+            assetId: maintenance.asset.assetId,
+            maintenanceId: maintenance.id.toString(),
+          },
+        ),
+      );
     }
     if (maintenance.cancellationDate && maintenance.cancellationDate >= since) {
-      out.push(this.buildActivity(
-        `maintenance_cancelled_${maintenance.id}`,
-        'maintenance_cancelled',
-        `Maintenance cancelled for ${maintenance.asset.brand.name} ${maintenance.asset.model.name} (${maintenance.asset.assetId})`,
-        maintenance.cancellationDate,
-        { assetId: maintenance.asset.assetId, maintenanceId: maintenance.id.toString() }
-      ));
+      out.push(
+        this.buildActivity(
+          `maintenance_cancelled_${maintenance.id}`,
+          'maintenance_cancelled',
+          `Maintenance cancelled for ${maintenance.asset.brand.name} ${maintenance.asset.model.name} (${maintenance.asset.assetId})`,
+          maintenance.cancellationDate,
+          {
+            assetId: maintenance.asset.assetId,
+            maintenanceId: maintenance.id.toString(),
+          },
+        ),
+      );
     }
     return out;
   }
@@ -448,29 +555,33 @@ export class ReportsService {
   private activitiesFromVendor(vendor: any, since: Date): RecentActivityData[] {
     const out: RecentActivityData[] = [];
     if (vendor.createdAt >= since) {
-      out.push(this.buildActivity(
-        `vendor_added_${vendor.id}`,
-        'vendor_added',
-        `Vendor ${vendor.name} added`,
-        vendor.createdAt,
-        { vendorId: vendor.id.toString() }
-      ));
+      out.push(
+        this.buildActivity(
+          `vendor_added_${vendor.id}`,
+          'vendor_added',
+          `Vendor ${vendor.name} added`,
+          vendor.createdAt,
+          { vendorId: vendor.id.toString() },
+        ),
+      );
     }
     if (vendor.updatedAt > vendor.createdAt && vendor.updatedAt >= since) {
-      out.push(this.buildActivity(
-        `vendor_edited_${vendor.id}`,
-        'vendor_edited',
-        `Vendor ${vendor.name} updated`,
-        vendor.updatedAt,
-        { vendorId: vendor.id.toString() }
-      ));
+      out.push(
+        this.buildActivity(
+          `vendor_edited_${vendor.id}`,
+          'vendor_edited',
+          `Vendor ${vendor.name} updated`,
+          vendor.updatedAt,
+          { vendorId: vendor.id.toString() },
+        ),
+      );
     }
     return out;
   }
 
   async getAssetInventoryReport(filters?: ReportFilters) {
     const whereClause: any = {};
-    
+
     if (filters?.assetType) {
       whereClause.assetType = {
         name: filters.assetType,
@@ -509,7 +620,7 @@ export class ReportsService {
       },
     });
 
-    return assets.map(asset => ({
+    return assets.map((asset) => ({
       id: asset.id.toString(),
       assetId: asset.assetId,
       type: asset.assetType.name,
@@ -517,7 +628,7 @@ export class ReportsService {
       model: asset.model.name,
       serialNumber: asset.serialNumber,
       status: asset.status,
-      assignedTo: asset.assetIssues[0]?.employee 
+      assignedTo: asset.assetIssues[0]?.employee
         ? `${asset.assetIssues[0].employee.firstName} ${asset.assetIssues[0].employee.lastName}`
         : null,
       assignedEmail: asset.assetIssues[0]?.employee?.email || null,
@@ -552,15 +663,18 @@ export class ReportsService {
       },
     });
 
-    return employees.map(employee => ({
+    return employees.map((employee) => ({
       employeeId: employee.employeeId,
       employeeName: `${employee.firstName} ${employee.lastName}`,
       email: employee.email,
       department: 'N/A', // Not in current schema
       position: 'N/A', // Not in current schema
       totalAssetsAssigned: employee.assetIssues.length,
-      totalAssetValue: employee.assetIssues.reduce((sum, issue) => sum + Number(issue.asset.purchaseCost || 0), 0),
-      assets: employee.assetIssues.map(issue => ({
+      totalAssetValue: employee.assetIssues.reduce(
+        (sum, issue) => sum + Number(issue.asset.purchaseCost || 0),
+        0,
+      ),
+      assets: employee.assetIssues.map((issue) => ({
         assetId: issue.asset.assetId,
         type: issue.asset.assetType.name,
         brand: issue.asset.brand.name,
@@ -578,7 +692,7 @@ export class ReportsService {
       actualCompletionDate: { not: null },
       cancellationDate: null,
     };
-    
+
     if (filters?.fromDate && filters?.toDate) {
       whereClause.scheduledDate = {
         gte: new Date(filters.fromDate),
@@ -602,7 +716,7 @@ export class ReportsService {
       },
     });
 
-    return maintenanceRecords.map(record => ({
+    return maintenanceRecords.map((record) => ({
       maintenanceId: record.id.toString(),
       assetId: record.asset.assetId,
       assetType: record.asset.assetType.name,
@@ -632,25 +746,47 @@ export class ReportsService {
 
     // Set up headers based on report type
     let headers: string[] = [];
-    
+
     switch (reportType.toLowerCase()) {
       case 'asset inventory':
         headers = [
-          'Asset ID', 'Type', 'Brand', 'Model', 'Serial Number', 
-          'Status', 'Assigned To', 'Location', 'Purchase Date', 
-          'Purchase Price', 'Vendor', 'Warranty Expiry'
+          'Asset ID',
+          'Type',
+          'Brand',
+          'Model',
+          'Serial Number',
+          'Status',
+          'Assigned To',
+          'Location',
+          'Purchase Date',
+          'Purchase Price',
+          'Vendor',
+          'Warranty Expiry',
         ];
         break;
       case 'employee asset':
         headers = [
-          'Employee Name', 'Email', 'Department', 'Position',
-          'Total Assets', 'Total Value', 'Asset Details'
+          'Employee Name',
+          'Email',
+          'Department',
+          'Position',
+          'Total Assets',
+          'Total Value',
+          'Asset Details',
         ];
         break;
       case 'maintenance':
         headers = [
-          'Asset ID', 'Asset Type', 'Brand', 'Model', 'Maintenance Type',
-          'Description', 'Scheduled Date', 'Status', 'Cost', 'Vendor'
+          'Asset ID',
+          'Asset Type',
+          'Brand',
+          'Model',
+          'Maintenance Type',
+          'Description',
+          'Scheduled Date',
+          'Status',
+          'Cost',
+          'Vendor',
         ];
         break;
       default:
@@ -670,46 +806,71 @@ export class ReportsService {
     };
 
     // Add data rows
-    data.forEach(item => {
+    data.forEach((item) => {
       let row: any[] = [];
-      
+
       switch (reportType.toLowerCase()) {
         case 'asset inventory':
           row = [
-            item.assetId, item.type, item.brand, item.model, item.serialNumber,
-            item.status, item.assignedTo, item.location, item.purchaseDate,
-            item.purchasePrice, item.vendor, item.warrantyExpiry
+            item.assetId,
+            item.type,
+            item.brand,
+            item.model,
+            item.serialNumber,
+            item.status,
+            item.assignedTo,
+            item.location,
+            item.purchaseDate,
+            item.purchasePrice,
+            item.vendor,
+            item.warrantyExpiry,
           ];
           break;
         case 'employee asset':
           row = [
-            item.employeeName, item.email, item.department, item.position,
-            item.totalAssetsAssigned, item.totalAssetValue,
-            item.assets.map((a: any) => `${a.type}: ${a.brand} ${a.model}`).join('; ')
+            item.employeeName,
+            item.email,
+            item.department,
+            item.position,
+            item.totalAssetsAssigned,
+            item.totalAssetValue,
+            item.assets
+              .map((a: any) => `${a.type}: ${a.brand} ${a.model}`)
+              .join('; '),
           ];
           break;
         case 'maintenance':
           row = [
-            item.assetId, item.assetType, item.assetBrand, item.assetModel,
-            item.maintenanceType, item.description, item.scheduledDate,
-            item.status, item.cost, item.vendor
+            item.assetId,
+            item.assetType,
+            item.assetBrand,
+            item.assetModel,
+            item.maintenanceType,
+            item.description,
+            item.scheduledDate,
+            item.status,
+            item.cost,
+            item.vendor,
           ];
           break;
         default:
           row = Object.values(item);
       }
-      
+
       worksheet.addRow(row);
     });
 
     // Auto-fit columns
-    worksheet.columns.forEach(column => {
+    worksheet.columns.forEach((column) => {
       column.width = 15;
     });
 
     // Set response headers
     const filename = `${reportType.replace(' ', '_').toLowerCase()}_report_${new Date().toISOString().split('T')[0]}.xlsx`;
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
     // Write to response

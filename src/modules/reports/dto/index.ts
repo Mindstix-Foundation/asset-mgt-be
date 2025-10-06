@@ -1,1 +1,1 @@
-export * from './generate-report.dto'; 
+export * from './generate-report.dto';

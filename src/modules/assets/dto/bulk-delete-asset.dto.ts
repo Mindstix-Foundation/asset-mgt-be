@@ -15,4 +15,3 @@ export class BulkDeleteAssetDto {
   @IsInt({ each: true })
   assetIds: number[];
 }
-

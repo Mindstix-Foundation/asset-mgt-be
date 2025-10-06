@@ -41,12 +41,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         employee: true,
         userRoles: {
           where: {
-            isActive: true
+            isActive: true,
           },
           include: {
-            role: true
-          }
-        }
+            role: true,
+          },
+        },
       },
     });
 
@@ -56,7 +56,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     // Check if user has ADMIN role
     const hasAdminRole = user.userRoles.some(
-      userRole => userRole.role.roleName === 'ADMIN' && userRole.isActive
+      (userRole) => userRole.role.roleName === 'ADMIN' && userRole.isActive,
     );
 
     if (!hasAdminRole) {
@@ -72,4 +72,4 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       roles: (user.userRoles || []).map((ur) => ur.role.roleName),
     };
   }
-} 
+}

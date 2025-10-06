@@ -8,23 +8,25 @@ import cookieParser from 'cookie-parser';
 
 (async () => {
   const app = await NestFactory.create(AppModule);
-  
+
   // Cookie parser middleware (MUST be before other middleware)
   app.use(cookieParser());
-  
+
   // Security middleware
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'"],
-        imgSrc: ["'self'", "data:", "https:"],
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+        },
       },
-    },
-    crossOriginEmbedderPolicy: false,
-  }));
-  
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
+
   // Enable CORS for frontend connection with credentials
   app.enableCors({
     origin: ['http://localhost:5173', 'http://localhost:5174'], // Vite dev server ports
@@ -32,7 +34,7 @@ import cookieParser from 'cookie-parser';
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Device-Id'],
   });
-  
+
   // Enable validation pipes
   app.useGlobalPipes(
     new ValidationPipe({
@@ -44,14 +46,16 @@ import cookieParser from 'cookie-parser';
       },
     }),
   );
-  
+
   // Set global prefix
   app.setGlobalPrefix('api');
-  
+
   // Setup Swagger documentation
   const config = new DocumentBuilder()
     .setTitle('Asset Management System API')
-    .setDescription('Comprehensive API documentation for TrackStix Asset Management System')
+    .setDescription(
+      'Comprehensive API documentation for TrackStix Asset Management System',
+    )
     .setVersion('1.0')
     .addTag('auth', 'Authentication operations')
     .addTag('employees', 'Employee management operations')
@@ -75,7 +79,7 @@ import cookieParser from 'cookie-parser';
       'JWT-auth',
     )
     .build();
-    
+
   const document = SwaggerModule.createDocument(app, config, {
     operationIdFactory: (controllerKey: string, methodKey: string) => methodKey,
   });
@@ -86,12 +90,14 @@ import cookieParser from 'cookie-parser';
       operationsSorter: 'alpha',
     },
   });
-  
+
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
 
   console.log(`Application is running on: http://localhost:${port}/api`);
-  console.log(`Swagger documentation available at: http://localhost:${port}/api/docs`);
+  console.log(
+    `Swagger documentation available at: http://localhost:${port}/api/docs`,
+  );
 })().catch((err) => {
   console.error('Failed to start NestJS application:', err);
   process.exit(1);

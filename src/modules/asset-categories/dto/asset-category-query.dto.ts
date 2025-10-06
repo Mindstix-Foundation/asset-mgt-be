@@ -54,4 +54,4 @@ export class AssetCategoryQueryDto {
   @IsString()
   @IsIn(['asc', 'desc'])
   sortOrder?: string = 'asc';
-} 
+}

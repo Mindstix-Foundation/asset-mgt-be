@@ -1,18 +1,18 @@
-import { 
-  Controller, 
-  Get, 
-  Post, 
-  Query, 
-  Res, 
-  UseGuards, 
-  Body 
+import {
+  Controller,
+  Get,
+  Post,
+  Query,
+  Res,
+  UseGuards,
+  Body,
 } from '@nestjs/common';
-import { 
-  ApiTags, 
-  ApiOperation, 
-  ApiResponse, 
-  ApiBearerAuth, 
-  ApiQuery 
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiQuery,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { ReportsService, type ReportFilters } from './reports.service';
@@ -27,7 +27,10 @@ export class ReportsController {
 
   @Get('analytics')
   @ApiOperation({ summary: 'Get analytics data for dashboard' })
-  @ApiResponse({ status: 200, description: 'Analytics data retrieved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Analytics data retrieved successfully',
+  })
   async getAnalytics() {
     const data = await this.reportsService.getAnalyticsData();
     return {
@@ -38,7 +41,10 @@ export class ReportsController {
 
   @Get('asset-inventory')
   @ApiOperation({ summary: 'Get asset inventory report data' })
-  @ApiResponse({ status: 200, description: 'Asset inventory data retrieved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Asset inventory data retrieved successfully',
+  })
   @ApiQuery({ name: 'assetType', required: false })
   @ApiQuery({ name: 'fromDate', required: false })
   @ApiQuery({ name: 'toDate', required: false })
@@ -52,7 +58,10 @@ export class ReportsController {
 
   @Get('employee-assets')
   @ApiOperation({ summary: 'Get employee asset report data' })
-  @ApiResponse({ status: 200, description: 'Employee asset data retrieved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Employee asset data retrieved successfully',
+  })
   async getEmployeeAssets(@Query() filters: ReportFilters) {
     const data = await this.reportsService.getEmployeeAssetReport(filters);
     return {
@@ -63,7 +72,10 @@ export class ReportsController {
 
   @Get('maintenance')
   @ApiOperation({ summary: 'Get maintenance report data' })
-  @ApiResponse({ status: 200, description: 'Maintenance data retrieved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Maintenance data retrieved successfully',
+  })
   @ApiQuery({ name: 'fromDate', required: false })
   @ApiQuery({ name: 'toDate', required: false })
   async getMaintenance(@Query() filters: ReportFilters) {
@@ -76,29 +88,48 @@ export class ReportsController {
 
   @Post('export/asset-inventory')
   @ApiOperation({ summary: 'Export asset inventory report to Excel' })
-  @ApiResponse({ status: 200, description: 'Excel file generated successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Excel file generated successfully',
+  })
   async exportAssetInventory(
     @Body() filters: ReportFilters,
     @Res() res: Response,
   ) {
     const data = await this.reportsService.getAssetInventoryReport(filters);
-    await this.reportsService.exportToExcel(data, 'Asset Inventory', res, filters);
+    await this.reportsService.exportToExcel(
+      data,
+      'Asset Inventory',
+      res,
+      filters,
+    );
   }
 
   @Post('export/employee-assets')
   @ApiOperation({ summary: 'Export employee asset report to Excel' })
-  @ApiResponse({ status: 200, description: 'Excel file generated successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Excel file generated successfully',
+  })
   async exportEmployeeAssets(
     @Body() filters: ReportFilters,
     @Res() res: Response,
   ) {
     const data = await this.reportsService.getEmployeeAssetReport(filters);
-    await this.reportsService.exportToExcel(data, 'Employee Asset', res, filters);
+    await this.reportsService.exportToExcel(
+      data,
+      'Employee Asset',
+      res,
+      filters,
+    );
   }
 
   @Post('export/maintenance')
   @ApiOperation({ summary: 'Export maintenance report to Excel' })
-  @ApiResponse({ status: 200, description: 'Excel file generated successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Excel file generated successfully',
+  })
   async exportMaintenance(
     @Body() filters: ReportFilters,
     @Res() res: Response,
@@ -109,14 +140,19 @@ export class ReportsController {
 
   @Get('preview')
   @ApiOperation({ summary: 'Get preview data for reports' })
-  @ApiResponse({ status: 200, description: 'Preview data retrieved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Preview data retrieved successfully',
+  })
   @ApiQuery({ name: 'reportType', required: true })
   @ApiQuery({ name: 'assetType', required: false })
   @ApiQuery({ name: 'fromDate', required: false })
   @ApiQuery({ name: 'toDate', required: false })
-  async getReportPreview(@Query() query: ReportFilters & { reportType: string }) {
+  async getReportPreview(
+    @Query() query: ReportFilters & { reportType: string },
+  ) {
     let data: any[] = [];
-    
+
     switch (query.reportType) {
       case 'assets':
         data = await this.reportsService.getAssetInventoryReport(query);

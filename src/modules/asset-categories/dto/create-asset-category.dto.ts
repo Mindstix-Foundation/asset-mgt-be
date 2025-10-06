@@ -20,4 +20,4 @@ export class CreateAssetCategoryDto {
   @IsOptional()
   @IsString()
   description?: string;
-} 
+}

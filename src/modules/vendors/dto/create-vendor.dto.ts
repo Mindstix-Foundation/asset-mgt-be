@@ -1,15 +1,35 @@
-import { IsString, IsOptional, IsBoolean, IsEnum, IsEmail, MaxLength, MinLength, Matches } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsBoolean,
+  IsEnum,
+  IsEmail,
+  MaxLength,
+  MinLength,
+  Matches,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { VendorStatus, VendorType } from '@prisma/client';
-import { IsTitleCase, IsPanNumber, IsPhoneNumber, IsGstNumber, IsVendorName } from '../validators/custom-validators';
-import { ToTrimmedTitleCase, ToUpperCase, ToPhoneFormat, ToTrimmed } from '../validators/transformers';
+import {
+  IsTitleCase,
+  IsPanNumber,
+  IsPhoneNumber,
+  IsGstNumber,
+  IsVendorName,
+} from '../validators/custom-validators';
+import {
+  ToTrimmedTitleCase,
+  ToUpperCase,
+  ToPhoneFormat,
+  ToTrimmed,
+} from '../validators/transformers';
 
 export class CreateVendorDto {
   @ApiProperty({
     description: 'Vendor name',
     example: 'Apple Store',
     minLength: 2,
-    maxLength: 100
+    maxLength: 100,
   })
   @IsString()
   @MinLength(2, { message: 'Vendor name must be at least 2 characters long' })
@@ -23,7 +43,7 @@ export class CreateVendorDto {
     enum: VendorType,
     example: VendorType.SUPPLIER,
     default: VendorType.SUPPLIER,
-    required: false
+    required: false,
   })
   @IsEnum(VendorType)
   @IsOptional()
@@ -33,12 +53,16 @@ export class CreateVendorDto {
     description: 'Contact person name',
     example: 'John Smith',
     maxLength: 100,
-    required: false
+    required: false,
   })
   @IsString()
   @IsOptional()
-  @MaxLength(100, { message: 'Contact person name cannot exceed 100 characters' })
-  @IsTitleCase({ message: 'Contact person name must be in title case (e.g., "John Smith")' })
+  @MaxLength(100, {
+    message: 'Contact person name cannot exceed 100 characters',
+  })
+  @IsTitleCase({
+    message: 'Contact person name must be in title case (e.g., "John Smith")',
+  })
   @ToTrimmedTitleCase()
   contactPerson?: string;
 
@@ -46,7 +70,7 @@ export class CreateVendorDto {
     description: 'Email address',
     example: 'contact@apple.com',
     maxLength: 255,
-    required: false
+    required: false,
   })
   @IsEmail({}, { message: 'Please provide a valid email address' })
   @IsOptional()
@@ -58,7 +82,7 @@ export class CreateVendorDto {
     description: 'Phone number',
     example: '+1-800-275-2273',
     maxLength: 15,
-    required: false
+    required: false,
   })
   @IsString()
   @IsOptional()
@@ -71,7 +95,7 @@ export class CreateVendorDto {
     description: 'Complete address',
     example: '1 Apple Park Way, Cupertino, CA 95014',
     maxLength: 500,
-    required: false
+    required: false,
   })
   @IsString()
   @IsOptional()
@@ -83,7 +107,7 @@ export class CreateVendorDto {
     description: 'Tax ID or GST number',
     example: '12ABCDE1234F1Z5',
     maxLength: 50,
-    required: false
+    required: false,
   })
   @IsString()
   @IsOptional()
@@ -95,12 +119,14 @@ export class CreateVendorDto {
     description: 'PAN number',
     example: 'ABCDE1234F',
     maxLength: 10,
-    required: false
+    required: false,
   })
   @IsString()
   @IsOptional()
   @MaxLength(10, { message: 'PAN number must be exactly 10 characters' })
-  @IsPanNumber({ message: 'Please provide a valid PAN number (format: ABCDE1234F)' })
+  @IsPanNumber({
+    message: 'Please provide a valid PAN number (format: ABCDE1234F)',
+  })
   @ToUpperCase()
   panNumber?: string;
 
@@ -108,7 +134,7 @@ export class CreateVendorDto {
     description: 'Additional notes',
     example: 'Premium electronics supplier with excellent service record',
     maxLength: 1000,
-    required: false
+    required: false,
   })
   @IsString()
   @IsOptional()
@@ -119,7 +145,7 @@ export class CreateVendorDto {
   @ApiProperty({
     description: 'User ID to associate with this vendor (for vendor users)',
     example: 123,
-    required: false
+    required: false,
   })
   @IsOptional()
   userId?: number;
@@ -129,7 +155,7 @@ export class CreateVendorDto {
     enum: VendorStatus,
     example: VendorStatus.ACTIVE,
     default: VendorStatus.ACTIVE,
-    required: false
+    required: false,
   })
   @IsEnum(VendorStatus)
   @IsOptional()

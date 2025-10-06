@@ -57,7 +57,7 @@ export class AppService {
       let maintenanceByStatus = 0;
 
       // Count assets by status using exact Prisma enum values
-      assetsByStatus.forEach(group => {
+      assetsByStatus.forEach((group) => {
         switch (group.status) {
           case 'ASSIGNED':
             assigned += group._count.id;
@@ -77,7 +77,8 @@ export class AppService {
 
       // Calculate available assets: Total - Maintenance - Assigned
       // This ensures the numbers always add up correctly
-      const availableAssets = totalAssets - assetsWithActiveMaintenance - assigned;
+      const availableAssets =
+        totalAssets - assetsWithActiveMaintenance - assigned;
 
       const result = {
         totalAssets,

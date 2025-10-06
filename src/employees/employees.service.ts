@@ -7,7 +7,11 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
-import { QueryEmployeeDto, QueryEmployeeAssetEventsDto, AssetEventAction } from './dto/query-employee.dto';
+import {
+  QueryEmployeeDto,
+  QueryEmployeeAssetEventsDto,
+  AssetEventAction,
+} from './dto/query-employee.dto';
 import {
   EmployeeResponseDto,
   EmployeeListResponseDto,
@@ -60,7 +64,12 @@ export class EmployeesService {
 
     try {
       const employee = await this.prisma.employee.create({
-        data: this.buildEmployeeCreateData(createEmployeeDto, userId, employeeId, dateOfBirth),
+        data: this.buildEmployeeCreateData(
+          createEmployeeDto,
+          userId,
+          employeeId,
+          dateOfBirth,
+        ),
       });
 
       const responseEmployee = this.mapToResponseDto(employee);
@@ -75,9 +84,14 @@ export class EmployeesService {
         async () => {
           employeeId = await this.generateEmployeeId();
           return this.prisma.employee.create({
-            data: this.buildEmployeeCreateData(createEmployeeDto, userId, employeeId, dateOfBirth),
+            data: this.buildEmployeeCreateData(
+              createEmployeeDto,
+              userId,
+              employeeId,
+              dateOfBirth,
+            ),
           });
-        }
+        },
       );
       if (maybeHandled) {
         const responseEmployee = this.mapToResponseDto(maybeHandled);
@@ -90,17 +104,22 @@ export class EmployeesService {
     }
   }
 
-  async isEmailAvailable(email: string, excludeEmployeeId?: string): Promise<boolean> {
+  async isEmailAvailable(
+    email: string,
+    excludeEmployeeId?: string,
+  ): Promise<boolean> {
     if (!email) {
       throw new BadRequestException('Email is required');
     }
-    
-    const whereClause: any = { email }
+
+    const whereClause: any = { email };
     if (excludeEmployeeId) {
-      whereClause.employeeId = { not: excludeEmployeeId }
+      whereClause.employeeId = { not: excludeEmployeeId };
     }
-    
-    const existing = await this.prisma.employee.findFirst({ where: whereClause });
+
+    const existing = await this.prisma.employee.findFirst({
+      where: whereClause,
+    });
     return !existing;
   }
 
@@ -128,7 +147,7 @@ export class EmployeesService {
     // Build orderBy clause
     const orderBy: Prisma.EmployeeOrderByWithRelationInput = {};
     const sortOrder = query.sortOrder || 'asc';
-    
+
     switch (query.sortBy) {
       case 'name':
         orderBy.firstName = sortOrder;
@@ -152,12 +171,13 @@ export class EmployeesService {
 
     // Date range by createdAt
     if ((query as any).fromDate || (query as any).toDate) {
-      (where as any).createdAt = {} as any
-      if ((query as any).fromDate) (where as any).createdAt.gte = new Date((query as any).fromDate)
+      (where as any).createdAt = {} as any;
+      if ((query as any).fromDate)
+        (where as any).createdAt.gte = new Date((query as any).fromDate);
       if ((query as any).toDate) {
-        const end = new Date((query as any).toDate)
-        end.setHours(23,59,59,999)
-        ;(where as any).createdAt.lte = end
+        const end = new Date((query as any).toDate);
+        end.setHours(23, 59, 59, 999);
+        (where as any).createdAt.lte = end;
       }
     }
 
@@ -193,14 +213,14 @@ export class EmployeesService {
           include: {
             userRoles: {
               where: {
-                isActive: true
+                isActive: true,
               },
               include: {
-                role: true
-              }
-            }
-          }
-        }
+                role: true,
+              },
+            },
+          },
+        },
       },
       orderBy,
     });
@@ -237,13 +257,14 @@ export class EmployeesService {
         assignedDate: issue.issueDate.toISOString().split('T')[0],
         status: 'ASSIGNED',
       }));
-      
+
       // Add admin status
-      const isAdmin = employee.user?.userRoles?.some(
-        userRole => userRole.role.roleName === 'ADMIN' && userRole.isActive
-      ) || false;
+      const isAdmin =
+        employee.user?.userRoles?.some(
+          (userRole) => userRole.role.roleName === 'ADMIN' && userRole.isActive,
+        ) || false;
       responseDto.isAdmin = isAdmin;
-      
+
       return responseDto;
     });
 
@@ -325,7 +346,7 @@ export class EmployeesService {
     return name
       .toLowerCase()
       .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');
   }
 
@@ -383,7 +404,14 @@ export class EmployeesService {
       return this.handleValidationOutcome(
         validateOnly,
         'Invalid file format. Only CSV and Excel files are allowed',
-        [{ row: 0, field: 'file', message: 'Invalid file format. Only CSV and Excel files are allowed' }],
+        [
+          {
+            row: 0,
+            field: 'file',
+            message:
+              'Invalid file format. Only CSV and Excel files are allowed',
+          },
+        ],
         0,
       );
     }
@@ -393,7 +421,13 @@ export class EmployeesService {
       return this.handleValidationOutcome(
         validateOnly,
         'File size too large. Maximum 10MB allowed',
-        [{ row: 0, field: 'file', message: 'File size too large. Maximum 10MB allowed' }],
+        [
+          {
+            row: 0,
+            field: 'file',
+            message: 'File size too large. Maximum 10MB allowed',
+          },
+        ],
         0,
       );
     }
@@ -403,37 +437,51 @@ export class EmployeesService {
     file: Express.Multer.File,
     validateOnly: boolean,
   ): any[] | { message: string; data: any } {
-    const isCsv = file.mimetype === 'text/csv' || file.mimetype === 'application/vnd.ms-excel';
+    const isCsv =
+      file.mimetype === 'text/csv' ||
+      file.mimetype === 'application/vnd.ms-excel';
     if (isCsv) {
       const csv = file.buffer.toString('utf-8');
-      const lines = csv.split(/\r?\n/).filter(l => l.trim().length > 0);
+      const lines = csv.split(/\r?\n/).filter((l) => l.trim().length > 0);
       if (lines.length < 2) {
         return this.handleValidationOutcome(
           validateOnly,
           'File must contain header and at least one row',
-          [{ row: 0, field: 'file', message: 'File must contain header and at least one row' }],
+          [
+            {
+              row: 0,
+              field: 'file',
+              message: 'File must contain header and at least one row',
+            },
+          ],
           0,
         );
       }
 
-      const headers = lines[0].split(',').map(h => h.trim());
+      const headers = lines[0].split(',').map((h) => h.trim());
       const headerMap: Record<string, number> = {};
       headers.forEach((h, i) => (headerMap[h.toLowerCase()] = i));
 
       const required = ['first name', 'last name', 'email'];
-      const missing = required.filter(h => !(h in headerMap));
+      const missing = required.filter((h) => !(h in headerMap));
       if (missing.length) {
         return this.handleValidationOutcome(
           validateOnly,
           `Missing required headers: ${missing.join(', ')}`,
-          [{ row: 0, field: 'file', message: `Missing required headers: ${missing.join(', ')}` }],
+          [
+            {
+              row: 0,
+              field: 'file',
+              message: `Missing required headers: ${missing.join(', ')}`,
+            },
+          ],
           0,
         );
       }
 
       const rows = lines
         .slice(1)
-        .map(line => {
+        .map((line) => {
           const cols = line.split(',');
           const firstName = cols[headerMap['first name']]?.trim();
           const lastName = cols[headerMap['last name']]?.trim();
@@ -455,15 +503,15 @@ export class EmployeesService {
                 : undefined,
           };
         })
-        .filter(r => r.firstName || r.lastName || r.email);
+        .filter((r) => r.firstName || r.lastName || r.email);
       return rows;
     }
 
     // Excel path
     const wb = XLSX.read(file.buffer, { type: 'buffer' });
     const sheet = wb.Sheets[wb.SheetNames[0]];
-    const data = XLSX.utils.sheet_to_json(sheet) as any[];
-    return data.map(r => {
+    const data = XLSX.utils.sheet_to_json(sheet);
+    return data.map((r: any) => {
       const firstName = r['First Name']?.toString().trim();
       const lastName = r['Last Name']?.toString().trim();
       return {
@@ -477,13 +525,17 @@ export class EmployeesService {
     });
   }
 
-  async bulkUpload(file: Express.Multer.File, userId: number, validateOnly: boolean = false) {
+  async bulkUpload(
+    file: Express.Multer.File,
+    userId: number,
+    validateOnly: boolean = false,
+  ) {
     // Validate basic file constraints
     const precheck = this.validateIncomingFile(file, validateOnly);
     if (precheck) return precheck;
 
     // Parse rows
-    const parsed = this.parseRowsFromFile(file!, validateOnly);
+    const parsed = this.parseRowsFromFile(file, validateOnly);
     if (!Array.isArray(parsed)) return parsed;
     const rows: any[] = parsed;
 
@@ -498,62 +550,95 @@ export class EmployeesService {
     }
 
     // Basic validation + collect emails
-    const errors: Array<{ row: number; field: string; message: string }> = []
-    const emails: string[] = []
+    const errors: Array<{ row: number; field: string; message: string }> = [];
+    const emails: string[] = [];
     rows.forEach((r, idx) => {
-      const rowNum = idx + 2 // header is row 1
-      if (!r.firstName) errors.push({ row: rowNum, field: 'firstName', message: 'First Name is required' })
-      if (!r.lastName) errors.push({ row: rowNum, field: 'lastName', message: 'Last Name is required' })
-      if (!r.email) errors.push({ row: rowNum, field: 'email', message: 'Email is required' })
-      else emails.push(r.email.toLowerCase())
+      const rowNum = idx + 2; // header is row 1
+      if (!r.firstName)
+        errors.push({
+          row: rowNum,
+          field: 'firstName',
+          message: 'First Name is required',
+        });
+      if (!r.lastName)
+        errors.push({
+          row: rowNum,
+          field: 'lastName',
+          message: 'Last Name is required',
+        });
+      if (!r.email)
+        errors.push({
+          row: rowNum,
+          field: 'email',
+          message: 'Email is required',
+        });
+      else emails.push(r.email.toLowerCase());
       if (r.phone && !/^\+91\s\d{10}$/.test(r.phone)) {
-        errors.push({ row: rowNum, field: 'phone', message: "Phone must be '+91 ' followed by 10 digits" })
+        errors.push({
+          row: rowNum,
+          field: 'phone',
+          message: "Phone must be '+91 ' followed by 10 digits",
+        });
       }
       if (r.dateOfBirth && !/^\d{4}-\d{2}-\d{2}$/.test(r.dateOfBirth)) {
-        errors.push({ row: rowNum, field: 'dateOfBirth', message: 'Date of Birth must be YYYY-MM-DD' })
+        errors.push({
+          row: rowNum,
+          field: 'dateOfBirth',
+          message: 'Date of Birth must be YYYY-MM-DD',
+        });
       }
-    })
+    });
 
     // Check duplicates within file
-    const seen = new Set<string>()
+    const seen = new Set<string>();
     for (let i = 0; i < emails.length; i++) {
-      const e = emails[i]
+      const e = emails[i];
       if (seen.has(e)) {
-        errors.push({ row: i + 2, field: 'email', message: 'Duplicate email in file' })
+        errors.push({
+          row: i + 2,
+          field: 'email',
+          message: 'Duplicate email in file',
+        });
       }
-      seen.add(e)
+      seen.add(e);
     }
 
     // Check duplicates against DB
     const existing = await this.prisma.employee.findMany({
       where: { email: { in: emails } },
       select: { email: true },
-    })
-    const existingEmails = new Set(existing.map(e => e.email.toLowerCase()))
+    });
+    const existingEmails = new Set(existing.map((e) => e.email.toLowerCase()));
     rows.forEach((r, idx) => {
       if (existingEmails.has(r.email?.toLowerCase())) {
-        errors.push({ row: idx + 2, field: 'email', message: 'Email already exists in database' })
+        errors.push({
+          row: idx + 2,
+          field: 'email',
+          message: 'Email already exists in database',
+        });
       }
-    })
+    });
 
     if (validateOnly) {
       return this.buildValidationResponse(
-        errors.length > 0 ? 'Validation completed with errors' : 'Validation successful',
+        errors.length > 0
+          ? 'Validation completed with errors'
+          : 'Validation successful',
         errors,
         rows.length,
-      )
+      );
     }
 
     // For actual upload, throw error if validation fails
     if (errors.length > 0) {
-      throw new BadRequestException({ message: 'Validation failed', errors })
+      throw new BadRequestException({ message: 'Validation failed', errors });
     }
 
     // Transactional insert: all or none
     await this.prisma.$transaction(async (tx) => {
       for (const r of rows) {
-        const employeeId = await this.generateEmployeeId()
-        const dateOfBirth = r.dateOfBirth ? new Date(r.dateOfBirth) : null
+        const employeeId = await this.generateEmployeeId();
+        const dateOfBirth = r.dateOfBirth ? new Date(r.dateOfBirth) : null;
         await tx.employee.create({
           data: {
             employeeId,
@@ -566,12 +651,23 @@ export class EmployeesService {
             status: EmployeeStatus.ACTIVE,
             createdBy: userId,
             updatedBy: userId,
-          }
-        })
+          },
+        });
       }
-    })
+    });
 
-    return { message: 'Employees uploaded successfully', data: { imported: rows.length, errors: [], summary: { totalRows: rows.length, successfulImports: rows.length, failedImports: 0 } } }
+    return {
+      message: 'Employees uploaded successfully',
+      data: {
+        imported: rows.length,
+        errors: [],
+        summary: {
+          totalRows: rows.length,
+          successfulImports: rows.length,
+          failedImports: 0,
+        },
+      },
+    };
   }
 
   async findOne(
@@ -580,8 +676,8 @@ export class EmployeesService {
   ): Promise<EmployeeDetailResponseDto> {
     // Check if id is numeric (database ID) or string (employeeId)
     const isNumericId = /^\d+$/.test(id);
-    const whereClause = isNumericId 
-      ? { id: Number.parseInt(id, 10) } 
+    const whereClause = isNumericId
+      ? { id: Number.parseInt(id, 10) }
       : { employeeId: id };
 
     const employee = await this.prisma.employee.findUnique({
@@ -610,22 +706,22 @@ export class EmployeesService {
               include: {
                 userRoles: {
                   include: {
-                    role: true
-                  }
-                }
-              }
-            }
+                    role: true,
+                  },
+                },
+              },
+            },
           }
         : {
             user: {
               include: {
                 userRoles: {
                   include: {
-                    role: true
-                  }
-                }
-              }
-            }
+                    role: true,
+                  },
+                },
+              },
+            },
           },
     });
 
@@ -634,17 +730,19 @@ export class EmployeesService {
     }
 
     // Check if employee is an admin
-    const isAdmin = employee.user?.userRoles?.some(
-      userRole => userRole.role.roleName === 'ADMIN' && userRole.isActive
-    ) || false;
+    const isAdmin =
+      employee.user?.userRoles?.some(
+        (userRole) => userRole.role.roleName === 'ADMIN' && userRole.isActive,
+      ) || false;
 
     const responseEmployee = this.mapToResponseDto(employee);
-    
+
     // Set admin status in the response
     responseEmployee.isAdmin = isAdmin;
 
     if (includeAssets && (employee as any).assetIssues) {
-      responseEmployee.assignedAssetsCount = (employee as any)._count?.assetIssues || 0;
+      responseEmployee.assignedAssetsCount =
+        (employee as any)._count?.assetIssues || 0;
       responseEmployee.assignedAssets = (employee as any).assetIssues
         .filter((issue: any) => !issue.returnDate) // Only active assignments
         .map((issue: any) => ({
@@ -673,8 +771,8 @@ export class EmployeesService {
   ): Promise<EmployeeDetailResponseDto> {
     // Check if id is numeric (database ID) or string (employeeId)
     const isNumericId = /^\d+$/.test(id);
-    const whereClause = isNumericId 
-      ? { id: Number.parseInt(id, 10) } 
+    const whereClause = isNumericId
+      ? { id: Number.parseInt(id, 10) }
       : { employeeId: id };
 
     const existingEmployee = await this.prisma.employee.findUnique({
@@ -684,12 +782,12 @@ export class EmployeesService {
           include: {
             userRoles: {
               include: {
-                role: true
-              }
-            }
-          }
-        }
-      }
+                role: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!existingEmployee) {
@@ -697,34 +795,49 @@ export class EmployeesService {
     }
 
     // Check if employee is an admin
-    const isAdmin = existingEmployee.user?.userRoles?.some(
-      userRole => userRole.role.roleName === 'ADMIN' && userRole.isActive
-    ) || false;
+    const isAdmin =
+      existingEmployee.user?.userRoles?.some(
+        (userRole) => userRole.role.roleName === 'ADMIN' && userRole.isActive,
+      ) || false;
 
     // If employee is admin and trying to update email, prevent it completely
     if (isAdmin && updateEmployeeDto.email !== undefined) {
-      console.log(`🚫 Admin email update blocked for employee ${existingEmployee.employeeId}:`, {
-        employeeId: existingEmployee.employeeId,
-        isAdmin,
-        attemptedEmail: updateEmployeeDto.email,
-        currentEmail: existingEmployee.email
-      });
-      throw new BadRequestException('Cannot update email address for admin employees. Email field is read-only for admin users.');
+      console.log(
+        `🚫 Admin email update blocked for employee ${existingEmployee.employeeId}:`,
+        {
+          employeeId: existingEmployee.employeeId,
+          isAdmin,
+          attemptedEmail: updateEmployeeDto.email,
+          currentEmail: existingEmployee.email,
+        },
+      );
+      throw new BadRequestException(
+        'Cannot update email address for admin employees. Email field is read-only for admin users.',
+      );
     }
 
     // If employee is admin and trying to deactivate, prevent it completely
     if (isAdmin && updateEmployeeDto.status === 'INACTIVE') {
-      console.log(`🚫 Admin deactivation blocked for employee ${existingEmployee.employeeId}:`, {
-        employeeId: existingEmployee.employeeId,
-        isAdmin,
-        currentStatus: existingEmployee.status,
-        attemptedStatus: updateEmployeeDto.status
-      });
-      throw new BadRequestException('Cannot deactivate admin employees. Admin users must remain active.');
+      console.log(
+        `🚫 Admin deactivation blocked for employee ${existingEmployee.employeeId}:`,
+        {
+          employeeId: existingEmployee.employeeId,
+          isAdmin,
+          currentStatus: existingEmployee.status,
+          attemptedStatus: updateEmployeeDto.status,
+        },
+      );
+      throw new BadRequestException(
+        'Cannot deactivate admin employees. Admin users must remain active.',
+      );
     }
 
     // Check if email is being updated and already exists (only for non-admin employees)
-    if (!isAdmin && updateEmployeeDto.email && updateEmployeeDto.email !== existingEmployee.email) {
+    if (
+      !isAdmin &&
+      updateEmployeeDto.email &&
+      updateEmployeeDto.email !== existingEmployee.email
+    ) {
       const emailExists = await this.prisma.employee.findUnique({
         where: { email: updateEmployeeDto.email },
       });
@@ -745,12 +858,12 @@ export class EmployeesService {
       dateOfBirth,
       updatedBy: userId,
     };
-    
+
     // Remove email from update data if employee is admin
     if (isAdmin) {
       delete updateData.email;
     }
-    
+
     if (updateEmployeeDto.firstName) {
       updateData.firstName = this.formatName(updateEmployeeDto.firstName);
     }
@@ -764,7 +877,7 @@ export class EmployeesService {
     });
 
     const responseEmployee = this.mapToResponseDto(employee);
-    
+
     // Add admin status to response
     responseEmployee.isAdmin = isAdmin;
 
@@ -772,8 +885,10 @@ export class EmployeesService {
     if (isAdmin) {
       console.log(`✅ Admin employee updated successfully (email excluded):`, {
         employeeId: employee.employeeId,
-        updatedFields: Object.keys(updateData).filter(key => key !== 'updatedBy'),
-        emailExcluded: true
+        updatedFields: Object.keys(updateData).filter(
+          (key) => key !== 'updatedBy',
+        ),
+        emailExcluded: true,
       });
     }
 
@@ -792,8 +907,8 @@ export class EmployeesService {
   ): Promise<EmployeeDetailResponseDto> {
     // Check if id is numeric (database ID) or string (employeeId)
     const isNumericId = /^\d+$/.test(id);
-    const whereClause = isNumericId 
-      ? { id: Number.parseInt(id, 10) } 
+    const whereClause = isNumericId
+      ? { id: Number.parseInt(id, 10) }
       : { employeeId: id };
 
     const employee = await this.prisma.employee.findUnique({
@@ -823,7 +938,9 @@ export class EmployeesService {
       });
 
       if (!targetEmployee) {
-        throw new NotFoundException('Target employee for reassignment not found');
+        throw new NotFoundException(
+          'Target employee for reassignment not found',
+        );
       }
 
       // Update asset assignments
@@ -861,17 +978,18 @@ export class EmployeesService {
     };
   }
 
-
-
   private async generateEmployeeId(): Promise<string> {
     // Use raw SQL to compute the max numeric suffix from existing employee_id values
     // Filter to only EMP IDs to avoid system IDs like 'admin123' skewing the sequence
     const result = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT COALESCE(MAX(CAST(regexp_replace(employee_id, '\\D', '', 'g') AS INTEGER)), 0) AS max_num 
        FROM employees 
-       WHERE employee_id ~ '^EMP-?\\d+$' AND regexp_replace(employee_id, '\\D', '', 'g') != ''`
+       WHERE employee_id ~ '^EMP-?\\d+$' AND regexp_replace(employee_id, '\\D', '', 'g') != ''`,
     );
-    const maxNum: number = Array.isArray(result) && result.length > 0 ? Number(result[0]?.max_num ?? 0) : 0;
+    const maxNum: number =
+      Array.isArray(result) && result.length > 0
+        ? Number(result[0]?.max_num ?? 0)
+        : 0;
     const next = maxNum + 1;
     // Always 4 digits like EMP-0001
     return `EMP-${next.toString().padStart(4, '0')}`;
@@ -903,13 +1021,13 @@ export class EmployeesService {
   }> {
     // Check if employeeId is numeric (database ID) or string (employeeId)
     const isNumericId = /^\d+$/.test(employeeId);
-    const whereClause = isNumericId 
-      ? { id: Number.parseInt(employeeId, 10) } 
+    const whereClause = isNumericId
+      ? { id: Number.parseInt(employeeId, 10) }
       : { employeeId };
 
     const employee = await this.prisma.employee.findUnique({
       where: whereClause,
-      select: { id: true, employeeId: true, firstName: true, lastName: true }
+      select: { id: true, employeeId: true, firstName: true, lastName: true },
     });
 
     if (!employee) {
@@ -918,9 +1036,9 @@ export class EmployeesService {
 
     // Get only completed asset assignments (assigned and returned) for this employee
     const assetIssues = await this.prisma.assetIssue.findMany({
-      where: { 
+      where: {
         employeeId: employee.id,
-        returnDate: { not: null } // Only show completed assignments (returned assets)
+        returnDate: { not: null }, // Only show completed assignments (returned assets)
       },
       include: {
         asset: {
@@ -938,7 +1056,11 @@ export class EmployeesService {
 
     const assetHistory = assetIssues.map((issue) => {
       // Since we only fetch returned assets, duration is always calculated from return date
-      const duration = Math.ceil((new Date(issue.returnDate!).getTime() - new Date(issue.issueDate).getTime()) / (1000 * 60 * 60 * 24));
+      const duration = Math.ceil(
+        (new Date(issue.returnDate!).getTime() -
+          new Date(issue.issueDate).getTime()) /
+          (1000 * 60 * 60 * 24),
+      );
 
       return {
         id: issue.id,
@@ -988,13 +1110,19 @@ export class EmployeesService {
         notes?: string;
         performedBy: string;
       }>;
-      pagination: { totalCount: number; currentPage: number; totalPages: number; hasNext: boolean; hasPrevious: boolean };
+      pagination: {
+        totalCount: number;
+        currentPage: number;
+        totalPages: number;
+        hasNext: boolean;
+        hasPrevious: boolean;
+      };
     };
   }> {
     // Check if employeeId is numeric (database ID) or string (employeeId)
     const isNumericId = /^\d+$/.test(employeeId);
-    const whereClause = isNumericId 
-      ? { id: Number.parseInt(employeeId, 10) } 
+    const whereClause = isNumericId
+      ? { id: Number.parseInt(employeeId, 10) }
       : { employeeId };
 
     const employee = await this.prisma.employee.findUnique({
@@ -1017,10 +1145,10 @@ export class EmployeesService {
           eventType: { in: ['ASSET_ISSUED', 'ASSET_COLLECTED'] },
           metadata: {
             path: ['employeeId'],
-            equals: employee.employeeId
-          }
-        }
-      ]
+            equals: employee.employeeId,
+          },
+        },
+      ],
     };
 
     // Fetch asset events from AssetEvent table
@@ -1034,17 +1162,17 @@ export class EmployeesService {
             model: { select: { name: true } },
           },
         },
-        performedByUser: { 
-          select: { 
-            username: true, 
-            employee: { 
-              select: { 
-                firstName: true, 
-                lastName: true, 
-                employeeId: true 
-              } 
-            } 
-          } 
+        performedByUser: {
+          select: {
+            username: true,
+            employee: {
+              select: {
+                firstName: true,
+                lastName: true,
+                employeeId: true,
+              },
+            },
+          },
         },
       },
       orderBy: { eventDate: 'desc' },
@@ -1056,7 +1184,11 @@ export class EmployeesService {
       .filter((row): row is AssetEventRow => row !== null);
 
     const filtered = this.applyAssetEventFilters(transformed, query);
-    this.sortAssetEvents(filtered, query.sortBy ?? 'date', (query.sortOrder ?? 'desc') === 'asc' ? 1 : -1);
+    this.sortAssetEvents(
+      filtered,
+      query.sortBy ?? 'date',
+      (query.sortOrder ?? 'desc') === 'asc' ? 1 : -1,
+    );
 
     const totalCount = filtered.length;
     const totalPages = Math.ceil(totalCount / limit) || 1;
@@ -1093,17 +1225,21 @@ export class EmployeesService {
       },
     };
   }
-  
+
   private getPerformedByName(event: any): string {
     const first = event.performedByUser.employee?.firstName || '';
     const last = event.performedByUser.employee?.lastName || '';
     const full = `${first} ${last}`.trim();
-    return full || event.performedByUser.employee?.employeeId || event.performedByUser.username;
+    return (
+      full ||
+      event.performedByUser.employee?.employeeId ||
+      event.performedByUser.username
+    );
   }
 
   private transformAssetEvent(event: any): AssetEventRow | null {
     const performedByName = this.getPerformedByName(event);
-    const metadata = event.metadata as any;
+    const metadata = event.metadata;
     if (event.eventType === 'ASSET_ISSUED') {
       return {
         id: event.id,
@@ -1113,7 +1249,9 @@ export class EmployeesService {
         brand: event.asset.brand.name,
         model: event.asset.model.name,
         action: 'ASSIGNED',
-        date: metadata?.issueDate ? new Date(metadata.issueDate) : new Date(event.eventDate),
+        date: metadata?.issueDate
+          ? new Date(metadata.issueDate)
+          : new Date(event.eventDate),
         timestamp: new Date(event.eventDate),
         condition: metadata?.issueCondition || undefined,
         reason: metadata?.issueReason || undefined,
@@ -1130,7 +1268,9 @@ export class EmployeesService {
         brand: event.asset.brand.name,
         model: event.asset.model.name,
         action: 'RETURNED',
-        date: metadata?.returnDate ? new Date(metadata.returnDate) : new Date(event.eventDate),
+        date: metadata?.returnDate
+          ? new Date(metadata.returnDate)
+          : new Date(event.eventDate),
         timestamp: new Date(event.eventDate),
         condition: metadata?.returnCondition || undefined,
         reason: metadata?.returnReason || undefined,
@@ -1141,7 +1281,10 @@ export class EmployeesService {
     return null;
   }
 
-  private applyAssetEventFilters(rows: AssetEventRow[], query: QueryEmployeeAssetEventsDto): AssetEventRow[] {
+  private applyAssetEventFilters(
+    rows: AssetEventRow[],
+    query: QueryEmployeeAssetEventsDto,
+  ): AssetEventRow[] {
     let filtered = rows;
     if (query.action) {
       filtered = filtered.filter((e) => e.action === query.action);
@@ -1152,11 +1295,12 @@ export class EmployeesService {
     }
     if (query.search) {
       const q = query.search.toLowerCase();
-      filtered = filtered.filter((e) =>
-        e.assetId.toLowerCase().includes(q) ||
-        e.assetName.toLowerCase().includes(q) ||
-        e.brand.toLowerCase().includes(q) ||
-        e.model.toLowerCase().includes(q)
+      filtered = filtered.filter(
+        (e) =>
+          e.assetId.toLowerCase().includes(q) ||
+          e.assetName.toLowerCase().includes(q) ||
+          e.brand.toLowerCase().includes(q) ||
+          e.model.toLowerCase().includes(q),
       );
     }
     if (query.dateFrom) {
@@ -1171,11 +1315,16 @@ export class EmployeesService {
     return filtered;
   }
 
-  private sortAssetEvents(rows: AssetEventRow[], sortBy: string, sortOrder: 1 | -1): void {
+  private sortAssetEvents(
+    rows: AssetEventRow[],
+    sortBy: string,
+    sortOrder: 1 | -1,
+  ): void {
     rows.sort((a, b) => {
       let cmp = 0;
       if (sortBy === 'action') cmp = a.action.localeCompare(b.action);
-      else if (sortBy === 'assetType') cmp = a.assetType.localeCompare(b.assetType);
+      else if (sortBy === 'assetType')
+        cmp = a.assetType.localeCompare(b.assetType);
       else cmp = a.timestamp.getTime() - b.timestamp.getTime();
       return cmp * sortOrder;
     });
@@ -1203,7 +1352,7 @@ export class EmployeesService {
     createEmployeeDto: CreateEmployeeDto,
     userId: number,
     employeeId: string,
-    dateOfBirth: Date | null
+    dateOfBirth: Date | null,
   ) {
     return {
       employeeId,
@@ -1221,7 +1370,7 @@ export class EmployeesService {
 
   private async handleCreateUniqueConstraintError(
     error: unknown,
-    retryWithNewEmployeeId: () => Promise<any>
+    retryWithNewEmployeeId: () => Promise<any>,
   ): Promise<any | null> {
     if (!(error instanceof Prisma.PrismaClientKnownRequestError)) {
       return null;
@@ -1243,7 +1392,9 @@ export class EmployeesService {
         const employee = await retryWithNewEmployeeId();
         return employee;
       } catch (_) {
-        throw new ConflictException('Employee with this employee ID already exists');
+        throw new ConflictException(
+          'Employee with this employee ID already exists',
+        );
       }
     }
     // Default precise message when meta.target is missing or unknown
@@ -1253,7 +1404,14 @@ export class EmployeesService {
   // Export employees to Excel with asset details
   async exportEmployeesToExcel(queryDto: QueryEmployeeDto) {
     try {
-      const { search, status, hasAssets, assetCountRange, sortBy = 'firstName', sortOrder = 'asc' } = queryDto;
+      const {
+        search,
+        status,
+        hasAssets,
+        assetCountRange,
+        sortBy = 'firstName',
+        sortOrder = 'asc',
+      } = queryDto;
 
       // Build where clause
       const where: Prisma.EmployeeWhereInput = {};
@@ -1319,17 +1477,17 @@ export class EmployeesService {
                   assetType: { select: { name: true } },
                   brand: { select: { name: true } },
                   model: { select: { name: true } },
-                }
-              }
-            }
-          }
+                },
+              },
+            },
+          },
         },
-        orderBy
+        orderBy,
       });
 
       // Filter by asset count range if specified
       if (assetCountRange) {
-        employees = employees.filter(employee => {
+        employees = employees.filter((employee) => {
           const assetCount = employee.assetIssues.length;
           switch (assetCountRange) {
             case '0':
@@ -1345,11 +1503,14 @@ export class EmployeesService {
       }
 
       // Prepare data for Excel export
-      const exportData = employees.map(employee => {
+      const exportData = employees.map((employee) => {
         // Format asset details as requested: "del thinkpad (AST-0001)"
-        const assetDetails = employee.assetIssues.map(issue => 
-          `${issue.asset.brand.name} ${issue.asset.model.name} (${issue.asset.assetId})`
-        ).join('\n');
+        const assetDetails = employee.assetIssues
+          .map(
+            (issue) =>
+              `${issue.asset.brand.name} ${issue.asset.model.name} (${issue.asset.assetId})`,
+          )
+          .join('\n');
 
         return [
           employee.employeeId,
@@ -1357,7 +1518,9 @@ export class EmployeesService {
           employee.lastName,
           employee.email,
           employee.phone || '',
-          employee.dateOfBirth ? employee.dateOfBirth.toISOString().split('T')[0] : '',
+          employee.dateOfBirth
+            ? employee.dateOfBirth.toISOString().split('T')[0]
+            : '',
           employee.address || '',
           employee.status,
           employee.assetIssues.length, // Number of assets
@@ -1365,13 +1528,13 @@ export class EmployeesService {
           employee.createdByUser?.username || 'System',
           employee.updatedByUser?.username || 'System',
           employee.createdAt.toISOString().replace('T', ' ').split('.')[0],
-          employee.updatedAt.toISOString().replace('T', ' ').split('.')[0]
+          employee.updatedAt.toISOString().replace('T', ' ').split('.')[0],
         ];
       });
 
       const headers = [
         'Employee ID',
-        'First Name', 
+        'First Name',
         'Last Name',
         'Email',
         'Phone',
@@ -1383,7 +1546,7 @@ export class EmployeesService {
         'Created By',
         'Updated By',
         'Created At',
-        'Updated At'
+        'Updated At',
       ];
 
       // Create workbook and worksheet
@@ -1410,11 +1573,18 @@ export class EmployeesService {
       worksheet['!cols'] = columnWidths;
 
       // Add worksheet to workbook
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Employee Asset Report');
+      XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        'Employee Asset Report',
+      );
 
       // Generate Excel file
-      const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-      
+      const excelBuffer = XLSX.write(workbook, {
+        type: 'buffer',
+        bookType: 'xlsx',
+      });
+
       return excelBuffer;
     } catch (error) {
       console.error('Error exporting employees to Excel:', error);
@@ -1426,7 +1596,7 @@ export class EmployeesService {
     try {
       // Determine admin users via UserRole mapping (source of truth)
       const adminRole = await this.prisma.role.findFirst({
-        where: { roleName: 'ADMIN' }
+        where: { roleName: 'ADMIN' },
       });
 
       const adminEmployeeIds = adminRole
@@ -1450,11 +1620,11 @@ export class EmployeesService {
         where: {
           status: 'ACTIVE',
           email: {
-            not: ''
+            not: '',
           },
           id: {
-            notIn: adminEmployeeIds
-          }
+            notIn: adminEmployeeIds,
+          },
         },
         select: {
           id: true,
@@ -1462,16 +1632,16 @@ export class EmployeesService {
           lastName: true,
           employeeId: true,
           email: true,
-          status: true
+          status: true,
         },
         orderBy: {
-          firstName: 'asc'
-        }
+          firstName: 'asc',
+        },
       });
 
       return {
         success: true,
-        data: employees
+        data: employees,
       };
     } catch (error) {
       console.error('Error fetching non-admin employees for dropdown:', error);
@@ -1480,7 +1650,9 @@ export class EmployeesService {
   }
 
   // Get employees who can be deleted (non-admin with no asset history)
-  async getDeletableEmployees(query: QueryEmployeeDto): Promise<EmployeeListResponseDto> {
+  async getDeletableEmployees(
+    query: QueryEmployeeDto,
+  ): Promise<EmployeeListResponseDto> {
     const page = query.page || 1;
     const limit = Math.min(query.limit || 10, 100);
     const skip = (page - 1) * limit;
@@ -1490,13 +1662,13 @@ export class EmployeesService {
       status: 'ACTIVE', // Only active employees
       // Exclude employees with any asset history (current or past)
       assetIssues: {
-        none: {} // No asset issues at all
-      }
+        none: {}, // No asset issues at all
+      },
     };
 
     // Exclude admin employees - get admin employee database IDs first
     const adminRole = await this.prisma.role.findFirst({
-      where: { roleName: 'ADMIN' }
+      where: { roleName: 'ADMIN' },
     });
 
     if (adminRole) {
@@ -1505,18 +1677,20 @@ export class EmployeesService {
           userRoles: {
             some: {
               roleId: adminRole.id,
-              isActive: true
-            }
-          }
+              isActive: true,
+            },
+          },
         },
-        select: { employeeId: true }
+        select: { employeeId: true },
       });
 
-      const adminEmployeeDbIds = adminUsers.map(user => user.employeeId).filter(id => id !== null);
-      
+      const adminEmployeeDbIds = adminUsers
+        .map((user) => user.employeeId)
+        .filter((id) => id !== null);
+
       if (adminEmployeeDbIds.length > 0) {
         where.id = {
-          notIn: adminEmployeeDbIds
+          notIn: adminEmployeeDbIds,
         };
       }
     }
@@ -1533,7 +1707,7 @@ export class EmployeesService {
     // Build orderBy clause
     const orderBy: Prisma.EmployeeOrderByWithRelationInput = {};
     const sortOrder = query.sortOrder || 'asc';
-    
+
     switch (query.sortBy) {
       case 'name':
         orderBy.firstName = sortOrder;
@@ -1571,7 +1745,7 @@ export class EmployeesService {
       responseDto.assignedAssetsCount = 0; // No assets assigned
       responseDto.assignedAssets = []; // No assets
       responseDto.isAdmin = false; // All deletable employees are non-admin
-      
+
       return responseDto;
     });
 
@@ -1593,4 +1767,4 @@ export class EmployeesService {
       },
     };
   }
-} 
+}
