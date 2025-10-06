@@ -25,7 +25,6 @@ import { UpdateMaintenanceDto } from './dto/update-maintenance.dto';
 import { MaintenanceQueryDto } from './dto/maintenance-query.dto';
 import { MaintenanceExportQueryDto } from './dto/maintenance-export-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { Public } from '../auth/decorators/public.decorator';
 
 @ApiTags('maintenance')
 @ApiBearerAuth()
