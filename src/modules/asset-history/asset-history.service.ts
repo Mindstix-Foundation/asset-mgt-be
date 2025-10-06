@@ -763,13 +763,11 @@ export class AssetHistoryService {
     ]);
 
     // Combine and sort all events (only AssetEvent records now)
-    const allEvents = [
-      ...events.map((event) => ({
-        type: 'event',
-        data: event,
-        date: event.eventDate,
-      })),
-    ];
+    const allEvents = events.map((event) => ({
+      type: 'event',
+      data: event,
+      date: event.eventDate,
+    }));
 
     // Sort by date
     allEvents.sort((a, b) => {
@@ -862,13 +860,11 @@ export class AssetHistoryService {
     });
 
     // Combine and sort all events (only AssetEvent records now)
-    const allEvents = [
-      ...events.map((event) => ({
-        type: 'event',
-        data: event,
-        date: event.eventDate,
-      })),
-    ];
+    const allEvents = events.map((event) => ({
+      type: 'event',
+      data: event,
+      date: event.eventDate,
+    }));
 
     // Sort by date (most recent first)
     allEvents.sort(
@@ -979,7 +975,8 @@ export class AssetHistoryService {
     // Handle date strings
     if (typeof value === 'string') {
       // Check if it's already in yyyy-mm-dd format
-      if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (dateRegex.exec(value)) {
         return value; // Already in correct format
       }
 
@@ -996,6 +993,7 @@ export class AssetHistoryService {
         }
       } catch (e) {
         // If parsing fails, return as-is
+        console.warn(`Failed to parse date value: ${value}`, e);
       }
     }
 
@@ -1008,7 +1006,8 @@ export class AssetHistoryService {
    */
   private processDateString(value: string): string | null {
     // Check if it's already in yyyy-mm-dd format
-    if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (dateRegex.exec(value)) {
       return value; // Already in correct format
     }
 
@@ -1025,6 +1024,7 @@ export class AssetHistoryService {
       }
     } catch (e) {
       // If parsing fails, return as-is
+      console.warn(`Failed to parse date value: ${value}`, e);
     }
 
     return null;

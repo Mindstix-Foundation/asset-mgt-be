@@ -1064,7 +1064,7 @@ export class AssetsService {
   ): Promise<void> {
     const changes: any[] = [];
 
-    // Detect basic field changes
+    // Detect basic field changes and relation field changes
     changes.push(
       ...this.detectBasicFieldChanges(
         currentAsset,
@@ -1073,10 +1073,6 @@ export class AssetsService {
         changeReason,
         notes,
       ),
-    );
-
-    // Detect relation field changes
-    changes.push(
       ...this.detectRelationFieldChanges(
         currentAsset,
         updateData,
@@ -1764,7 +1760,7 @@ export class AssetsService {
     const assetData: any = {};
 
     // Map CSV columns to asset fields
-    headers.forEach((header, index) => {
+    for (const [index, header] of headers.entries()) {
       const value = row[index]?.trim();
       if (value) {
         switch (header) {
@@ -1812,7 +1808,7 @@ export class AssetsService {
             break;
         }
       }
-    });
+    }
 
     return assetData;
   }
@@ -1826,11 +1822,10 @@ export class AssetsService {
     existingAssetIds: Set<string>,
     rowErrors: string[],
   ): void {
-    if (!assetData.assetId) {
-      rowErrors.push('Asset ID is required');
-    } else {
+    if (assetData.assetId) {
       // Format validation
-      if (!/^AST-\d{4}$/.test(assetData.assetId)) {
+      const isValidAssetIdFormat = /^AST-\d{4}$/.test(assetData.assetId);
+      if (!isValidAssetIdFormat) {
         rowErrors.push(
           `Asset ID format invalid. Expected: AST-XXXX (4 digits), got: ${assetData.assetId}`,
         );
@@ -1849,6 +1844,8 @@ export class AssetsService {
           `Asset ID '${assetData.assetId}' already exists in database`,
         );
       }
+    } else {
+      rowErrors.push('Asset ID is required');
     }
   }
 
@@ -1861,9 +1858,7 @@ export class AssetsService {
     existingSerialNumbers: Set<string>,
     rowErrors: string[],
   ): void {
-    if (!assetData.serialNumber) {
-      rowErrors.push('Serial number is required');
-    } else {
+    if (assetData.serialNumber) {
       // Length validation
       if (
         assetData.serialNumber.length < 3 ||
@@ -1874,7 +1869,8 @@ export class AssetsService {
         );
       }
       // Format validation
-      if (!/^[A-Za-z0-9\-_]{3,50}$/.test(assetData.serialNumber)) {
+      const isValidSerialNumberFormat = /^[A-Za-z0-9\-_]{3,50}$/.test(assetData.serialNumber);
+      if (!isValidSerialNumberFormat) {
         rowErrors.push(
           `Serial number must contain only letters, numbers, hyphens, and underscores, got: ${assetData.serialNumber}`,
         );
@@ -1893,6 +1889,8 @@ export class AssetsService {
           `Serial number '${assetData.serialNumber}' already exists in database`,
         );
       }
+    } else {
+      rowErrors.push('Serial number is required');
     }
   }
 
@@ -2350,7 +2348,7 @@ export class AssetsService {
   private mapBulkUploadRowData(row: string[], headers: string[]): any {
     const assetData: any = {};
 
-    headers.forEach((header, index) => {
+    for (const [index, header] of headers.entries()) {
       const value = row[index]?.trim();
       if (value) {
         switch (header) {
@@ -2392,7 +2390,7 @@ export class AssetsService {
             break;
         }
       }
-    });
+    }
 
     return assetData;
   }

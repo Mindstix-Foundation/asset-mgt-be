@@ -11,7 +11,6 @@ import {
   HttpCode,
   Request,
   UnauthorizedException,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -27,7 +26,6 @@ import {
   ReturnAssignmentDto,
   AssignmentQueryDto,
 } from './dto';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 @ApiTags('assignments')
 @ApiBearerAuth('JWT-auth')

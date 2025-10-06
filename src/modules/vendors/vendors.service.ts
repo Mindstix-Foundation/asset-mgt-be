@@ -267,6 +267,7 @@ export class VendorsService {
         data: { vendor },
       };
     } catch (error) {
+      console.error('Failed to update vendor:', error);
       throw new BadRequestException('Failed to update vendor');
     }
   }
@@ -434,12 +435,12 @@ export class VendorsService {
    */
   private validateHeaders(data: any[]): void {
     const firstRow = data[0];
-    const headers = Object.keys(firstRow).map((h) => h.trim().toLowerCase());
+    const headers = new Set(Object.keys(firstRow).map((h) => h.trim().toLowerCase()));
     const requiredHeaders = ['vendor name', 'name'];
 
     // Check if at least one required header exists
     const hasRequiredHeader = requiredHeaders.some((header) =>
-      headers.some((h) => h === header),
+      headers.has(header),
     );
 
     if (!hasRequiredHeader) {
@@ -817,6 +818,7 @@ export class VendorsService {
 
       return { success: true, vendor: createdVendor };
     } catch (error) {
+      console.error('Failed to create vendor from row:', rowNumber, error);
       return {
         success: false,
         error: {
@@ -898,8 +900,7 @@ export class VendorsService {
         message: string;
       }> = [];
 
-      for (let i = 0; i < validVendors.length; i++) {
-        const vendor = validVendors[i];
+      for (const vendor of validVendors) {
         const originalRowIndex = data.findIndex(
           (row: any) => (row['Vendor Name'] || row['name']) === vendor.name,
         );

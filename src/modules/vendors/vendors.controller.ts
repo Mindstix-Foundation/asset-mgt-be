@@ -15,10 +15,7 @@ import {
   Put,
   Request,
   UnauthorizedException,
-  BadRequestException,
   UseGuards,
-  UsePipes,
-  ValidationPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -81,7 +78,6 @@ export class VendorsController {
   })
   async create(@Body() createVendorDto: CreateVendorDto, @Request() req: any) {
     // For now, we'll create a default user if none exists
-    // TODO: Implement proper authentication and get real user ID
     if (!req.user?.id) {
       throw new UnauthorizedException(
         'User authentication required. Please login to perform this action.',

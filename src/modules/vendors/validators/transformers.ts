@@ -39,7 +39,7 @@ export function ToTrimmedTitleCase() {
     if (typeof value === 'string') {
       return value
         .trim()
-        .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+        .replaceAll(/\s+/g, ' ') // Replace multiple spaces with single space
         .toLowerCase()
         .split(' ')
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -70,7 +70,7 @@ export function ToPhoneFormat() {
   return Transform(({ value }) => {
     if (typeof value === 'string') {
       // Remove all non-digit characters except + at the beginning
-      const cleaned = value.replace(/[^\d+]/g, '');
+      const cleaned = value.replaceAll(/[^\d+]/g, '');
 
       // If it starts with +, keep it, otherwise format as needed
       if (cleaned.startsWith('+')) {

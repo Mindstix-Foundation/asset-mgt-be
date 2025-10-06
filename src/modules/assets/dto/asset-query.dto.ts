@@ -1,15 +1,11 @@
 import {
   IsOptional,
   IsString,
-  IsInt,
-  IsNumber,
-  Min,
-  Max,
   IsIn,
   IsEnum,
   IsDateString,
 } from 'class-validator';
-import { Type, Transform } from 'class-transformer';
+import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class AssetQueryDto {

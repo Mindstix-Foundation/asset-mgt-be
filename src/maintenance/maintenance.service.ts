@@ -463,7 +463,6 @@ export class MaintenanceService {
                 // Only include fields that actually changed
                 const oldValue = this.formatValueForComparison(existingMaintenance[key]);
                 const newValue = this.formatValueForComparison(updateMaintenanceDto[key]);
-                );
 
                 return oldValue !== newValue;
               })
@@ -1525,7 +1524,7 @@ export class MaintenanceService {
   async getMaintenanceStats() {
     try {
       // Use raw SQL to get the latest maintenance record per asset
-      const latestMaintenancePerAsset = (await this.prisma.$queryRaw`
+      const latestMaintenancePerAsset = await this.prisma.$queryRaw`
         SELECT DISTINCT ON (ms."asset_id") 
           ms."asset_id",
           ms."status",
@@ -1533,12 +1532,7 @@ export class MaintenanceService {
           ms."created_at"
         FROM "maintenance_schedules" ms
         ORDER BY ms."asset_id", ms."scheduled_date" DESC, ms."created_at" DESC
-      `) as Array<{
-        asset_id: number;
-        status: string;
-        scheduled_date: Date;
-        created_at: Date;
-      }>;
+      `;
 
       // Initialize counters
       const counts = {
@@ -1550,7 +1544,14 @@ export class MaintenanceService {
       };
 
       // Count by latest status
-      for (const record of latestMaintenancePerAsset) {
+      const records = latestMaintenancePerAsset as Array<{
+        asset_id: number;
+        status: string;
+        scheduled_date: Date;
+        created_at: Date;
+      }>;
+      
+      for (const record of records) {
         counts.total++;
         if (record.status === MaintenanceStatus.IN_PROGRESS)
           counts.underMaintenance++;

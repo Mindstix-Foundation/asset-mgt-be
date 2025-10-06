@@ -5,7 +5,6 @@ import {
   Min,
   Max,
   IsIn,
-  IsEnum,
   IsBoolean,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';

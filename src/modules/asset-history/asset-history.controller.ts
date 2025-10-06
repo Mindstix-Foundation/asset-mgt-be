@@ -9,7 +9,7 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { AssetHistoryService } from './asset-history.service';
-import { AssetHistoryQueryDto, AssetEventType } from './dto';
+import { AssetHistoryQueryDto } from './dto';
 
 @ApiTags('asset-history')
 @ApiBearerAuth('JWT-auth')
@@ -215,7 +215,7 @@ export class AssetHistoryController {
           totalAssignments: 2,
           totalMaintenance: 4,
           totalStatusChanges: 2,
-          totalCost: 1250.0,
+          totalCost: 1250,
           eventCounts: {
             ASSET_CREATED: 1,
             ASSET_UPDATED: 1,

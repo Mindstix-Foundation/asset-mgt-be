@@ -149,7 +149,7 @@ export class AssetHistorySummaryDto {
   @ApiProperty({ description: 'Total status changes', example: 12 })
   totalStatusChanges: number;
 
-  @ApiProperty({ description: 'Total cost', example: 2500.0 })
+  @ApiProperty({ description: 'Total cost', example: 2500 })
   totalCost: number;
 
   @ApiPropertyOptional({ description: 'Event counts by type' })

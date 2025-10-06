@@ -51,7 +51,7 @@ export function IsPanNumber(validationOptions?: ValidationOptions) {
           }
 
           // PAN format: 5 letters + 4 digits + 1 letter
-          const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+          const panRegex = /^[A-Z]{5}\d{4}[A-Z]$/;
           return panRegex.test(value.toUpperCase());
         },
         defaultMessage(args: ValidationArguments) {
@@ -80,7 +80,7 @@ export function IsPhoneNumber(validationOptions?: ValidationOptions) {
           }
 
           // Remove all non-digit characters except + at the beginning
-          const cleaned = value.replace(/[^\d+]/g, '');
+          const cleaned = value.replaceAll(/[^\d+]/g, '');
 
           // Check if it's a valid phone number (7-15 digits, optionally starting with +)
           const phoneRegex = /^(\+?[1-9]\d{6,14})$/;
@@ -115,7 +115,7 @@ export function IsGstNumber(validationOptions?: ValidationOptions) {
 
           // GST format: 2 digits + 5 letters + 4 digits + 1 letter + 1 letter + 1 letter + 1 letter
           const gstRegex =
-            /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+            /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 
           // Also accept simpler tax ID formats for international vendors
           const simpleTaxIdRegex = /^[A-Z0-9]{5,20}$/;
@@ -148,8 +148,9 @@ export function IsVendorName(validationOptions?: ValidationOptions) {
           }
 
           // Vendor name should start with letter, contain letters, numbers, spaces, and common business suffixes
+          // Using a completely new approach: separate character classes to avoid duplicates
           const vendorNameRegex =
-            /^[A-Za-z][-0-9\s&.,']*(?:Inc|LLC|Ltd|Corp|Company|Co|Pvt|Limited|Solutions|Tech|Systems|Services|Group|Global)?\.?$/i;
+            /^[A-Za-z][0-9\s&.,'-]*(?:Inc|LLC|Ltd|Corp|Company|Co|Pvt|Limited|Solutions|Tech|Systems|Services|Group|Global)?\.?$/i;
           return vendorNameRegex.test(value.trim());
         },
         defaultMessage(args: ValidationArguments) {

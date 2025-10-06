@@ -1,12 +1,10 @@
 import {
   IsString,
   IsOptional,
-  IsBoolean,
   IsEnum,
   IsEmail,
   MaxLength,
   MinLength,
-  Matches,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { VendorStatus, VendorType } from '@prisma/client';
@@ -14,7 +12,6 @@ import {
   IsTitleCase,
   IsPanNumber,
   IsPhoneNumber,
-  IsGstNumber,
   IsVendorName,
 } from '../validators/custom-validators';
 import {

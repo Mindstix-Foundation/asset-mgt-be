@@ -648,10 +648,11 @@ export class EmployeesService {
 
     // Basic validation + collect emails
     const { errors, emails } = this.validateBasicRowData(rows);
-    // Check duplicates within file
-    errors.push(...this.validateDuplicateEmailsInFile(emails));
-    // Check duplicates against DB
-    errors.push(...(await this.validateDuplicateEmailsInDb(emails, rows)));
+    // Check duplicates within file and against DB
+    errors.push(
+      ...this.validateDuplicateEmailsInFile(emails),
+      ...(await this.validateDuplicateEmailsInDb(emails, rows))
+    );
 
     if (validateOnly) {
       return this.buildValidationResponse(
