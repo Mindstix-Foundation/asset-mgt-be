@@ -22,6 +22,7 @@ import { MaintenanceModule } from './maintenance/maintenance.module';
 import { AssetsModule } from './modules/assets/assets.module';
 import { AssetHistoryModule } from './modules/asset-history/asset-history.module';
 import { AdminModule } from './admin/admin.module';
+import { NotificationModule } from './notifications/notification.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { AdminModule } from './admin/admin.module';
     AssetsModule,
     AssetHistoryModule,
     AdminModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [

@@ -14,6 +14,7 @@ export class EmployeeResponseDto {
   updatedAt: string;
   assignedAssets?: AssignedAssetDto[];
   assignedAssetsCount?: number;
+  isAdmin?: boolean;
 }
 
 export class AssignedAssetDto {

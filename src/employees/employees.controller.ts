@@ -186,13 +186,14 @@ export class EmployeesController {
   }
 
   @Get('non-admin-dropdown')
-  @ApiOperation({ summary: 'Get active employees excluding admins for dropdown selection' })
-  @ApiResponse({ status: 200, description: 'Active non-admin employees retrieved successfully' })
+  @ApiOperation({ summary: 'Get active employees with email addresses excluding admins for dropdown selection' })
+  @ApiResponse({ status: 200, description: 'Active non-admin employees with email addresses retrieved successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async getNonAdminEmployeesForDropdown() {
     return this.employeesService.getNonAdminEmployeesForDropdown();
   }
+
 
   @Get('export')
   @ApiOperation({ summary: 'Export employees to Excel with asset details' })
@@ -230,6 +231,49 @@ export class EmployeesController {
         error: error.message 
       });
     }
+  }
+
+  @Get('deletable')
+  @ApiOperation({ summary: 'Get employees who can be deleted (non-admin with no asset history)' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)', example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 10, max: 100)', example: 10 })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search by name, employee ID, or email', example: 'john' })
+  @ApiQuery({ name: 'sortBy', required: false, enum: ['name', 'employeeId', 'email', 'status', 'createdAt'], description: 'Sort by field (default: name)', example: 'name' })
+  @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'], description: 'Sort order (default: asc)', example: 'asc' })
+  @ApiResponse({
+    status: 200,
+    description: 'Deletable employees retrieved successfully',
+    schema: {
+      example: {
+        message: 'Deletable employees retrieved successfully',
+        data: {
+          employees: [
+            {
+              id: 'uuid-string',
+              employeeId: 'EMP001',
+              firstName: 'John',
+              lastName: 'Doe',
+              email: 'john.doe@company.com',
+              phone: '+91 9876543210',
+              status: 'ACTIVE',
+              assignedAssetsCount: 0,
+              assignedAssets: [],
+              isAdmin: false
+            }
+          ],
+          pagination: {
+            totalCount: 5,
+            currentPage: 1,
+            totalPages: 1,
+            hasNext: false,
+            hasPrevious: false
+          }
+        }
+      }
+    }
+  })
+  async getDeletableEmployees(@Query() query: QueryEmployeeDto): Promise<EmployeeListResponseDto> {
+    return this.employeesService.getDeletableEmployees(query);
   }
 
   @Get(':id')
@@ -367,6 +411,7 @@ export class EmployeesController {
       }
     }
   })
+  @ApiResponse({ status: 400, description: 'Bad request - Cannot update email or deactivate admin employees' })
   @ApiResponse({ status: 404, description: 'Employee not found' })
   @ApiResponse({ status: 409, description: 'Conflict - Employee ID or email already exists' })
   async update(

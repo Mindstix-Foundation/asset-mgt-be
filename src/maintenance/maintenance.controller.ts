@@ -47,6 +47,18 @@ export class MaintenanceController {
     return this.maintenanceService.findAll(query);
   }
 
+  @Get('stats')
+  @ApiOperation({ summary: 'Get maintenance statistics' })
+  @ApiResponse({ status: 200, description: 'Maintenance statistics retrieved successfully' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  async getStats() {
+    const stats = await this.maintenanceService.getMaintenanceStats();
+    return {
+      message: 'Maintenance statistics retrieved successfully',
+      data: stats,
+    };
+  }
+
   @Get('check-asset-availability')
   @ApiOperation({ summary: 'Check if asset is available for maintenance on a specific date' })
   @ApiResponse({ status: 200, description: 'Asset availability checked' })

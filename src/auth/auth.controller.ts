@@ -20,11 +20,11 @@ export class AuthController {
   @Post('login')
   @ApiOperation({ 
     summary: 'User login authentication',
-    description: 'Authenticate user with username/email and password. Returns JWT token for authorized access.'
+    description: 'Authenticate user with username/email/employee ID and password. Returns JWT token for authorized access.'
   })
   @ApiBody({ 
     type: LoginDto,
-    description: 'Login credentials - Use username or email with password'
+    description: 'Login credentials - Use username, email, or employee ID with password'
   })
   @ApiResponse({
     status: 200,
@@ -36,10 +36,10 @@ export class AuthController {
         access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
         user: {
           id: 1,
-          username: 'john.doe',
+          username: 'EMP-0001',
           email: 'john.doe@company.com',
           name: 'John Doe',
-          employeeId: 'EMP001'
+          employeeId: 'EMP-0001'
         }
       }
     }

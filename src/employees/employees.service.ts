@@ -182,7 +182,7 @@ export class EmployeesService {
     // Get total count
     const totalCount = await this.prisma.employee.count({ where });
 
-    // Get employees with asset assignments
+    // Get employees with asset assignments and admin status
     const employees = await this.prisma.employee.findMany({
       where,
       skip,
@@ -207,6 +207,18 @@ export class EmployeesService {
             },
           },
         },
+        user: {
+          include: {
+            userRoles: {
+              where: {
+                isActive: true
+              },
+              include: {
+                role: true
+              }
+            }
+          }
+        }
       },
       orderBy,
     });
@@ -243,6 +255,13 @@ export class EmployeesService {
         assignedDate: issue.issueDate.toISOString().split('T')[0],
         status: 'ASSIGNED',
       }));
+      
+      // Add admin status
+      const isAdmin = employee.user?.userRoles?.some(
+        userRole => userRole.role.roleName === 'ADMIN' && userRole.isActive
+      ) || false;
+      responseDto.isAdmin = isAdmin;
+      
       return responseDto;
     });
 
@@ -601,15 +620,42 @@ export class EmployeesService {
                 },
               },
             },
+            user: {
+              include: {
+                userRoles: {
+                  include: {
+                    role: true
+                  }
+                }
+              }
+            }
           }
-        : undefined,
+        : {
+            user: {
+              include: {
+                userRoles: {
+                  include: {
+                    role: true
+                  }
+                }
+              }
+            }
+          },
     });
 
     if (!employee) {
       throw new NotFoundException('Employee not found');
     }
 
+    // Check if employee is an admin
+    const isAdmin = employee.user?.userRoles?.some(
+      userRole => userRole.role.roleName === 'ADMIN' && userRole.isActive
+    ) || false;
+
     const responseEmployee = this.mapToResponseDto(employee);
+    
+    // Set admin status in the response
+    responseEmployee.isAdmin = isAdmin;
 
     if (includeAssets && (employee as any).assetIssues) {
       responseEmployee.assignedAssetsCount = (employee as any)._count?.assetIssues || 0;
@@ -647,14 +693,52 @@ export class EmployeesService {
 
     const existingEmployee = await this.prisma.employee.findUnique({
       where: whereClause,
+      include: {
+        user: {
+          include: {
+            userRoles: {
+              include: {
+                role: true
+              }
+            }
+          }
+        }
+      }
     });
 
     if (!existingEmployee) {
       throw new NotFoundException('Employee not found');
     }
 
-    // Check if email is being updated and already exists
-    if (updateEmployeeDto.email && updateEmployeeDto.email !== existingEmployee.email) {
+    // Check if employee is an admin
+    const isAdmin = existingEmployee.user?.userRoles?.some(
+      userRole => userRole.role.roleName === 'ADMIN' && userRole.isActive
+    ) || false;
+
+    // If employee is admin and trying to update email, prevent it completely
+    if (isAdmin && updateEmployeeDto.email !== undefined) {
+      console.log(`🚫 Admin email update blocked for employee ${existingEmployee.employeeId}:`, {
+        employeeId: existingEmployee.employeeId,
+        isAdmin,
+        attemptedEmail: updateEmployeeDto.email,
+        currentEmail: existingEmployee.email
+      });
+      throw new BadRequestException('Cannot update email address for admin employees. Email field is read-only for admin users.');
+    }
+
+    // If employee is admin and trying to deactivate, prevent it completely
+    if (isAdmin && updateEmployeeDto.status === 'INACTIVE') {
+      console.log(`🚫 Admin deactivation blocked for employee ${existingEmployee.employeeId}:`, {
+        employeeId: existingEmployee.employeeId,
+        isAdmin,
+        currentStatus: existingEmployee.status,
+        attemptedStatus: updateEmployeeDto.status
+      });
+      throw new BadRequestException('Cannot deactivate admin employees. Admin users must remain active.');
+    }
+
+    // Check if email is being updated and already exists (only for non-admin employees)
+    if (!isAdmin && updateEmployeeDto.email && updateEmployeeDto.email !== existingEmployee.email) {
       const emailExists = await this.prisma.employee.findUnique({
         where: { email: updateEmployeeDto.email },
       });
@@ -676,6 +760,11 @@ export class EmployeesService {
       updatedBy: userId,
     };
     
+    // Remove email from update data if employee is admin
+    if (isAdmin) {
+      delete updateData.email;
+    }
+    
     if (updateEmployeeDto.firstName) {
       updateData.firstName = this.formatName(updateEmployeeDto.firstName);
     }
@@ -684,11 +773,23 @@ export class EmployeesService {
     }
 
     const employee = await this.prisma.employee.update({
-      where: { employeeId: id },
+      where: whereClause,
       data: updateData,
     });
 
     const responseEmployee = this.mapToResponseDto(employee);
+    
+    // Add admin status to response
+    responseEmployee.isAdmin = isAdmin;
+
+    // Log successful update
+    if (isAdmin) {
+      console.log(`✅ Admin employee updated successfully (email excluded):`, {
+        employeeId: employee.employeeId,
+        updatedFields: Object.keys(updateData).filter(key => key !== 'updatedBy'),
+        emailExcluded: true
+      });
+    }
 
     return {
       message: 'Employee updated successfully',
@@ -754,7 +855,7 @@ export class EmployeesService {
 
     // Soft delete - mark as inactive
     const updatedEmployee = await this.prisma.employee.update({
-      where: { employeeId: id },
+      where: whereClause,
       data: {
         status: EmployeeStatus.INACTIVE,
         updatedBy: userId,
@@ -1116,6 +1217,7 @@ export class EmployeesService {
       status: employee.status,
       createdAt: employee.createdAt.toISOString(),
       updatedAt: employee.updatedAt.toISOString(),
+      isAdmin: false, // Will be set separately after mapping
     };
   }
 
@@ -1314,10 +1416,13 @@ export class EmployeesService {
           ).map((user) => user.employeeId)
         : [];
 
-      // Get active employees excluding admins
+      // Get active employees with email addresses, excluding admins
       const employees = await this.prisma.employee.findMany({
         where: {
           status: 'ACTIVE',
+          email: {
+            not: ''
+          },
           id: {
             notIn: adminEmployeeIds
           }
@@ -1343,5 +1448,120 @@ export class EmployeesService {
       console.error('Error fetching non-admin employees for dropdown:', error);
       throw new Error('Failed to fetch non-admin employees');
     }
+  }
+
+  // Get employees who can be deleted (non-admin with no asset history)
+  async getDeletableEmployees(query: QueryEmployeeDto): Promise<EmployeeListResponseDto> {
+    const page = query.page || 1;
+    const limit = Math.min(query.limit || 10, 100);
+    const skip = (page - 1) * limit;
+
+    // Build where clause
+    const where: Prisma.EmployeeWhereInput = {
+      status: 'ACTIVE', // Only active employees
+      // Exclude employees with any asset history (current or past)
+      assetIssues: {
+        none: {} // No asset issues at all
+      }
+    };
+
+    // Exclude admin employees - get admin employee database IDs first
+    const adminRole = await this.prisma.role.findFirst({
+      where: { roleName: 'ADMIN' }
+    });
+
+    if (adminRole) {
+      const adminUsers = await this.prisma.user.findMany({
+        where: {
+          userRoles: {
+            some: {
+              roleId: adminRole.id,
+              isActive: true
+            }
+          }
+        },
+        select: { employeeId: true }
+      });
+
+      const adminEmployeeDbIds = adminUsers.map(user => user.employeeId).filter(id => id !== null);
+      
+      if (adminEmployeeDbIds.length > 0) {
+        where.id = {
+          notIn: adminEmployeeDbIds
+        };
+      }
+    }
+
+    if (query.search) {
+      where.OR = [
+        { firstName: { contains: query.search, mode: 'insensitive' } },
+        { lastName: { contains: query.search, mode: 'insensitive' } },
+        { employeeId: { contains: query.search, mode: 'insensitive' } },
+        { email: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Build orderBy clause
+    const orderBy: Prisma.EmployeeOrderByWithRelationInput = {};
+    const sortOrder = query.sortOrder || 'asc';
+    
+    switch (query.sortBy) {
+      case 'name':
+        orderBy.firstName = sortOrder;
+        break;
+      case 'employeeId':
+        orderBy.employeeId = sortOrder;
+        break;
+      case 'email':
+        orderBy.email = sortOrder;
+        break;
+      case 'status':
+        orderBy.status = sortOrder;
+        break;
+      case 'createdAt':
+        orderBy.createdAt = sortOrder;
+        break;
+      default:
+        orderBy.firstName = 'asc';
+        break;
+    }
+
+    // Get total count
+    const totalCount = await this.prisma.employee.count({ where });
+
+    // Get deletable employees
+    const employees = await this.prisma.employee.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy,
+    });
+
+    const responseEmployees = employees.map((employee: any) => {
+      const responseDto = this.mapToResponseDto(employee);
+      responseDto.assignedAssetsCount = 0; // No assets assigned
+      responseDto.assignedAssets = []; // No assets
+      responseDto.isAdmin = false; // All deletable employees are non-admin
+      
+      return responseDto;
+    });
+
+    const totalPages = Math.ceil(totalCount / limit);
+
+    const pagination: PaginationDto = {
+      totalCount,
+      currentPage: page,
+      totalPages,
+      hasNext: page < totalPages,
+      hasPrevious: page > 1,
+    };
+
+    return {
+      message: 'Deletable employees retrieved successfully',
+      data: {
+        employees: responseEmployees,
+        pagination,
+      },
+    };
   }
 } 

@@ -22,12 +22,13 @@ export class AuthService {
     const { username, password } = loginDto;
 
     try {
-      // Look up user by username or email (through employee relation)
+      // Look up user by username, email, or employee ID
       const user = await this.prisma.user.findFirst({
         where: {
           OR: [
             { username: username },
-            { employee: { email: username } }
+            { employee: { email: username } },
+            { employee: { employeeId: username } }
           ],
           isActive: true
         },

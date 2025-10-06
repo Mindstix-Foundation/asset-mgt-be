@@ -58,7 +58,6 @@ export class AppService {
 
       // Count assets by status using exact Prisma enum values
       assetsByStatus.forEach(group => {
-        console.log(`Asset status: ${group.status}, Count: ${group._count.id}`);
         switch (group.status) {
           case 'ASSIGNED':
             assigned += group._count.id;
@@ -87,10 +86,6 @@ export class AppService {
         maintenance: assetsWithActiveMaintenance,
       };
 
-      console.log(`Assets with IN_MAINTENANCE status: ${maintenanceByStatus}`);
-      console.log(`Assets with active maintenance (final count): ${assetsWithActiveMaintenance}`);
-      console.log(`Calculated available assets: ${availableAssets} (Total: ${totalAssets} - Maintenance: ${assetsWithActiveMaintenance} - Assigned: ${assigned})`);
-      console.log('Dashboard Stats Result:', result);
       return result;
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);

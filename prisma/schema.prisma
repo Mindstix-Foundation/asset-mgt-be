@@ -53,6 +53,7 @@ model User {
   vendor                      Vendor?
   passwordResets              PasswordReset[]       @relation("PasswordResetUser")
   refreshSessions             RefreshSession[]      @relation("UserRefreshSessions")
+  notifications               Notification[]        @relation("UserNotifications")
 
   @@index([isActive, lastLogin])
   @@map("users")
@@ -495,4 +496,34 @@ model AssetEvent {
   @@map("asset_events")
 }
 
+
+// Notification System
+model Notification {
+  id          Int             @id @default(autoincrement())
+  userId      Int             @map("user_id")
+  type        NotificationType @map("type")
+  title       String          @db.VarChar(200)
+  message     String          @db.Text
+  isRead      Boolean         @default(false) @map("is_read")
+  data        Json?           @map("data") // Additional data like maintenance ID, asset ID, etc.
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  readAt      DateTime?       @map("read_at") @db.Timestamptz(6)
+  
+  // Relations
+  user        User            @relation("UserNotifications", fields: [userId], references: [id])
+  
+  @@index([userId])
+  @@index([type])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  MAINTENANCE_REMINDER
+  MAINTENANCE_OVERDUE
+  ASSET_ASSIGNED
+  ASSET_RETURNED
+  SYSTEM_ALERT
+}
 

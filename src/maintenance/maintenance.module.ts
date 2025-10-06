@@ -4,9 +4,10 @@ import { MaintenanceService } from './maintenance.service';
 import { MaintenanceController, MaintenanceTypesController } from './maintenance.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { MaintenanceScheduler } from './maintenance.scheduler';
+import { NotificationModule } from '../notifications/notification.module';
 
 @Module({
-  imports: [PrismaModule, ScheduleModule.forRoot()],
+  imports: [PrismaModule, ScheduleModule.forRoot(), NotificationModule],
   controllers: [MaintenanceController, MaintenanceTypesController],
   providers: [MaintenanceService, MaintenanceScheduler],
   exports: [MaintenanceService],

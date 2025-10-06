@@ -1287,4 +1287,73 @@ export class MaintenanceService {
       throw new Error('Failed to export maintenance to Excel');
     }
   }
+
+  /**
+   * Get maintenance statistics based on latest status per asset
+   */
+  async getMaintenanceStats() {
+    try {
+      // Use raw SQL to get the latest maintenance record per asset
+      const latestMaintenancePerAsset = await this.prisma.$queryRaw`
+        SELECT DISTINCT ON (ms."asset_id") 
+          ms."asset_id",
+          ms."status",
+          ms."scheduled_date",
+          ms."created_at"
+        FROM "maintenance_schedules" ms
+        ORDER BY ms."asset_id", ms."scheduled_date" DESC, ms."created_at" DESC
+      ` as Array<{
+        asset_id: number;
+        status: string;
+        scheduled_date: Date;
+        created_at: Date;
+      }>;
+
+      // Initialize counters
+      const counts = {
+        total: 0,
+        underMaintenance: 0,
+        scheduled: 0,
+        completed: 0,
+        cancelled: 0,
+      };
+
+      // Count by latest status
+      latestMaintenancePerAsset.forEach(record => {
+        counts.total++;
+        
+        switch (record.status) {
+          case MaintenanceStatus.IN_PROGRESS:
+            counts.underMaintenance++;
+            break;
+          case MaintenanceStatus.SCHEDULED:
+            counts.scheduled++;
+            break;
+          case MaintenanceStatus.COMPLETED:
+            counts.completed++;
+            break;
+          case MaintenanceStatus.CANCELLED:
+            counts.cancelled++;
+            break;
+        }
+      });
+
+      // Calculate percentages
+      const total = counts.total || 1;
+      const percentages = {
+        underMaintenancePercent: Math.round((counts.underMaintenance / total) * 100),
+        scheduledPercent: Math.round((counts.scheduled / total) * 100),
+        completedPercent: Math.round((counts.completed / total) * 100),
+        cancelledPercent: Math.round((counts.cancelled / total) * 100),
+      };
+
+      return {
+        counts,
+        percentages,
+      };
+    } catch (error) {
+      console.error('Error fetching maintenance stats:', error);
+      throw new Error('Failed to fetch maintenance statistics');
+    }
+  }
 } 
