@@ -7,7 +7,7 @@ import { CreateAdminDto, UpdateAdminStatusDto } from './dto/admin.dto';
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async getAdminUsers() {
     try {

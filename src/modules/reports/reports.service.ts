@@ -4,7 +4,7 @@ import { GenerateReportDto } from './dto';
 
 @Injectable()
 export class ReportsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async generateReport(generateReportDto: GenerateReportDto) {
     const { reportType, format, title, ...filters } = generateReportDto;

@@ -46,7 +46,7 @@ export interface AnalyticsData {
 
 @Injectable()
 export class ReportsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   private formatTimeAgo(date: Date): { timeAgo: string; needsRealTimeUpdate: boolean } {
     const now = new Date();
@@ -56,51 +56,25 @@ export class ReportsService {
       return { timeAgo: 'Just now', needsRealTimeUpdate: true };
     }
 
-    const diffInMinutes = Math.floor(diffInSeconds / 60);
-    if (diffInMinutes < 60) {
-      return {
-        timeAgo: diffInMinutes === 1 ? '1 minute ago' : `${diffInMinutes} minutes ago`,
-        needsRealTimeUpdate: true // All activities less than 1 hour need real-time updates
-      };
+    const thresholds = [
+      { limit: 60 * 60, unit: 60, singular: 'minute', plural: 'minutes', realtime: true },
+      { limit: 24 * 60 * 60, unit: 60 * 60, singular: 'hour', plural: 'hours', realtime: false },
+      { limit: 7 * 24 * 60 * 60, unit: 24 * 60 * 60, singular: 'day', plural: 'days', realtime: false },
+      { limit: 4 * 7 * 24 * 60 * 60, unit: 7 * 24 * 60 * 60, singular: 'week', plural: 'weeks', realtime: false },
+      { limit: 12 * 30 * 24 * 60 * 60, unit: 30 * 24 * 60 * 60, singular: 'month', plural: 'months', realtime: false },
+    ] as const;
+
+    for (const t of thresholds) {
+      if (diffInSeconds < t.limit) {
+        const amount = Math.floor(diffInSeconds / t.unit);
+        const label = amount === 1 ? `1 ${t.singular} ago` : `${amount} ${t.plural} ago`;
+        return { timeAgo: label, needsRealTimeUpdate: t.realtime };
+      }
     }
 
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 24) {
-      return {
-        timeAgo: diffInHours === 1 ? '1 hour ago' : `${diffInHours} hours ago`,
-        needsRealTimeUpdate: false // Activities 1 hour or older don't need real-time updates
-      };
-    }
-
-    const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays < 7) {
-      return {
-        timeAgo: diffInDays === 1 ? '1 day ago' : `${diffInDays} days ago`,
-        needsRealTimeUpdate: false
-      };
-    }
-
-    const diffInWeeks = Math.floor(diffInDays / 7);
-    if (diffInWeeks < 4) {
-      return {
-        timeAgo: diffInWeeks === 1 ? '1 week ago' : `${diffInWeeks} weeks ago`,
-        needsRealTimeUpdate: false
-      };
-    }
-
-    const diffInMonths = Math.floor(diffInDays / 30);
-    if (diffInMonths < 12) {
-      return {
-        timeAgo: diffInMonths === 1 ? '1 month ago' : `${diffInMonths} months ago`,
-        needsRealTimeUpdate: false
-      };
-    }
-
-    const diffInYears = Math.floor(diffInDays / 365);
-    return {
-      timeAgo: diffInYears === 1 ? '1 year ago' : `${diffInYears} years ago`,
-      needsRealTimeUpdate: false
-    };
+    const years = Math.floor(diffInSeconds / (365 * 24 * 60 * 60));
+    const label = years === 1 ? '1 year ago' : `${years} years ago`;
+    return { timeAgo: label, needsRealTimeUpdate: false };
   }
 
   async getAnalyticsData(): Promise<AnalyticsData> {
@@ -211,35 +185,7 @@ export class ReportsService {
       take: 10
     });
 
-    for (const asset of recentAssets) {
-      // Asset added
-      if (asset.createdAt >= since) {
-        const timeInfo = this.formatTimeAgo(asset.createdAt);
-        activities.push({
-          id: `asset_added_${asset.id}`,
-          type: 'asset_added',
-          description: `${asset.brand.name} ${asset.model.name} (${asset.assetId}) added`,
-          timestamp: asset.createdAt,
-          timeAgo: timeInfo.timeAgo,
-          needsRealTimeUpdate: timeInfo.needsRealTimeUpdate,
-          assetId: asset.assetId
-        });
-      }
-      
-      // Asset edited (only if updated after creation)
-      if (asset.updatedAt > asset.createdAt && asset.updatedAt >= since) {
-        const timeInfo = this.formatTimeAgo(asset.updatedAt);
-        activities.push({
-          id: `asset_edited_${asset.id}`,
-          type: 'asset_edited',
-          description: `${asset.brand.name} ${asset.model.name} (${asset.assetId}) updated`,
-          timestamp: asset.updatedAt,
-          timeAgo: timeInfo.timeAgo,
-          needsRealTimeUpdate: timeInfo.needsRealTimeUpdate,
-          assetId: asset.assetId
-        });
-      }
-    }
+    for (const asset of recentAssets) activities.push(...this.activitiesFromAsset(asset, since));
 
     // Get recent asset issues (issued and collected)
     const recentAssetIssues = await this.prisma.assetIssue.findMany({
@@ -270,37 +216,7 @@ export class ReportsService {
       take: 10
     });
 
-    for (const issue of recentAssetIssues) {
-      // Asset issued
-      if (issue.createdAt >= since) {
-        const timeInfo = this.formatTimeAgo(issue.createdAt);
-        activities.push({
-          id: `asset_issued_${issue.id}`,
-          type: 'asset_issued',
-          description: `${issue.asset.brand.name} ${issue.asset.model.name} (${issue.asset.assetId}) issued to ${issue.employee.firstName} ${issue.employee.lastName}`,
-          timestamp: issue.createdAt,
-          timeAgo: timeInfo.timeAgo,
-          needsRealTimeUpdate: timeInfo.needsRealTimeUpdate,
-          assetId: issue.asset.assetId,
-          employeeId: issue.employee.employeeId
-        });
-      }
-      
-      // Asset collected (if return date was set recently)
-      if (issue.returnDate && issue.updatedAt >= since && issue.updatedAt > issue.createdAt) {
-        const timeInfo = this.formatTimeAgo(issue.updatedAt);
-        activities.push({
-          id: `asset_collected_${issue.id}`,
-          type: 'asset_collected',
-          description: `${issue.asset.brand.name} ${issue.asset.model.name} (${issue.asset.assetId}) collected from ${issue.employee.firstName} ${issue.employee.lastName}`,
-          timestamp: issue.updatedAt,
-          timeAgo: timeInfo.timeAgo,
-          needsRealTimeUpdate: timeInfo.needsRealTimeUpdate,
-          assetId: issue.asset.assetId,
-          employeeId: issue.employee.employeeId
-        });
-      }
-    }
+    for (const issue of recentAssetIssues) activities.push(...this.activitiesFromIssue(issue, since));
 
     // Get recent employee activities (added and edited)
     const recentEmployees = await this.prisma.employee.findMany({
@@ -328,35 +244,7 @@ export class ReportsService {
       take: 10
     });
 
-    for (const employee of recentEmployees) {
-      // Employee added
-      if (employee.createdAt >= since) {
-        const timeInfo = this.formatTimeAgo(employee.createdAt);
-        activities.push({
-          id: `employee_added_${employee.id}`,
-          type: 'employee_added',
-          description: `Employee ${employee.firstName} ${employee.lastName} (${employee.employeeId}) added`,
-          timestamp: employee.createdAt,
-          timeAgo: timeInfo.timeAgo,
-          needsRealTimeUpdate: timeInfo.needsRealTimeUpdate,
-          employeeId: employee.employeeId
-        });
-      }
-      
-      // Employee edited
-      if (employee.updatedAt > employee.createdAt && employee.updatedAt >= since) {
-        const timeInfo = this.formatTimeAgo(employee.updatedAt);
-        activities.push({
-          id: `employee_edited_${employee.id}`,
-          type: 'employee_edited',
-          description: `Employee ${employee.firstName} ${employee.lastName} (${employee.employeeId}) updated`,
-          timestamp: employee.updatedAt,
-          timeAgo: timeInfo.timeAgo,
-          needsRealTimeUpdate: timeInfo.needsRealTimeUpdate,
-          employeeId: employee.employeeId
-        });
-      }
-    }
+    for (const employee of recentEmployees) activities.push(...this.activitiesFromEmployee(employee, since));
 
     // Get recent maintenance activities
     const recentMaintenance = await this.prisma.maintenanceSchedule.findMany({
@@ -393,67 +281,7 @@ export class ReportsService {
       take: 10
     });
 
-    for (const maintenance of recentMaintenance) {
-      // Maintenance added
-      if (maintenance.createdAt >= since) {
-        const timeInfo = this.formatTimeAgo(maintenance.createdAt);
-        activities.push({
-          id: `maintenance_added_${maintenance.id}`,
-          type: 'maintenance_added',
-          description: `Maintenance scheduled for ${maintenance.asset.brand.name} ${maintenance.asset.model.name} (${maintenance.asset.assetId})`,
-          timestamp: maintenance.createdAt,
-          timeAgo: timeInfo.timeAgo,
-          needsRealTimeUpdate: timeInfo.needsRealTimeUpdate,
-          assetId: maintenance.asset.assetId,
-          maintenanceId: maintenance.id.toString()
-        });
-      }
-      
-      // Maintenance edited
-      if (maintenance.updatedAt > maintenance.createdAt && maintenance.updatedAt >= since) {
-        const timeInfo = this.formatTimeAgo(maintenance.updatedAt);
-        activities.push({
-          id: `maintenance_edited_${maintenance.id}`,
-          type: 'maintenance_edited',
-          description: `Maintenance updated for ${maintenance.asset.brand.name} ${maintenance.asset.model.name} (${maintenance.asset.assetId})`,
-          timestamp: maintenance.updatedAt,
-          timeAgo: timeInfo.timeAgo,
-          needsRealTimeUpdate: timeInfo.needsRealTimeUpdate,
-          assetId: maintenance.asset.assetId,
-          maintenanceId: maintenance.id.toString()
-        });
-      }
-      
-      // Maintenance completed
-      if (maintenance.actualCompletionDate && maintenance.actualCompletionDate >= since) {
-        const timeInfo = this.formatTimeAgo(maintenance.actualCompletionDate);
-        activities.push({
-          id: `maintenance_completed_${maintenance.id}`,
-          type: 'maintenance_completed',
-          description: `Maintenance completed for ${maintenance.asset.brand.name} ${maintenance.asset.model.name} (${maintenance.asset.assetId})`,
-          timestamp: maintenance.actualCompletionDate,
-          timeAgo: timeInfo.timeAgo,
-          needsRealTimeUpdate: timeInfo.needsRealTimeUpdate,
-          assetId: maintenance.asset.assetId,
-          maintenanceId: maintenance.id.toString()
-        });
-      }
-      
-      // Maintenance cancelled
-      if (maintenance.cancellationDate && maintenance.cancellationDate >= since) {
-        const timeInfo = this.formatTimeAgo(maintenance.cancellationDate);
-        activities.push({
-          id: `maintenance_cancelled_${maintenance.id}`,
-          type: 'maintenance_cancelled',
-          description: `Maintenance cancelled for ${maintenance.asset.brand.name} ${maintenance.asset.model.name} (${maintenance.asset.assetId})`,
-          timestamp: maintenance.cancellationDate,
-          timeAgo: timeInfo.timeAgo,
-          needsRealTimeUpdate: timeInfo.needsRealTimeUpdate,
-          assetId: maintenance.asset.assetId,
-          maintenanceId: maintenance.id.toString()
-        });
-      }
-    }
+    for (const maintenance of recentMaintenance) activities.push(...this.activitiesFromMaintenance(maintenance, since));
 
     // Get recent vendor activities (added and edited)
     const recentVendors = await this.prisma.vendor.findMany({
@@ -481,40 +309,163 @@ export class ReportsService {
       take: 10
     });
 
-    for (const vendor of recentVendors) {
-      // Vendor added
-      if (vendor.createdAt >= since) {
-        const timeInfo = this.formatTimeAgo(vendor.createdAt);
-        activities.push({
-          id: `vendor_added_${vendor.id}`,
-          type: 'vendor_added',
-          description: `Vendor ${vendor.name} added`,
-          timestamp: vendor.createdAt,
-          timeAgo: timeInfo.timeAgo,
-          needsRealTimeUpdate: timeInfo.needsRealTimeUpdate,
-          vendorId: vendor.id.toString()
-        });
-      }
-      
-      // Vendor edited
-      if (vendor.updatedAt > vendor.createdAt && vendor.updatedAt >= since) {
-        const timeInfo = this.formatTimeAgo(vendor.updatedAt);
-        activities.push({
-          id: `vendor_edited_${vendor.id}`,
-          type: 'vendor_edited',
-          description: `Vendor ${vendor.name} updated`,
-          timestamp: vendor.updatedAt,
-          timeAgo: timeInfo.timeAgo,
-          needsRealTimeUpdate: timeInfo.needsRealTimeUpdate,
-          vendorId: vendor.id.toString()
-        });
-      }
-    }
+    for (const vendor of recentVendors) activities.push(...this.activitiesFromVendor(vendor, since));
 
     // Sort all activities by timestamp (most recent first) and return top 20
-    return activities
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-      .slice(0, 20);
+    const sorted = activities.toSorted((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    return sorted.slice(0, 20);
+  }
+
+  private buildActivity(
+    idPrefix: string,
+    type: RecentActivityData['type'],
+    description: string,
+    timestamp: Date,
+    extra: Partial<RecentActivityData>
+  ): RecentActivityData {
+    const timeInfo = this.formatTimeAgo(timestamp);
+    return {
+      id: `${idPrefix}`,
+      type,
+      description,
+      timestamp,
+      timeAgo: timeInfo.timeAgo,
+      needsRealTimeUpdate: timeInfo.needsRealTimeUpdate,
+      ...extra,
+    } as RecentActivityData;
+  }
+
+  private activitiesFromAsset(asset: any, since: Date): RecentActivityData[] {
+    const out: RecentActivityData[] = [];
+    if (asset.createdAt >= since) {
+      out.push(this.buildActivity(
+        `asset_added_${asset.id}`,
+        'asset_added',
+        `${asset.brand.name} ${asset.model.name} (${asset.assetId}) added`,
+        asset.createdAt,
+        { assetId: asset.assetId }
+      ));
+    }
+    if (asset.updatedAt > asset.createdAt && asset.updatedAt >= since) {
+      out.push(this.buildActivity(
+        `asset_edited_${asset.id}`,
+        'asset_edited',
+        `${asset.brand.name} ${asset.model.name} (${asset.assetId}) updated`,
+        asset.updatedAt,
+        { assetId: asset.assetId }
+      ));
+    }
+    return out;
+  }
+
+  private activitiesFromIssue(issue: any, since: Date): RecentActivityData[] {
+    const out: RecentActivityData[] = [];
+    if (issue.createdAt >= since) {
+      out.push(this.buildActivity(
+        `asset_issued_${issue.id}`,
+        'asset_issued',
+        `${issue.asset.brand.name} ${issue.asset.model.name} (${issue.asset.assetId}) issued to ${issue.employee.firstName} ${issue.employee.lastName}`,
+        issue.createdAt,
+        { assetId: issue.asset.assetId, employeeId: issue.employee.employeeId }
+      ));
+    }
+    if (issue.returnDate && issue.updatedAt >= since && issue.updatedAt > issue.createdAt) {
+      out.push(this.buildActivity(
+        `asset_collected_${issue.id}`,
+        'asset_collected',
+        `${issue.asset.brand.name} ${issue.asset.model.name} (${issue.asset.assetId}) collected from ${issue.employee.firstName} ${issue.employee.lastName}`,
+        issue.updatedAt,
+        { assetId: issue.asset.assetId, employeeId: issue.employee.employeeId }
+      ));
+    }
+    return out;
+  }
+
+  private activitiesFromEmployee(employee: any, since: Date): RecentActivityData[] {
+    const out: RecentActivityData[] = [];
+    if (employee.createdAt >= since) {
+      out.push(this.buildActivity(
+        `employee_added_${employee.id}`,
+        'employee_added',
+        `Employee ${employee.firstName} ${employee.lastName} (${employee.employeeId}) added`,
+        employee.createdAt,
+        { employeeId: employee.employeeId }
+      ));
+    }
+    if (employee.updatedAt > employee.createdAt && employee.updatedAt >= since) {
+      out.push(this.buildActivity(
+        `employee_edited_${employee.id}`,
+        'employee_edited',
+        `Employee ${employee.firstName} ${employee.lastName} (${employee.employeeId}) updated`,
+        employee.updatedAt,
+        { employeeId: employee.employeeId }
+      ));
+    }
+    return out;
+  }
+
+  private activitiesFromMaintenance(maintenance: any, since: Date): RecentActivityData[] {
+    const out: RecentActivityData[] = [];
+    if (maintenance.createdAt >= since) {
+      out.push(this.buildActivity(
+        `maintenance_added_${maintenance.id}`,
+        'maintenance_added',
+        `Maintenance scheduled for ${maintenance.asset.brand.name} ${maintenance.asset.model.name} (${maintenance.asset.assetId})`,
+        maintenance.createdAt,
+        { assetId: maintenance.asset.assetId, maintenanceId: maintenance.id.toString() }
+      ));
+    }
+    if (maintenance.updatedAt > maintenance.createdAt && maintenance.updatedAt >= since) {
+      out.push(this.buildActivity(
+        `maintenance_edited_${maintenance.id}`,
+        'maintenance_edited',
+        `Maintenance updated for ${maintenance.asset.brand.name} ${maintenance.asset.model.name} (${maintenance.asset.assetId})`,
+        maintenance.updatedAt,
+        { assetId: maintenance.asset.assetId, maintenanceId: maintenance.id.toString() }
+      ));
+    }
+    if (maintenance.actualCompletionDate && maintenance.actualCompletionDate >= since) {
+      out.push(this.buildActivity(
+        `maintenance_completed_${maintenance.id}`,
+        'maintenance_completed',
+        `Maintenance completed for ${maintenance.asset.brand.name} ${maintenance.asset.model.name} (${maintenance.asset.assetId})`,
+        maintenance.actualCompletionDate,
+        { assetId: maintenance.asset.assetId, maintenanceId: maintenance.id.toString() }
+      ));
+    }
+    if (maintenance.cancellationDate && maintenance.cancellationDate >= since) {
+      out.push(this.buildActivity(
+        `maintenance_cancelled_${maintenance.id}`,
+        'maintenance_cancelled',
+        `Maintenance cancelled for ${maintenance.asset.brand.name} ${maintenance.asset.model.name} (${maintenance.asset.assetId})`,
+        maintenance.cancellationDate,
+        { assetId: maintenance.asset.assetId, maintenanceId: maintenance.id.toString() }
+      ));
+    }
+    return out;
+  }
+
+  private activitiesFromVendor(vendor: any, since: Date): RecentActivityData[] {
+    const out: RecentActivityData[] = [];
+    if (vendor.createdAt >= since) {
+      out.push(this.buildActivity(
+        `vendor_added_${vendor.id}`,
+        'vendor_added',
+        `Vendor ${vendor.name} added`,
+        vendor.createdAt,
+        { vendorId: vendor.id.toString() }
+      ));
+    }
+    if (vendor.updatedAt > vendor.createdAt && vendor.updatedAt >= since) {
+      out.push(this.buildActivity(
+        `vendor_edited_${vendor.id}`,
+        'vendor_edited',
+        `Vendor ${vendor.name} updated`,
+        vendor.updatedAt,
+        { vendorId: vendor.id.toString() }
+      ));
+    }
+    return out;
   }
 
   async getAssetInventoryReport(filters?: ReportFilters) {

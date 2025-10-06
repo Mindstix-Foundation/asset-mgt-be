@@ -59,7 +59,7 @@ export class AdminController {
     @Body() updateStatusDto: UpdateAdminStatusDto,
     @Request() req: any,
   ) {
-    return this.adminService.updateAdminStatus(parseInt(id), updateStatusDto, req.user.id);
+    return this.adminService.updateAdminStatus(Number.parseInt(id, 10), updateStatusDto, req.user.id);
   }
 
   @Delete('users/:id')
@@ -71,6 +71,6 @@ export class AdminController {
   @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
   @ApiResponse({ status: 404, description: 'Admin user not found' })
   async removeAdminUser(@Param('id') id: string, @Request() req: any) {
-    return this.adminService.removeAdminUser(parseInt(id), req.user.id);
+    return this.adminService.removeAdminUser(Number.parseInt(id, 10), req.user.id);
   }
 }

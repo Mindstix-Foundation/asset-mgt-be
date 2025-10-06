@@ -40,7 +40,7 @@ export class CreateMaintenanceDto {
   @ApiPropertyOptional({ description: 'Estimated cost for maintenance', example: 150.00 })
   @IsOptional()
   @IsDecimal({ decimal_digits: '2' })
-  @Transform(({ value }) => value ? parseFloat(value).toFixed(2) : value)
+  @Transform(({ value }) => value ? Number.parseFloat(value).toFixed(2) : value)
   estimatedCost?: number;
 
   // vendor removed from maintenance creation

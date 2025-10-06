@@ -67,7 +67,7 @@ export class MaintenanceController {
     @Query('scheduledDate') scheduledDate: string,
     @Query('excludeMaintenanceId') excludeMaintenanceId?: string,
   ) {
-    const excludeId = excludeMaintenanceId ? parseInt(excludeMaintenanceId) : undefined;
+    const excludeId = excludeMaintenanceId ? Number.parseInt(excludeMaintenanceId, 10) : undefined;
     return this.maintenanceService.checkAssetAvailability(assetId, scheduledDate, excludeId);
   }
 
@@ -122,19 +122,11 @@ export class MaintenanceController {
   @ApiResponse({ status: 200, description: 'Events retrieved successfully' })
   getHistoryEvents(
     @Param('assetId') assetId: string,
-    @Query('status') status?: string,
-    @Query('type') type?: string,
-    @Query('search') search?: string,
-    @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string,
-    @Query('sortBy') sortBy: 'date' | 'status' | 'type' = 'date',
-    @Query('sortOrder') sortOrder: 'asc' | 'desc' = 'desc',
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 20,
+    @Query() query: { status?: string; type?: string; search?: string; dateFrom?: string; dateTo?: string; sortBy?: 'date' | 'status' | 'type'; sortOrder?: 'asc' | 'desc'; page?: number; limit?: number }
   ) {
-    return this.maintenanceService.getHistoryEvents(assetId, {
-      status, type, search, dateFrom, dateTo, sortBy, sortOrder, page: Number(page), limit: Number(limit)
-    })
+    const page = query.page ? Number(query.page) : 1
+    const limit = query.limit ? Number(query.limit) : 20
+    return this.maintenanceService.getHistoryEvents(assetId, { ...query, page, limit })
   }
 
   @Get(':id')

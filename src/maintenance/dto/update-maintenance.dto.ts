@@ -28,7 +28,7 @@ export class UpdateMaintenanceDto extends PartialType(CreateMaintenanceDto) {
   @ApiPropertyOptional({ description: 'Actual cost of maintenance', example: 175.50 })
   @IsOptional()
   @IsDecimal({ decimal_digits: '2' })
-  @Transform(({ value }) => value ? parseFloat(value).toFixed(2) : value)
+  @Transform(({ value }) => value ? Number.parseFloat(value).toFixed(2) : value)
   actualCost?: number;
 
   @ApiPropertyOptional({ description: 'Notes about completion', example: 'Maintenance completed successfully' })

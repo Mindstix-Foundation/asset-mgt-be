@@ -10,12 +10,12 @@ import { ForgotPasswordDto, ResetPasswordDto, ChangePasswordDto } from './dto/pa
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  private tokenBlacklist: Set<string> = new Set();
+  private readonly tokenBlacklist: Set<string> = new Set();
 
   constructor(
-    private prisma: PrismaService,
-    private jwtService: JwtService,
-    private configService: ConfigService,
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
   ) {}
 
   async login(loginDto: LoginDto, deviceInfo?: { ipAddress?: string; userAgent?: string; deviceId?: string }) {
@@ -339,7 +339,7 @@ export class AuthService {
   }
 
   private generateRefreshToken(): string {
-    return require('crypto').randomBytes(64).toString('hex');
+    return require('node:crypto').randomBytes(64).toString('hex');
   }
 
   // Token Blacklisting Methods
@@ -557,8 +557,8 @@ export class AuthService {
       // Send email only if user exists
       const transporter = nodemailer.createTransport({
         host: smtpHost,
-        port: parseInt(smtpPort.toString()),
-        secure: parseInt(smtpPort.toString()) === 465, // true for 465, false for other ports
+        port: Number.parseInt(String(smtpPort)),
+        secure: Number.parseInt(String(smtpPort)) === 465, // true for 465, false for other ports
         auth: {
           user: smtpUser,
           pass: smtpPass,
@@ -696,7 +696,7 @@ export class AuthService {
 
   async resetPassword(resetPasswordDto: ResetPasswordDto) {
     try {
-      const payload = this.jwtService.verify(resetPasswordDto.token);
+      this.jwtService.verify(resetPasswordDto.token);
       
       const resetRecord = await this.prisma.passwordReset.findFirst({
         where: {

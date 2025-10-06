@@ -142,8 +142,8 @@ export class NotificationService {
 
       const transporter = nodemailer.createTransport({
         host: smtpHost,
-        port: parseInt(smtpPort.toString()),
-        secure: parseInt(smtpPort.toString()) === 465,
+        port: Number.parseInt(smtpPort.toString(), 10),
+        secure: Number.parseInt(smtpPort.toString(), 10) === 465,
         auth: {
           user: smtpUser,
           pass: smtpPass,

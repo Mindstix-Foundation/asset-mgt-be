@@ -12,7 +12,7 @@ import type { Response as ExpressResponse, Request as ExpressRequest } from 'exp
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private readonly authService: AuthService) {}
 
   @Public()
   @HttpCode(HttpStatus.OK)

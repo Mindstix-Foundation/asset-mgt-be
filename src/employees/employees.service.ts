@@ -17,9 +17,25 @@ import {
 import { EmployeeStatus, Prisma } from '@prisma/client';
 import * as XLSX from 'xlsx';
 
+type AssetEventRow = {
+  id: number;
+  assetId: string;
+  assetName: string;
+  assetType: string;
+  brand: string;
+  model: string;
+  action: AssetEventAction;
+  date: Date; // business date
+  timestamp: Date; // audit timestamp for ordering
+  condition?: string;
+  reason?: string;
+  notes?: string;
+  performedBy: string;
+};
+
 @Injectable()
 export class EmployeesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(
     createEmployeeDto: CreateEmployeeDto,
@@ -44,65 +60,31 @@ export class EmployeesService {
 
     try {
       const employee = await this.prisma.employee.create({
-        data: {
-          employeeId,
-          firstName: this.formatName(createEmployeeDto.firstName),
-          lastName: this.formatName(createEmployeeDto.lastName),
-          email: createEmployeeDto.email,
-          phone: createEmployeeDto.phone,
-          dateOfBirth,
-          address: createEmployeeDto.address,
-          status: EmployeeStatus.ACTIVE,
-          createdBy: userId,
-          updatedBy: userId,
-        },
+        data: this.buildEmployeeCreateData(createEmployeeDto, userId, employeeId, dateOfBirth),
       });
 
       const responseEmployee = this.mapToResponseDto(employee);
-
       return {
         message: 'Employee created successfully',
-        data: {
-          employee: responseEmployee,
-        },
+        data: { employee: responseEmployee },
       };
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') {
-          // Determine which unique constraint failed to return accurate message
-          const target = (error as any).meta?.target as string[] | undefined
-          if (target?.includes('email') || String(target).includes('email')) {
-            throw new ConflictException('Employee with this email already exists');
-          }
-          if (target?.includes('employee_id') || String(target).includes('employee_id') || String(target).includes('employeeId')) {
-            // In rare case of race, regenerate once and retry
-            try {
-              employeeId = await this.generateEmployeeId();
-              const employee = await this.prisma.employee.create({
-                data: {
-                  employeeId,
-                  firstName: this.formatName(createEmployeeDto.firstName),
-                  lastName: this.formatName(createEmployeeDto.lastName),
-                  email: createEmployeeDto.email,
-                  phone: createEmployeeDto.phone,
-                  dateOfBirth,
-                  address: createEmployeeDto.address,
-                  status: EmployeeStatus.ACTIVE,
-                  createdBy: userId,
-                  updatedBy: userId,
-                },
-              });
-              const responseEmployee = this.mapToResponseDto(employee);
-              return {
-                message: 'Employee created successfully',
-                data: { employee: responseEmployee },
-              };
-            } catch (_) {
-              throw new ConflictException('Employee with this employee ID already exists');
-            }
-          }
-          throw new ConflictException('Employee with this email already exists');
+      // Delegate unique constraint handling to reduce nesting/cyclomatic branches
+      const maybeHandled = await this.handleCreateUniqueConstraintError(
+        error,
+        async () => {
+          employeeId = await this.generateEmployeeId();
+          return this.prisma.employee.create({
+            data: this.buildEmployeeCreateData(createEmployeeDto, userId, employeeId, dateOfBirth),
+          });
         }
+      );
+      if (maybeHandled) {
+        const responseEmployee = this.mapToResponseDto(maybeHandled);
+        return {
+          message: 'Employee created successfully',
+          data: { employee: responseEmployee },
+        };
       }
       throw error;
     }
@@ -347,163 +329,172 @@ export class EmployeesService {
       .join(' ');
   }
 
-  async bulkUpload(file: Express.Multer.File, userId: number, validateOnly: boolean = false) {
+  // --- Bulk upload helpers to reduce cognitive complexity ---
+  private buildValidationResponse(
+    message: string,
+    errors: Array<{ row: number; field: string; message: string }>,
+    totalRows: number,
+  ) {
+    return {
+      message,
+      data: {
+        errors,
+        totalRows,
+        summary: {
+          totalRows,
+          successfulImports: 0,
+          failedImports: errors.length || 1,
+        },
+      },
+    };
+  }
+
+  private handleValidationOutcome(
+    validateOnly: boolean,
+    message: string,
+    errors: Array<{ row: number; field: string; message: string }>,
+    totalRows: number = 0,
+  ) {
+    if (validateOnly) {
+      return this.buildValidationResponse(message, errors, totalRows);
+    }
+    throw new BadRequestException(message);
+  }
+
+  private validateIncomingFile(
+    file: Express.Multer.File | undefined,
+    validateOnly: boolean,
+  ) {
     if (!file) {
-      if (validateOnly) {
-        return { 
-          message: 'Validation completed with errors', 
-          data: { 
-            errors: [{ row: 0, field: 'file', message: 'File is required' }], 
-            totalRows: 0,
-            summary: { 
-              totalRows: 0, 
-              successfulImports: 0, 
-              failedImports: 1 
-            } 
-          } 
-        }
-      } else {
-        throw new BadRequestException('File is required')
-      }
+      return this.handleValidationOutcome(
+        validateOnly,
+        'File is required',
+        [{ row: 0, field: 'file', message: 'File is required' }],
+        0,
+      );
     }
 
     const allowedMimeTypes = [
       'text/csv',
       'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    ]
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ];
     if (!allowedMimeTypes.includes(file.mimetype)) {
-      if (validateOnly) {
-        return { 
-          message: 'Validation completed with errors', 
-          data: { 
-            errors: [{ row: 0, field: 'file', message: 'Invalid file format. Only CSV and Excel files are allowed' }], 
-            totalRows: 0,
-            summary: { 
-              totalRows: 0, 
-              successfulImports: 0, 
-              failedImports: 1 
-            } 
-          } 
-        }
-      } else {
-        throw new BadRequestException('Invalid file format. Only CSV and Excel files are allowed')
-      }
+      return this.handleValidationOutcome(
+        validateOnly,
+        'Invalid file format. Only CSV and Excel files are allowed',
+        [{ row: 0, field: 'file', message: 'Invalid file format. Only CSV and Excel files are allowed' }],
+        0,
+      );
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      if (validateOnly) {
-        return { 
-          message: 'Validation completed with errors', 
-          data: { 
-            errors: [{ row: 0, field: 'file', message: 'File size too large. Maximum 10MB allowed' }], 
-            totalRows: 0,
-            summary: { 
-              totalRows: 0, 
-              successfulImports: 0, 
-              failedImports: 1 
-            } 
-          } 
-        }
-      } else {
-        throw new BadRequestException('File size too large. Maximum 10MB allowed')
-      }
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      return this.handleValidationOutcome(
+        validateOnly,
+        'File size too large. Maximum 10MB allowed',
+        [{ row: 0, field: 'file', message: 'File size too large. Maximum 10MB allowed' }],
+        0,
+      );
     }
+  }
 
-    // Parse file
-    let rows: any[] = []
-    if (file.mimetype === 'text/csv' || file.mimetype === 'application/vnd.ms-excel') {
-      const csv = file.buffer.toString('utf-8')
-      const lines = csv.split(/\r?\n/).filter(l => l.trim().length > 0)
+  private parseRowsFromFile(
+    file: Express.Multer.File,
+    validateOnly: boolean,
+  ): any[] | { message: string; data: any } {
+    const isCsv = file.mimetype === 'text/csv' || file.mimetype === 'application/vnd.ms-excel';
+    if (isCsv) {
+      const csv = file.buffer.toString('utf-8');
+      const lines = csv.split(/\r?\n/).filter(l => l.trim().length > 0);
       if (lines.length < 2) {
-        if (validateOnly) {
-          return { 
-            message: 'Validation completed with errors', 
-            data: { 
-              errors: [{ row: 0, field: 'file', message: 'File must contain header and at least one row' }], 
-              totalRows: 0,
-              summary: { 
-                totalRows: 0, 
-                successfulImports: 0, 
-                failedImports: 1 
-              } 
-            } 
-          }
-        } else {
-          throw new BadRequestException('File must contain header and at least one row')
-        }
+        return this.handleValidationOutcome(
+          validateOnly,
+          'File must contain header and at least one row',
+          [{ row: 0, field: 'file', message: 'File must contain header and at least one row' }],
+          0,
+        );
       }
-      const headers = lines[0].split(',').map(h => h.trim())
-      const headerMap: Record<string, number> = {}
-      headers.forEach((h, i) => headerMap[h.toLowerCase()] = i)
-      const required = ['first name','last name','email']
-      const missing = required.filter(h => !(h in headerMap))
+
+      const headers = lines[0].split(',').map(h => h.trim());
+      const headerMap: Record<string, number> = {};
+      headers.forEach((h, i) => (headerMap[h.toLowerCase()] = i));
+
+      const required = ['first name', 'last name', 'email'];
+      const missing = required.filter(h => !(h in headerMap));
       if (missing.length) {
-        if (validateOnly) {
-          return { 
-            message: 'Validation completed with errors', 
-            data: { 
-              errors: [{ row: 0, field: 'file', message: `Missing required headers: ${missing.join(', ')}` }], 
-              totalRows: 0,
-              summary: { 
-                totalRows: 0, 
-                successfulImports: 0, 
-                failedImports: 1 
-              } 
-            } 
-          }
-        } else {
-          throw new BadRequestException(`Missing required headers: ${missing.join(', ')}`)
-        }
+        return this.handleValidationOutcome(
+          validateOnly,
+          `Missing required headers: ${missing.join(', ')}`,
+          [{ row: 0, field: 'file', message: `Missing required headers: ${missing.join(', ')}` }],
+          0,
+        );
       }
-      rows = lines.slice(1).map(line => {
-        const cols = line.split(',')
-        const firstName = cols[headerMap['first name']]?.trim()
-        const lastName = cols[headerMap['last name']]?.trim()
-        return {
-          firstName: firstName ? this.formatName(firstName) : firstName,
-          lastName: lastName ? this.formatName(lastName) : lastName,
-          email: cols[headerMap['email']]?.trim(),
-          phone: headerMap['phone'] !== undefined ? cols[headerMap['phone']]?.trim() : undefined,
-          dateOfBirth: headerMap['date of birth'] !== undefined ? cols[headerMap['date of birth']]?.trim() : undefined,
-          address: headerMap['address'] !== undefined ? cols[headerMap['address']]?.trim() : undefined,
-        }
-      }).filter(r => r.firstName || r.lastName || r.email)
-    } else {
-      const wb = XLSX.read(file.buffer, { type: 'buffer' })
-      const sheet = wb.Sheets[wb.SheetNames[0]]
-      const data = XLSX.utils.sheet_to_json(sheet) as any[]
-      rows = data.map(r => {
-        const firstName = r['First Name']?.toString().trim()
-        const lastName = r['Last Name']?.toString().trim()
-        return {
-          firstName: firstName ? this.formatName(firstName) : firstName,
-          lastName: lastName ? this.formatName(lastName) : lastName,
-          email: r['Email']?.toString().trim(),
-          phone: r['Phone']?.toString().trim(),
-          dateOfBirth: r['Date of Birth']?.toString().trim(),
-          address: r['Address']?.toString().trim(),
-        }
-      })
+
+      const rows = lines
+        .slice(1)
+        .map(line => {
+          const cols = line.split(',');
+          const firstName = cols[headerMap['first name']]?.trim();
+          const lastName = cols[headerMap['last name']]?.trim();
+          return {
+            firstName: firstName ? this.formatName(firstName) : firstName,
+            lastName: lastName ? this.formatName(lastName) : lastName,
+            email: cols[headerMap['email']]?.trim(),
+            phone:
+              headerMap['phone'] !== undefined
+                ? cols[headerMap['phone']]?.trim()
+                : undefined,
+            dateOfBirth:
+              headerMap['date of birth'] !== undefined
+                ? cols[headerMap['date of birth']]?.trim()
+                : undefined,
+            address:
+              headerMap['address'] !== undefined
+                ? cols[headerMap['address']]?.trim()
+                : undefined,
+          };
+        })
+        .filter(r => r.firstName || r.lastName || r.email);
+      return rows;
     }
 
+    // Excel path
+    const wb = XLSX.read(file.buffer, { type: 'buffer' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(sheet) as any[];
+    return data.map(r => {
+      const firstName = r['First Name']?.toString().trim();
+      const lastName = r['Last Name']?.toString().trim();
+      return {
+        firstName: firstName ? this.formatName(firstName) : firstName,
+        lastName: lastName ? this.formatName(lastName) : lastName,
+        email: r['Email']?.toString().trim(),
+        phone: r['Phone']?.toString().trim(),
+        dateOfBirth: r['Date of Birth']?.toString().trim(),
+        address: r['Address']?.toString().trim(),
+      };
+    });
+  }
+
+  async bulkUpload(file: Express.Multer.File, userId: number, validateOnly: boolean = false) {
+    // Validate basic file constraints
+    const precheck = this.validateIncomingFile(file, validateOnly);
+    if (precheck) return precheck;
+
+    // Parse rows
+    const parsed = this.parseRowsFromFile(file!, validateOnly);
+    if (!Array.isArray(parsed)) return parsed;
+    const rows: any[] = parsed;
+
+    // Ensure we have rows
     if (rows.length === 0) {
-      if (validateOnly) {
-        return { 
-          message: 'Validation completed with errors', 
-          data: { 
-            errors: [{ row: 0, field: 'file', message: 'File has no valid rows' }], 
-            totalRows: 0,
-            summary: { 
-              totalRows: 0, 
-              successfulImports: 0, 
-              failedImports: 1 
-            } 
-          } 
-        }
-      } else {
-        throw new BadRequestException('File has no valid rows')
-      }
+      return this.handleValidationOutcome(
+        validateOnly,
+        'File has no valid rows',
+        [{ row: 0, field: 'file', message: 'File has no valid rows' }],
+        0,
+      );
     }
 
     // Basic validation + collect emails
@@ -525,10 +516,13 @@ export class EmployeesService {
 
     // Check duplicates within file
     const seen = new Set<string>()
-    emails.forEach((e, idx) => {
-      if (seen.has(e)) errors.push({ row: idx + 2, field: 'email', message: 'Duplicate email in file' })
+    for (let i = 0; i < emails.length; i++) {
+      const e = emails[i]
+      if (seen.has(e)) {
+        errors.push({ row: i + 2, field: 'email', message: 'Duplicate email in file' })
+      }
       seen.add(e)
-    })
+    }
 
     // Check duplicates against DB
     const existing = await this.prisma.employee.findMany({
@@ -543,19 +537,11 @@ export class EmployeesService {
     })
 
     if (validateOnly) {
-      // For validation-only requests, return errors as part of successful response
-      return { 
-        message: errors.length > 0 ? 'Validation completed with errors' : 'Validation successful', 
-        data: { 
-          errors, 
-          totalRows: rows.length,
-          summary: { 
-            totalRows: rows.length, 
-            successfulImports: 0, 
-            failedImports: errors.length 
-          } 
-        } 
-      }
+      return this.buildValidationResponse(
+        errors.length > 0 ? 'Validation completed with errors' : 'Validation successful',
+        errors,
+        rows.length,
+      )
     }
 
     // For actual upload, throw error if validation fails
@@ -595,7 +581,7 @@ export class EmployeesService {
     // Check if id is numeric (database ID) or string (employeeId)
     const isNumericId = /^\d+$/.test(id);
     const whereClause = isNumericId 
-      ? { id: parseInt(id, 10) } 
+      ? { id: Number.parseInt(id, 10) } 
       : { employeeId: id };
 
     const employee = await this.prisma.employee.findUnique({
@@ -688,7 +674,7 @@ export class EmployeesService {
     // Check if id is numeric (database ID) or string (employeeId)
     const isNumericId = /^\d+$/.test(id);
     const whereClause = isNumericId 
-      ? { id: parseInt(id, 10) } 
+      ? { id: Number.parseInt(id, 10) } 
       : { employeeId: id };
 
     const existingEmployee = await this.prisma.employee.findUnique({
@@ -807,7 +793,7 @@ export class EmployeesService {
     // Check if id is numeric (database ID) or string (employeeId)
     const isNumericId = /^\d+$/.test(id);
     const whereClause = isNumericId 
-      ? { id: parseInt(id, 10) } 
+      ? { id: Number.parseInt(id, 10) } 
       : { employeeId: id };
 
     const employee = await this.prisma.employee.findUnique({
@@ -918,7 +904,7 @@ export class EmployeesService {
     // Check if employeeId is numeric (database ID) or string (employeeId)
     const isNumericId = /^\d+$/.test(employeeId);
     const whereClause = isNumericId 
-      ? { id: parseInt(employeeId, 10) } 
+      ? { id: Number.parseInt(employeeId, 10) } 
       : { employeeId };
 
     const employee = await this.prisma.employee.findUnique({
@@ -1008,7 +994,7 @@ export class EmployeesService {
     // Check if employeeId is numeric (database ID) or string (employeeId)
     const isNumericId = /^\d+$/.test(employeeId);
     const whereClause = isNumericId 
-      ? { id: parseInt(employeeId, 10) } 
+      ? { id: Number.parseInt(employeeId, 10) } 
       : { employeeId };
 
     const employee = await this.prisma.employee.findUnique({
@@ -1021,7 +1007,6 @@ export class EmployeesService {
 
     const page = query.page ?? 1;
     const limit = Math.min(query.limit ?? 20, 100);
-    const skip = (page - 1) * limit;
 
     // Build base where clause for AssetEvents
     // We need to find events where this employee is mentioned in metadata
@@ -1065,107 +1050,13 @@ export class EmployeesService {
       orderBy: { eventDate: 'desc' },
     });
 
-    // Transform events into the expected format
-    type EventRow = {
-      id: number;
-      assetId: string;
-      assetName: string;
-      assetType: string;
-      brand: string;
-      model: string;
-      action: AssetEventAction;
-      date: Date; // business date
-      timestamp: Date; // audit timestamp for ordering
-      condition?: string;
-      reason?: string;
-      notes?: string;
-      performedBy: string;
-    };
+    // Transform events, apply filters and sorting via helpers
+    const transformed: AssetEventRow[] = events
+      .map((event) => this.transformAssetEvent(event))
+      .filter((row): row is AssetEventRow => row !== null);
 
-    const transformed: EventRow[] = [];
-
-    for (const event of events) {
-      // Determine performing user display name
-      const performedByName = `${event.performedByUser.employee?.firstName || ''} ${event.performedByUser.employee?.lastName || ''}`.trim()
-        || event.performedByUser.employee?.employeeId
-        || event.performedByUser.username;
-
-      const metadata = event.metadata as any;
-
-      if (event.eventType === 'ASSET_ISSUED') {
-        transformed.push({
-          id: event.id,
-          assetId: event.asset.assetId,
-          assetName: `${event.asset.brand.name} ${event.asset.model.name}`,
-          assetType: event.asset.assetType.name,
-          brand: event.asset.brand.name,
-          model: event.asset.model.name,
-          action: 'ASSIGNED',
-          date: metadata?.issueDate ? new Date(metadata.issueDate) : new Date(event.eventDate),
-          timestamp: new Date(event.eventDate),
-          condition: metadata?.issueCondition || undefined,
-          reason: metadata?.issueReason || undefined,
-          notes: metadata?.notes || undefined,
-          performedBy: performedByName,
-        });
-      } else if (event.eventType === 'ASSET_COLLECTED') {
-        transformed.push({
-          id: event.id,
-          assetId: event.asset.assetId,
-          assetName: `${event.asset.brand.name} ${event.asset.model.name}`,
-          assetType: event.asset.assetType.name,
-          brand: event.asset.brand.name,
-          model: event.asset.model.name,
-          action: 'RETURNED',
-          date: metadata?.returnDate ? new Date(metadata.returnDate) : new Date(event.eventDate),
-          timestamp: new Date(event.eventDate),
-          condition: metadata?.returnCondition || undefined,
-          reason: metadata?.returnReason || undefined,
-          notes: metadata?.notes || undefined,
-          performedBy: performedByName,
-        });
-      }
-    }
-
-    // Apply filters
-    let filtered = transformed;
-    if (query.action) {
-      filtered = filtered.filter((e) => e.action === query.action);
-    }
-    if (query.assetType) {
-      const q = query.assetType.toLowerCase();
-      filtered = filtered.filter((e) => e.assetType.toLowerCase().includes(q));
-    }
-    if (query.search) {
-      const q = query.search.toLowerCase();
-      filtered = filtered.filter((e) =>
-        e.assetId.toLowerCase().includes(q) ||
-        e.assetName.toLowerCase().includes(q) ||
-        e.brand.toLowerCase().includes(q) ||
-        e.model.toLowerCase().includes(q)
-      );
-    }
-    if (query.dateFrom) {
-      const from = new Date(query.dateFrom);
-      filtered = filtered.filter((e) => e.date >= from);
-    }
-    if (query.dateTo) {
-      const to = new Date(query.dateTo);
-      // include whole day
-      to.setHours(23, 59, 59, 999);
-      filtered = filtered.filter((e) => e.date <= to);
-    }
-
-    // Sort (always by timestamp for chronological ordering)
-    const sortBy = query.sortBy ?? 'date';
-    const sortOrder = (query.sortOrder ?? 'desc') === 'asc' ? 1 : -1;
-    filtered.sort((a, b) => {
-      let cmp = 0;
-      if (sortBy === 'action') cmp = a.action.localeCompare(b.action);
-      else if (sortBy === 'assetType') cmp = a.assetType.localeCompare(b.assetType);
-      else cmp = a.timestamp.getTime() - b.timestamp.getTime();
-      return cmp * sortOrder;
-    });
+    const filtered = this.applyAssetEventFilters(transformed, query);
+    this.sortAssetEvents(filtered, query.sortBy ?? 'date', (query.sortOrder ?? 'desc') === 'asc' ? 1 : -1);
 
     const totalCount = filtered.length;
     const totalPages = Math.ceil(totalCount / limit) || 1;
@@ -1202,6 +1093,93 @@ export class EmployeesService {
       },
     };
   }
+  
+  private getPerformedByName(event: any): string {
+    const first = event.performedByUser.employee?.firstName || '';
+    const last = event.performedByUser.employee?.lastName || '';
+    const full = `${first} ${last}`.trim();
+    return full || event.performedByUser.employee?.employeeId || event.performedByUser.username;
+  }
+
+  private transformAssetEvent(event: any): AssetEventRow | null {
+    const performedByName = this.getPerformedByName(event);
+    const metadata = event.metadata as any;
+    if (event.eventType === 'ASSET_ISSUED') {
+      return {
+        id: event.id,
+        assetId: event.asset.assetId,
+        assetName: `${event.asset.brand.name} ${event.asset.model.name}`,
+        assetType: event.asset.assetType.name,
+        brand: event.asset.brand.name,
+        model: event.asset.model.name,
+        action: 'ASSIGNED',
+        date: metadata?.issueDate ? new Date(metadata.issueDate) : new Date(event.eventDate),
+        timestamp: new Date(event.eventDate),
+        condition: metadata?.issueCondition || undefined,
+        reason: metadata?.issueReason || undefined,
+        notes: metadata?.notes || undefined,
+        performedBy: performedByName,
+      };
+    }
+    if (event.eventType === 'ASSET_COLLECTED') {
+      return {
+        id: event.id,
+        assetId: event.asset.assetId,
+        assetName: `${event.asset.brand.name} ${event.asset.model.name}`,
+        assetType: event.asset.assetType.name,
+        brand: event.asset.brand.name,
+        model: event.asset.model.name,
+        action: 'RETURNED',
+        date: metadata?.returnDate ? new Date(metadata.returnDate) : new Date(event.eventDate),
+        timestamp: new Date(event.eventDate),
+        condition: metadata?.returnCondition || undefined,
+        reason: metadata?.returnReason || undefined,
+        notes: metadata?.notes || undefined,
+        performedBy: performedByName,
+      };
+    }
+    return null;
+  }
+
+  private applyAssetEventFilters(rows: AssetEventRow[], query: QueryEmployeeAssetEventsDto): AssetEventRow[] {
+    let filtered = rows;
+    if (query.action) {
+      filtered = filtered.filter((e) => e.action === query.action);
+    }
+    if (query.assetType) {
+      const q = query.assetType.toLowerCase();
+      filtered = filtered.filter((e) => e.assetType.toLowerCase().includes(q));
+    }
+    if (query.search) {
+      const q = query.search.toLowerCase();
+      filtered = filtered.filter((e) =>
+        e.assetId.toLowerCase().includes(q) ||
+        e.assetName.toLowerCase().includes(q) ||
+        e.brand.toLowerCase().includes(q) ||
+        e.model.toLowerCase().includes(q)
+      );
+    }
+    if (query.dateFrom) {
+      const from = new Date(query.dateFrom);
+      filtered = filtered.filter((e) => e.date >= from);
+    }
+    if (query.dateTo) {
+      const to = new Date(query.dateTo);
+      to.setHours(23, 59, 59, 999);
+      filtered = filtered.filter((e) => e.date <= to);
+    }
+    return filtered;
+  }
+
+  private sortAssetEvents(rows: AssetEventRow[], sortBy: string, sortOrder: 1 | -1): void {
+    rows.sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === 'action') cmp = a.action.localeCompare(b.action);
+      else if (sortBy === 'assetType') cmp = a.assetType.localeCompare(b.assetType);
+      else cmp = a.timestamp.getTime() - b.timestamp.getTime();
+      return cmp * sortOrder;
+    });
+  }
   private mapToResponseDto(employee: any): EmployeeResponseDto {
     return {
       id: employee.id.toString(),
@@ -1219,6 +1197,57 @@ export class EmployeesService {
       updatedAt: employee.updatedAt.toISOString(),
       isAdmin: false, // Will be set separately after mapping
     };
+  }
+
+  private buildEmployeeCreateData(
+    createEmployeeDto: CreateEmployeeDto,
+    userId: number,
+    employeeId: string,
+    dateOfBirth: Date | null
+  ) {
+    return {
+      employeeId,
+      firstName: this.formatName(createEmployeeDto.firstName),
+      lastName: this.formatName(createEmployeeDto.lastName),
+      email: createEmployeeDto.email,
+      phone: createEmployeeDto.phone,
+      dateOfBirth,
+      address: createEmployeeDto.address,
+      status: EmployeeStatus.ACTIVE,
+      createdBy: userId,
+      updatedBy: userId,
+    } as const;
+  }
+
+  private async handleCreateUniqueConstraintError(
+    error: unknown,
+    retryWithNewEmployeeId: () => Promise<any>
+  ): Promise<any | null> {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError)) {
+      return null;
+    }
+    if (error.code !== 'P2002') {
+      return null;
+    }
+    const target = (error as any).meta?.target as string[] | undefined;
+    const targetStr = String(target);
+    if (target?.includes('email') || targetStr.includes('email')) {
+      throw new ConflictException('Employee with this email already exists');
+    }
+    if (
+      target?.includes('employee_id') ||
+      targetStr.includes('employee_id') ||
+      targetStr.includes('employeeId')
+    ) {
+      try {
+        const employee = await retryWithNewEmployeeId();
+        return employee;
+      } catch (_) {
+        throw new ConflictException('Employee with this employee ID already exists');
+      }
+    }
+    // Default precise message when meta.target is missing or unknown
+    throw new ConflictException('Employee with this email already exists');
   }
 
   // Export employees to Excel with asset details

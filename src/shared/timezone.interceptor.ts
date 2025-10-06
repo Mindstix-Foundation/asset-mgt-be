@@ -18,7 +18,7 @@ function toISTString(value: Date): string {
 }
 
 // Only convert audit timestamp fields to IST
-const AUDIT_TIMESTAMP_FIELDS = [
+const AUDIT_TIMESTAMP_FIELDS = new Set([
   'createdAt',
   'updatedAt', 
   'changedAt',
@@ -26,10 +26,10 @@ const AUDIT_TIMESTAMP_FIELDS = [
   'lastLogin',
   'issueTimestamp',
   'returnTimestamp'
-];
+]);
 
 // Business date fields that should NOT be converted
-const BUSINESS_DATE_FIELDS = [
+const BUSINESS_DATE_FIELDS = new Set([
   'purchaseDate',
   'warrantyStartDate',
   'warrantyEndDate',
@@ -42,46 +42,44 @@ const BUSINESS_DATE_FIELDS = [
   'actualCompletionDate',
   'cancellationDate',
   'dateOfBirth'
-];
+]);
+
+const ISO_MINUTE_RE = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+
+function isNil(value: any): boolean {
+  return value === null || value === undefined;
+}
+
+function isAuditKey(key: string): boolean {
+  return AUDIT_TIMESTAMP_FIELDS.has(key);
+}
+
+function isBusinessDateKey(key: string): boolean {
+  return BUSINESS_DATE_FIELDS.has(key);
+}
+
+function convertAuditValue(value: any): any {
+  if (value instanceof Date) return toISTString(value);
+  if (typeof value === 'string' && ISO_MINUTE_RE.test(value)) {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? value : toISTString(parsed);
+  }
+  return value;
+}
 
 function convertAuditTimestampsToIST(data: any): any {
-  if (data === null || data === undefined) return data;
-  
-  if (data instanceof Date) {
-    return toISTString(data);
-  }
-  
-  if (Array.isArray(data)) {
-    return data.map((item) => convertAuditTimestampsToIST(item));
-  }
-  
-  if (typeof data === 'object') {
-    const result: any = Array.isArray(data) ? [] : {};
-    
-    for (const [key, value] of Object.entries(data)) {
-      // Only convert audit timestamp fields
-      if (AUDIT_TIMESTAMP_FIELDS.includes(key)) {
-        if (typeof value === 'string' && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) {
-          const parsed = new Date(value);
-          result[key] = isNaN(parsed.getTime()) ? value : toISTString(parsed);
-        } else if (value instanceof Date) {
-          result[key] = toISTString(value);
-        } else {
-          result[key] = value;
-        }
-      } else if (BUSINESS_DATE_FIELDS.includes(key)) {
-        // Keep business dates as-is (don't convert)
-        result[key] = value;
-      } else {
-        // Recursively process nested objects
-        result[key] = convertAuditTimestampsToIST(value);
-      }
-    }
-    
-    return result;
-  }
-  
-  return data;
+  if (isNil(data)) return data;
+  if (data instanceof Date) return toISTString(data);
+  if (Array.isArray(data)) return data.map(convertAuditTimestampsToIST);
+  if (typeof data !== 'object') return data;
+
+  return Object.fromEntries(
+    Object.entries(data).map(([key, value]) => {
+      if (isAuditKey(key)) return [key, convertAuditValue(value)];
+      if (isBusinessDateKey(key)) return [key, value];
+      return [key, convertAuditTimestampsToIST(value)];
+    })
+  );
 }
 
 @Injectable()

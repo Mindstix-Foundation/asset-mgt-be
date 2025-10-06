@@ -7,6 +7,23 @@ import { MaintenanceExportQueryDto } from './dto/maintenance-export-query.dto';
 import { MaintenanceStatus, MaintenanceTypeEnum, Prisma, AssetEventType } from '@prisma/client';
 import * as XLSX from 'xlsx';
 
+type MaintenanceEventRow = {
+  id: number;
+  description: string;
+  maintenanceTypeName: string;
+  status: string;
+  date: Date;
+  scheduledDateOnly: string;
+  actualCost?: number | null;
+  estimatedCost?: number | null;
+  completionNotes?: string | null;
+  cancellationNotes?: string | null;
+  scheduledDate?: Date | null;
+  actualStartDate?: Date | null;
+  actualCompletionDate?: Date | null;
+  cancellationDate?: Date | null;
+};
+
 @Injectable()
 export class MaintenanceService {
   constructor(private readonly prisma: PrismaService) {}
@@ -15,7 +32,7 @@ export class MaintenanceService {
 
 
     try {
-      const { assetId, scheduledDate, ...rest } = createMaintenanceDto;
+      const { assetId, scheduledDate } = createMaintenanceDto;
 
 
 
@@ -96,7 +113,7 @@ export class MaintenanceService {
         });
 
         // Immediately mark the asset as in maintenance
-        const updatedAsset = await tx.asset.update({
+        await tx.asset.update({
           where: { id: assetId },
           data: { status: 'IN_MAINTENANCE' },
         });
@@ -354,64 +371,9 @@ export class MaintenanceService {
       throw new NotFoundException('Maintenance not found');
     }
 
-    // If updating asset or scheduled date, check availability
-    if (updateMaintenanceDto.assetId || updateMaintenanceDto.scheduledDate) {
-      const assetId = updateMaintenanceDto.assetId || existingMaintenance.assetId;
-      const scheduledDate = updateMaintenanceDto.scheduledDate || existingMaintenance.scheduledDate.toISOString().split('T')[0];
+    await this.assertNoScheduleConflictOnUpdate(id, existingMaintenance, updateMaintenanceDto);
 
-      const conflictingMaintenance = await this.prisma.maintenanceSchedule.findFirst({
-        where: {
-          id: { not: id },
-          assetId,
-          scheduledDate: new Date(scheduledDate),
-          status: {
-            in: [MaintenanceStatus.SCHEDULED, MaintenanceStatus.IN_PROGRESS],
-          },
-        },
-      });
-
-      if (conflictingMaintenance) {
-        throw new ConflictException('Asset is already scheduled for maintenance on this date');
-      }
-    }
-
-    const updateData: any = {
-      ...updateMaintenanceDto,
-      updatedBy: userId,
-    };
-
-    // Handle date conversions
-    if (updateMaintenanceDto.scheduledDate) {
-      updateData.scheduledDate = new Date(updateMaintenanceDto.scheduledDate);
-    }
-    if (updateMaintenanceDto.actualStartDate) {
-      updateData.actualStartDate = new Date(updateMaintenanceDto.actualStartDate);
-    }
-    if (updateMaintenanceDto.actualCompletionDate) {
-      updateData.actualCompletionDate = new Date(updateMaintenanceDto.actualCompletionDate);
-    }
-    if (updateMaintenanceDto.cancellationDate) {
-      updateData.cancellationDate = new Date(updateMaintenanceDto.cancellationDate);
-    }
-
-    // Handle decimal conversions
-    if (updateMaintenanceDto.estimatedCost !== undefined) {
-      updateData.estimatedCost = updateMaintenanceDto.estimatedCost ? new Prisma.Decimal(updateMaintenanceDto.estimatedCost) : null;
-    }
-    if (updateMaintenanceDto.actualCost !== undefined) {
-      updateData.actualCost = updateMaintenanceDto.actualCost ? new Prisma.Decimal(updateMaintenanceDto.actualCost) : null;
-    }
-
-    // If the user updates the scheduled date to today, move to IN_PROGRESS on the server side
-    let shouldStartToday = false;
-    if (updateMaintenanceDto.scheduledDate) {
-      const todayStr = new Date().toISOString().split('T')[0];
-      if (updateMaintenanceDto.scheduledDate === todayStr) {
-        shouldStartToday = true;
-        updateData.status = MaintenanceStatus.IN_PROGRESS;
-        updateData.actualStartDate = new Date();
-      }
-    }
+    const { updateData, shouldStartToday } = this.buildUpdateData(updateMaintenanceDto, userId);
 
 
     const maintenance = await this.prisma.$transaction(async (tx) => {
@@ -498,6 +460,58 @@ export class MaintenanceService {
     };
   }
 
+  private async assertNoScheduleConflictOnUpdate(
+    id: number,
+    existing: any,
+    dto: UpdateMaintenanceDto,
+  ): Promise<void> {
+    if (!dto.assetId && !dto.scheduledDate) return;
+    const assetId = dto.assetId || existing.assetId;
+    const scheduledDateStr = dto.scheduledDate || existing.scheduledDate.toISOString().split('T')[0];
+    const conflictingMaintenance = await this.prisma.maintenanceSchedule.findFirst({
+      where: {
+        id: { not: id },
+        assetId,
+        scheduledDate: new Date(scheduledDateStr),
+        status: { in: [MaintenanceStatus.SCHEDULED, MaintenanceStatus.IN_PROGRESS] },
+      },
+    });
+    if (conflictingMaintenance) {
+      throw new ConflictException('Asset is already scheduled for maintenance on this date');
+    }
+  }
+
+  private buildUpdateData(
+    dto: UpdateMaintenanceDto,
+    userId: number,
+  ): { updateData: any; shouldStartToday: boolean } {
+    const updateData: any = { ...dto, updatedBy: userId };
+
+    if (dto.scheduledDate) updateData.scheduledDate = new Date(dto.scheduledDate);
+    if (dto.actualStartDate) updateData.actualStartDate = new Date(dto.actualStartDate);
+    if (dto.actualCompletionDate) updateData.actualCompletionDate = new Date(dto.actualCompletionDate);
+    if (dto.cancellationDate) updateData.cancellationDate = new Date(dto.cancellationDate);
+
+    if (dto.estimatedCost !== undefined) {
+      updateData.estimatedCost = dto.estimatedCost ? new Prisma.Decimal(dto.estimatedCost) : null;
+    }
+    if (dto.actualCost !== undefined) {
+      updateData.actualCost = dto.actualCost ? new Prisma.Decimal(dto.actualCost) : null;
+    }
+
+    let shouldStartToday = false;
+    if (dto.scheduledDate) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (dto.scheduledDate === todayStr) {
+        shouldStartToday = true;
+        updateData.status = MaintenanceStatus.IN_PROGRESS;
+        updateData.actualStartDate = new Date();
+      }
+    }
+
+    return { updateData, shouldStartToday };
+  }
+
   async remove(id: number, userId: number) {
     const maintenance = await this.prisma.maintenanceSchedule.findUnique({
       where: { id },
@@ -520,7 +534,7 @@ export class MaintenanceService {
     }
 
     // Soft delete by updating status within transaction
-    const result = await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       const updated = await tx.maintenanceSchedule.update({
         where: { id },
         data: {
@@ -590,7 +604,7 @@ export class MaintenanceService {
       throw new BadRequestException('Only scheduled or in-progress maintenance can be completed');
     }
 
-    const result = await this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.maintenanceSchedule.update({
         where: { id },
         data: {
@@ -660,7 +674,7 @@ export class MaintenanceService {
 
     return {
       message: 'Maintenance completed successfully',
-      data: { maintenance: this.formatMaintenanceResponse(result) },
+      data: { maintenance: this.formatMaintenanceResponse(updated) },
     };
   }
 
@@ -675,7 +689,7 @@ export class MaintenanceService {
       throw new BadRequestException('Cannot cancel completed or already cancelled maintenance');
     }
 
-    const result = await this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.maintenanceSchedule.update({
         where: { id },
         data: {
@@ -744,7 +758,7 @@ export class MaintenanceService {
 
     return {
       message: 'Maintenance cancelled successfully',
-      data: { maintenance: this.formatMaintenanceResponse(result) },
+      data: { maintenance: this.formatMaintenanceResponse(updated) },
     };
   }
 
@@ -780,7 +794,7 @@ export class MaintenanceService {
       if (isNumeric) {
         // If it's a number, search by internal ID
         asset = await this.prisma.asset.findUnique({
-          where: { id: parseInt(assetId) },
+          where: { id: Number.parseInt(assetId) },
           select: {
             id: true,
             assetId: true,
@@ -869,13 +883,7 @@ export class MaintenanceService {
     query: { status?: string; type?: string; search?: string; dateFrom?: string; dateTo?: string; sortBy?: 'date' | 'status' | 'type'; sortOrder?: 'asc' | 'desc'; page?: number; limit?: number }
   ) {
     // Resolve asset
-    let asset: any
-    const isNumeric = /^\d+$/.test(assetIdParam)
-    if (isNumeric) {
-      asset = await this.prisma.asset.findUnique({ where: { id: parseInt(assetIdParam) }, select: { id: true } })
-    } else {
-      asset = await this.prisma.asset.findUnique({ where: { assetId: assetIdParam }, select: { id: true } })
-    }
+    const asset = await this.resolveAssetId(assetIdParam)
     if (!asset) throw new NotFoundException('Asset not found')
 
     const page = Math.max(query.page || 1, 1)
@@ -896,9 +904,8 @@ export class MaintenanceService {
       ]
     }
 
-    // Date range applies to timeline date (actualStart when IN_PROGRESS, scheduled otherwise; completion/cancellation when set)
-    const from = query.dateFrom ? new Date(query.dateFrom) : undefined
-    const to = query.dateTo ? new Date(query.dateTo) : undefined
+    // Date range boundaries
+    const { from, to } = this.getDateBoundaries(query.dateFrom, query.dateTo)
 
     // We will fetch and expand to events (SCHEDULED/IN_PROGRESS/COMPLETED/CANCELLED) and then filter/sort/paginate in memory for simplicity
     const schedules = await this.prisma.maintenanceSchedule.findMany({
@@ -908,59 +915,13 @@ export class MaintenanceService {
     })
 
 
-    type EventRow = { id: number; description: string; maintenanceTypeName: string; status: string; date: Date; scheduledDateOnly: string; actualCost?: number | null; estimatedCost?: number | null; completionNotes?: string | null; cancellationNotes?: string | null; scheduledDate?: Date | null; actualStartDate?: Date | null; actualCompletionDate?: Date | null; cancellationDate?: Date | null }
-    const events: EventRow[] = []
+    const events = this.buildMaintenanceEvents(schedules)
 
-    for (const s of schedules) {
-      const scheduledOnly = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(s.scheduledDate)
-      const base = {
-        id: s.id,
-        description: s.description,
-        maintenanceTypeName: s.maintenanceType,
-        actualCost: s.actualCost ? parseFloat(s.actualCost.toString()) : null,
-        estimatedCost: s.estimatedCost ? parseFloat(s.estimatedCost.toString()) : null,
-        completionNotes: s.completionNotes || null,
-        cancellationNotes: s.cancellationNotes || null,
-        scheduledDate: s.scheduledDate,
-        actualStartDate: s.actualStartDate,
-        actualCompletionDate: s.actualCompletionDate,
-        cancellationDate: s.cancellationDate,
-        scheduledDateOnly: scheduledOnly,
-      }
+    // Filtering
+    const filtered = this.filterMaintenanceEvents(events, query, from, to)
 
-      // Scheduled event
-      // date (top-right) = createdAt (scheduled at time), scheduledDateOnly = scheduled date
-      events.push({ ...base, status: 'SCHEDULED', date: s.createdAt })
-      // Do not include IN_PROGRESS in the event stream per UX requirements
-      // Completed event
-      if (s.actualCompletionDate) events.push({ ...base, status: 'COMPLETED', date: s.actualCompletionDate })
-      // Cancelled event
-      if (s.cancellationDate) events.push({ ...base, status: 'CANCELLED', date: s.cancellationDate })
-    }
-
-    // Date filtering
-    let filtered = events
-    if (from) filtered = filtered.filter(e => e.date >= from)
-    if (to) {
-      const toEnd = new Date(to); toEnd.setHours(23,59,59,999)
-      filtered = filtered.filter(e => e.date <= toEnd)
-    }
-    if (query.status) filtered = filtered.filter(e => e.status === query.status)
-    if (query.type) filtered = filtered.filter(e => e.maintenanceTypeName === query.type)
-    if (query.search) {
-      const q = query.search.toLowerCase()
-      filtered = filtered.filter(e => e.description.toLowerCase().includes(q) || (e.completionNotes||'').toLowerCase().includes(q) || (e.cancellationNotes||'').toLowerCase().includes(q))
-    }
-
-    const sortBy = query.sortBy || 'date'
-    const order = (query.sortOrder || 'desc') === 'asc' ? 1 : -1
-    filtered.sort((a,b) => {
-      let cmp = 0
-      if (sortBy === 'status') cmp = a.status.localeCompare(b.status)
-      else if (sortBy === 'type') cmp = a.maintenanceTypeName.localeCompare(b.maintenanceTypeName)
-      else cmp = a.date.getTime() - b.date.getTime()
-      return cmp * order
-    })
+    // Sorting
+    this.sortMaintenanceEvents(filtered, query.sortBy || 'date', (query.sortOrder || 'desc') === 'asc' ? 1 : -1)
 
     const totalCount = filtered.length
     const totalPages = Math.max(1, Math.ceil(totalCount / limit))
@@ -986,6 +947,78 @@ export class MaintenanceService {
         pagination: { totalCount, currentPage, totalPages, hasNext: currentPage < totalPages, hasPrevious: currentPage > 1 }
       }
     }
+  }
+
+  
+
+  private async resolveAssetId(assetIdParam: string) {
+    const isNumeric = /^\d+$/.test(assetIdParam)
+    if (isNumeric) {
+      return this.prisma.asset.findUnique({ where: { id: Number.parseInt(assetIdParam) }, select: { id: true } })
+    }
+    return this.prisma.asset.findUnique({ where: { assetId: assetIdParam }, select: { id: true } })
+  }
+
+  private getDateBoundaries(dateFrom?: string, dateTo?: string) {
+    const from = dateFrom ? new Date(dateFrom) : undefined
+    const to = dateTo ? new Date(dateTo) : undefined
+    return { from, to }
+  }
+
+  private buildMaintenanceEvents(schedules: any[]): MaintenanceEventRow[] {
+    const events: MaintenanceEventRow[] = []
+    for (const s of schedules) {
+      const scheduledOnly = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(s.scheduledDate)
+      const base = {
+        id: s.id,
+        description: s.description,
+        maintenanceTypeName: s.maintenanceType,
+        actualCost: s.actualCost ? Number.parseFloat(s.actualCost.toString()) : null,
+        estimatedCost: s.estimatedCost ? Number.parseFloat(s.estimatedCost.toString()) : null,
+        completionNotes: s.completionNotes || null,
+        cancellationNotes: s.cancellationNotes || null,
+        scheduledDate: s.scheduledDate,
+        actualStartDate: s.actualStartDate,
+        actualCompletionDate: s.actualCompletionDate,
+        cancellationDate: s.cancellationDate,
+        scheduledDateOnly: scheduledOnly,
+      }
+      events.push({ ...base, status: 'SCHEDULED', date: s.createdAt })
+      if (s.actualCompletionDate) events.push({ ...base, status: 'COMPLETED', date: s.actualCompletionDate })
+      if (s.cancellationDate) events.push({ ...base, status: 'CANCELLED', date: s.cancellationDate })
+    }
+    return events
+  }
+
+  private filterMaintenanceEvents(
+    events: MaintenanceEventRow[],
+    query: { status?: string; type?: string; search?: string },
+    from?: Date,
+    to?: Date
+  ): MaintenanceEventRow[] {
+    let filtered = events
+    if (from) filtered = filtered.filter(e => e.date >= from)
+    if (to) {
+      const toEnd = new Date(to); toEnd.setHours(23,59,59,999)
+      filtered = filtered.filter(e => e.date <= toEnd)
+    }
+    if (query.status) filtered = filtered.filter(e => e.status === query.status)
+    if (query.type) filtered = filtered.filter(e => e.maintenanceTypeName === query.type)
+    if (query.search) {
+      const q = query.search.toLowerCase()
+      filtered = filtered.filter(e => e.description.toLowerCase().includes(q) || (e.completionNotes||'').toLowerCase().includes(q) || (e.cancellationNotes||'').toLowerCase().includes(q))
+    }
+    return filtered
+  }
+
+  private sortMaintenanceEvents(rows: MaintenanceEventRow[], sortBy: 'date' | 'status' | 'type', order: 1 | -1) {
+    rows.sort((a,b) => {
+      let cmp = 0
+      if (sortBy === 'status') cmp = a.status.localeCompare(b.status)
+      else if (sortBy === 'type') cmp = a.maintenanceTypeName.localeCompare(b.maintenanceTypeName)
+      else cmp = a.date.getTime() - b.date.getTime()
+      return cmp * order
+    })
   }
 
   private getMaintenanceTypeDescription(type: MaintenanceTypeEnum): string {
@@ -1018,12 +1051,12 @@ export class MaintenanceService {
       scheduledDate: maintenance.scheduledDate.toISOString(),
       frequencyDays: maintenance.frequencyDays,
       description: maintenance.description,
-      estimatedCost: maintenance.estimatedCost ? parseFloat(maintenance.estimatedCost.toString()) : null,
+      estimatedCost: maintenance.estimatedCost ? Number.parseFloat(maintenance.estimatedCost.toString()) : null,
       assignedTo: maintenance.assignedTo,
       status: maintenance.status,
       actualStartDate: maintenance.actualStartDate ? maintenance.actualStartDate.toISOString() : null,
       actualCompletionDate: maintenance.actualCompletionDate ? maintenance.actualCompletionDate.toISOString() : null,
-      actualCost: maintenance.actualCost ? parseFloat(maintenance.actualCost.toString()) : null,
+      actualCost: maintenance.actualCost ? Number.parseFloat(maintenance.actualCost.toString()) : null,
       completionNotes: maintenance.completionNotes,
       cancellationDate: maintenance.cancellationDate ? maintenance.cancellationDate.toISOString() : null,
       cancellationReason: maintenance.cancellationReason,
@@ -1057,20 +1090,21 @@ export class MaintenanceService {
    * Format value for display (used in map)
    */
   private formatValueForDisplay(value: any): string | null {
-    if (value === null || value === undefined) return null;
-    
-    // Handle Date objects only (not strings that look like dates)
-    if (value instanceof Date) {
-      return value.toISOString().split('T')[0]; // yyyy-mm-dd format
+    if (value === null || value === undefined) {
+      return null;
     }
-    
-    // Handle Prisma Decimal objects
-    if (value && typeof value === 'object' && 'toFixed' in value) {
-      return Number(value).toString();
+
+    const isPrismaDecimal = (v: any): boolean => Boolean(v) && typeof v === 'object' && 'toFixed' in v;
+    const isDateObject = (v: any): boolean => v instanceof Date;
+
+    switch (true) {
+      case isDateObject(value):
+        return (value as Date).toISOString().split('T')[0]; // yyyy-mm-dd
+      case isPrismaDecimal(value):
+        return Number(value).toString();
+      default:
+        return String(value);
     }
-    
-    // Return as-is for all other values (strings, numbers, etc.)
-    return value.toString();
   }
 
   // Export maintenance records to Excel

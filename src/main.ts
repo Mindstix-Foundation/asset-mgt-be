@@ -6,7 +6,7 @@ import { AppModule } from './app.module';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 
-async function bootstrap() {
+(async () => {
   const app = await NestFactory.create(AppModule);
   
   // Cookie parser middleware (MUST be before other middleware)
@@ -89,8 +89,10 @@ async function bootstrap() {
   
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
-  
+
   console.log(`Application is running on: http://localhost:${port}/api`);
   console.log(`Swagger documentation available at: http://localhost:${port}/api/docs`);
-}
-void bootstrap();
+})().catch((err) => {
+  console.error('Failed to start NestJS application:', err);
+  process.exit(1);
+});

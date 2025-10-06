@@ -10,7 +10,7 @@ export class TimezoneUtil {
   static toISTString(date: Date | string): string {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
     
-    if (isNaN(dateObj.getTime())) {
+    if (Number.isNaN(dateObj.getTime())) {
       return date.toString();
     }
 
@@ -36,7 +36,7 @@ export class TimezoneUtil {
   static toISTDateString(date: Date | string): string {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
     
-    if (isNaN(dateObj.getTime())) {
+    if (Number.isNaN(dateObj.getTime())) {
       return date.toString();
     }
 
@@ -58,7 +58,7 @@ export class TimezoneUtil {
   static toISTTimeString(date: Date | string): string {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
     
-    if (isNaN(dateObj.getTime())) {
+    if (Number.isNaN(dateObj.getTime())) {
       return date.toString();
     }
 
