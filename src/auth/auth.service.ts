@@ -15,7 +15,6 @@ import { LoginDto } from './dto/login.dto';
 import {
   ForgotPasswordDto,
   ResetPasswordDto,
-  ChangePasswordDto,
 } from './dto/password.dto';
 
 @Injectable()
@@ -72,8 +71,8 @@ export class AuthService {
 
       // Check if account is locked
       if (user.lockedUntil && user.lockedUntil > new Date()) {
-        const lockTimeRemaining = Math.ceil(
-          (user.lockedUntil.getTime() - new Date().getTime()) / 60000,
+      const lockTimeRemaining = Math.ceil(
+          (user.lockedUntil.getTime() - Date.now()) / 60000,
         );
         throw new UnauthorizedException(
           `Account locked. Try again in ${lockTimeRemaining} minutes.`,

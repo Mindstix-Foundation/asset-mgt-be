@@ -1,7 +1,6 @@
 import {
   Injectable,
   BadRequestException,
-  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GenerateReportDto } from './dto';
@@ -463,7 +462,7 @@ export class ReportsService {
   private generateCSV(data: any[][], headers: string[]): string {
     const csvRows = [headers.join(',')];
 
-    data.forEach((row) => {
+    for (const row of data) {
       const escapedRow = row.map((field) => {
         const stringField = String(field || '');
         // Escape quotes and wrap in quotes if contains comma, quote, or newline
@@ -472,12 +471,12 @@ export class ReportsService {
           stringField.includes('"') ||
           stringField.includes('\n')
         ) {
-          return `"${stringField.replace(/"/g, '""')}"`;
+          return `"${stringField.replaceAll('"', '""')}"`;
         }
         return stringField;
       });
       csvRows.push(escapedRow.join(','));
-    });
+    }
 
     return csvRows.join('\n');
   }
@@ -496,9 +495,9 @@ export class ReportsService {
     report += '-'.repeat(headers.join(' | ').length) + '\n';
 
     // Add data rows
-    data.forEach((row) => {
+    for (const row of data) {
       report += row.join(' | ') + '\n';
-    });
+    }
 
     return report;
   }

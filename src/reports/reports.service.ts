@@ -806,7 +806,7 @@ export class ReportsService {
     };
 
     // Add data rows
-    data.forEach((item) => {
+    for (const item of data) {
       let row: any[] = [];
 
       switch (reportType.toLowerCase()) {
@@ -858,12 +858,12 @@ export class ReportsService {
       }
 
       worksheet.addRow(row);
-    });
+    }
 
     // Auto-fit columns
-    worksheet.columns.forEach((column) => {
+    for (const column of worksheet.columns) {
       column.width = 15;
-    });
+    }
 
     // Set response headers
     const filename = `${reportType.replace(' ', '_').toLowerCase()}_report_${new Date().toISOString().split('T')[0]}.xlsx`;
