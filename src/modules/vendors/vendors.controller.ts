@@ -15,7 +15,6 @@ import {
   Put,
   Request,
   UnauthorizedException,
-  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -29,7 +28,6 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { VendorsService } from './vendors.service';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import {
   CreateVendorDto,
   UpdateVendorDto,
@@ -43,7 +41,6 @@ import {
 @ApiTags('vendors')
 @ApiBearerAuth('JWT-auth')
 @Controller('vendors')
-@UseGuards(JwtAuthGuard)
 export class VendorsController {
   constructor(private readonly vendorsService: VendorsService) {}
 

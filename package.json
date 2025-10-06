@@ -19,10 +19,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "db:seed": "node prisma/seed.js",
-    "db:seed:admin": "ts-node prisma/admin-seed.ts",
-    "db:fix-phones": "node scripts/fix-phones.js",
-    "sonar": "sonar -Dsonar.host.url=http://localhost:9000 -Dsonar.token=sqp_a44594b69da7cf8126f8f5c14495cebf687f260b -Dsonar.projectKey=TrackStix-Backend -Dsonar.projectName=\"TrackStix Backend\"",
-    "sonar:coverage": "npm run test:cov && sonar -Dsonar.host.url=http://localhost:9000 -Dsonar.token=sqp_a44594b69da7cf8126f8f5c14495cebf687f260b -Dsonar.projectKey=TrackStix-Backend -Dsonar.projectName=\"TrackStix Backend\""
+    "db:seed:admin": "ts-node prisma/admin-seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

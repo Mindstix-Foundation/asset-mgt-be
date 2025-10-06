@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../../core/database/prisma.service';
 import { TimezoneUtil } from '../../shared/utils/timezone.util';
 import {
   AssetHistoryQueryDto,

@@ -5,8 +5,7 @@ import { AppModule } from './app.module';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 
-// Modern approach: Using named async function
-async function bootstrap() {
+(async () => {
   try {
     const app = await NestFactory.create(AppModule);
 
@@ -103,9 +102,4 @@ async function bootstrap() {
     console.error('Failed to start NestJS application:', err);
     process.exit(1);
   }
-}
-
-bootstrap().catch((err) => {
-  console.error('Failed to start NestJS application:', err);
-  process.exit(1);
-});
+})();

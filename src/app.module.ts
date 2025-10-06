@@ -5,23 +5,22 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { GlobalAuthGuard } from './auth/guards/global-auth.guard';
-import { PrismaModule } from './prisma/prisma.module';
-import { AuthModule } from './auth/auth.module';
-import { EmployeesModule } from './employees/employees.module';
+import { GlobalAuthGuard } from './core/auth/guards/global-auth.guard';
+import { PrismaModule } from './core/database/prisma.module';
+import { AuthModule } from './core/auth/auth.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { EmployeesModule } from './modules/employees/employees.module';
+import { MaintenanceModule } from './modules/maintenance/maintenance.module';
+import { NotificationModule } from './modules/notifications/notification.module';
 import { VendorsModule } from './modules/vendors/vendors.module';
 import { AssetCategoriesModule } from './modules/asset-categories/asset-categories.module';
 import { AssetTypesModule } from './modules/asset-types/asset-types.module';
 import { BrandsModule } from './modules/brands/brands.module';
 import { ModelsModule } from './modules/models/models.module';
 import { AssignmentsModule } from './modules/assignments/assignments.module';
-import { ReportsModule } from './reports/reports.module';
-import { MaintenanceModule } from './maintenance/maintenance.module';
-
+import { AssetReportsModule } from './modules/asset-reports/asset-reports.module';
 import { AssetsModule } from './modules/assets/assets.module';
 import { AssetHistoryModule } from './modules/asset-history/asset-history.module';
-import { AdminModule } from './admin/admin.module';
-import { NotificationModule } from './notifications/notification.module';
 
 @Module({
   imports: [
@@ -44,7 +43,7 @@ import { NotificationModule } from './notifications/notification.module';
     BrandsModule,
     ModelsModule,
     AssignmentsModule,
-    ReportsModule,
+    AssetReportsModule,
     MaintenanceModule,
     AssetsModule,
     AssetHistoryModule,

@@ -1,70 +1,174 @@
 import {
   Controller,
+  Get,
   Post,
+  Query,
+  Res,
   Body,
-  HttpCode,
-  HttpStatus,
 } from '@nestjs/common';
-
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiQuery,
 } from '@nestjs/swagger';
-import { ReportsService } from './reports.service';
-import { GenerateReportDto } from './dto';
+import type { Response } from 'express';
+import { ReportsService, type ReportFilters } from './reports.service';
 
 @ApiTags('reports')
-@ApiBearerAuth('JWT-auth')
+@ApiBearerAuth()
 @Controller('reports')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
-  @Post('generate')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Generate and export reports in various formats' })
+  @Get('analytics')
+  @ApiOperation({ summary: 'Get analytics data for dashboard' })
   @ApiResponse({
     status: 200,
-    description: 'Report generated successfully',
-    schema: {
-      example: {
-        message: 'Report generated successfully',
-        data: {
-          reportType: 'assets',
-          format: 'csv',
-          title: 'Assets Report',
-          fileName: 'assets-report-2024-09-18.csv',
-          mimeType: 'text/csv',
-          content:
-            'QXNzZXQgSUQsU2VyaWFsIE51bWJlcixDYXRlZ29yeSxBc3NldCBUeXBlLEJyYW5kLE1vZGVsLENvbmRpdGlvbixTdGF0dXMsLi4u',
-          recordCount: 150,
-          generatedAt: '2024-09-18T14:30:00.000Z',
-          filters: {
-            assetTypeId: 1,
-            status: 'AVAILABLE',
-          },
-        },
-      },
-    },
+    description: 'Analytics data retrieved successfully',
   })
+  async getAnalytics() {
+    const data = await this.reportsService.getAnalyticsData();
+    return {
+      message: 'Analytics data retrieved successfully',
+      data,
+    };
+  }
+
+  @Get('asset-inventory')
+  @ApiOperation({ summary: 'Get asset inventory report data' })
   @ApiResponse({
-    status: 400,
-    description: 'Bad Request - Invalid report type, format, or filters',
-    schema: {
-      example: {
-        message:
-          'Error generating report: Unsupported report type: invalid-type',
-        error: 'Bad Request',
-        statusCode: 400,
-      },
-    },
+    status: 200,
+    description: 'Asset inventory data retrieved successfully',
   })
+  @ApiQuery({ name: 'assetType', required: false })
+  @ApiQuery({ name: 'fromDate', required: false })
+  @ApiQuery({ name: 'toDate', required: false })
+  async getAssetInventory(@Query() filters: ReportFilters) {
+    const data = await this.reportsService.getAssetInventoryReport(filters);
+    return {
+      message: 'Asset inventory data retrieved successfully',
+      data,
+    };
+  }
+
+  @Get('employee-assets')
+  @ApiOperation({ summary: 'Get employee asset report data' })
   @ApiResponse({
-    status: 401,
-    description: 'Unauthorized - Invalid or missing JWT token',
+    status: 200,
+    description: 'Employee asset data retrieved successfully',
   })
-  async generateReport(@Body() generateReportDto: GenerateReportDto) {
-    return this.reportsService.generateReport(generateReportDto);
+  async getEmployeeAssets(@Query() filters: ReportFilters) {
+    const data = await this.reportsService.getEmployeeAssetReport(filters);
+    return {
+      message: 'Employee asset data retrieved successfully',
+      data,
+    };
+  }
+
+  @Get('maintenance')
+  @ApiOperation({ summary: 'Get maintenance report data' })
+  @ApiResponse({
+    status: 200,
+    description: 'Maintenance data retrieved successfully',
+  })
+  @ApiQuery({ name: 'fromDate', required: false })
+  @ApiQuery({ name: 'toDate', required: false })
+  async getMaintenance(@Query() filters: ReportFilters) {
+    const data = await this.reportsService.getMaintenanceReport(filters);
+    return {
+      message: 'Maintenance data retrieved successfully',
+      data,
+    };
+  }
+
+  @Post('export/asset-inventory')
+  @ApiOperation({ summary: 'Export asset inventory report to Excel' })
+  @ApiResponse({
+    status: 200,
+    description: 'Excel file generated successfully',
+  })
+  async exportAssetInventory(
+    @Body() filters: ReportFilters,
+    @Res() res: Response,
+  ) {
+    const data = await this.reportsService.getAssetInventoryReport(filters);
+    await this.reportsService.exportToExcel(
+      data,
+      'Asset Inventory',
+      res,
+      filters,
+    );
+  }
+
+  @Post('export/employee-assets')
+  @ApiOperation({ summary: 'Export employee asset report to Excel' })
+  @ApiResponse({
+    status: 200,
+    description: 'Excel file generated successfully',
+  })
+  async exportEmployeeAssets(
+    @Body() filters: ReportFilters,
+    @Res() res: Response,
+  ) {
+    const data = await this.reportsService.getEmployeeAssetReport(filters);
+    await this.reportsService.exportToExcel(
+      data,
+      'Employee Asset',
+      res,
+      filters,
+    );
+  }
+
+  @Post('export/maintenance')
+  @ApiOperation({ summary: 'Export maintenance report to Excel' })
+  @ApiResponse({
+    status: 200,
+    description: 'Excel file generated successfully',
+  })
+  async exportMaintenance(
+    @Body() filters: ReportFilters,
+    @Res() res: Response,
+  ) {
+    const data = await this.reportsService.getMaintenanceReport(filters);
+    await this.reportsService.exportToExcel(data, 'Maintenance', res, filters);
+  }
+
+  @Get('preview')
+  @ApiOperation({ summary: 'Get preview data for reports' })
+  @ApiResponse({
+    status: 200,
+    description: 'Preview data retrieved successfully',
+  })
+  @ApiQuery({ name: 'reportType', required: true })
+  @ApiQuery({ name: 'assetType', required: false })
+  @ApiQuery({ name: 'fromDate', required: false })
+  @ApiQuery({ name: 'toDate', required: false })
+  async getReportPreview(
+    @Query() query: ReportFilters & { reportType: string },
+  ) {
+    let data: any[] = [];
+
+    switch (query.reportType) {
+      case 'assets':
+        data = await this.reportsService.getAssetInventoryReport(query);
+        break;
+      case 'employees':
+        data = await this.reportsService.getEmployeeAssetReport(query);
+        break;
+      case 'maintenance':
+        data = await this.reportsService.getMaintenanceReport(query);
+        break;
+      default:
+        data = [];
+    }
+
+    // Return first 10 records for preview
+    return {
+      message: 'Preview data retrieved successfully',
+      data: data.slice(0, 10),
+      total: data.length,
+    };
   }
 }

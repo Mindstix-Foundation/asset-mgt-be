@@ -150,7 +150,7 @@ export function IsVendorName(validationOptions?: ValidationOptions) {
           // Vendor name should start with letter, contain letters, numbers, spaces, and common business suffixes
           // Using a completely new approach: separate character classes to avoid duplicates
           const vendorNameRegex =
-            /^[A-Za-z][0-9\s&.,'-]*(?:Inc|LLC|Ltd|Corp|Company|Co|Pvt|Limited|Solutions|Tech|Systems|Services|Group|Global)?\.?$/i;
+            /^[A-Z][0-9\s&.,'-]*(?:Inc|LLC|Ltd|Corp|Company|Co|Pvt|Limited|Solutions|Tech|Systems|Services|Group|Global)?\.?$/i;
           return vendorNameRegex.test(value.trim());
         },
         defaultMessage(args: ValidationArguments) {

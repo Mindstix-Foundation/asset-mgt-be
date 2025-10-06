@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AssetHistoryController } from './asset-history.controller';
 import { AssetHistoryService } from './asset-history.service';
-import { PrismaModule } from '../../prisma/prisma.module';
+import { PrismaModule } from '../../core/database/prisma.module';
 
 @Module({
   imports: [PrismaModule],

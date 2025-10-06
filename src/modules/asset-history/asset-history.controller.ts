@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -7,13 +7,11 @@ import {
   ApiQuery,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { AssetHistoryService } from './asset-history.service';
 import { AssetHistoryQueryDto } from './dto';
 
 @ApiTags('asset-history')
 @ApiBearerAuth('JWT-auth')
-@UseGuards(JwtAuthGuard)
 @Controller('asset-history')
 export class AssetHistoryController {
   constructor(private readonly assetHistoryService: AssetHistoryService) {}
