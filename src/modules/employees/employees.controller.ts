@@ -107,6 +107,22 @@ export class EmployeesController {
     return { message: 'Email availability', data: { available } };
   }
 
+  @Get('check-employee-id')
+  @ApiOperation({ summary: 'Check if an employee ID is available' })
+  @ApiQuery({ name: 'employeeId', required: true, description: '4-digit employee ID (0001-9999)' })
+  @ApiQuery({ name: 'excludeId', required: false, description: 'Employee DB id to exclude (for edit mode)' })
+  @ApiResponse({ status: 200, description: 'Returns availability boolean', schema: { example: { available: true } } })
+  async checkEmployeeId(
+    @Query('employeeId') employeeId: string,
+    @Query('excludeId') excludeId?: string,
+  ) {
+    if (!employeeId || !/^\d{4}$/.test(employeeId)) {
+      throw new BadRequestException('employeeId must be exactly 4 digits');
+    }
+    const available = await this.employeesService.isEmployeeIdAvailable(employeeId, excludeId);
+    return { message: 'Employee ID availability', data: { available } };
+  }
+
   @Get()
   @ApiOperation({ summary: 'Get all employees with filtering and pagination' })
   @ApiQuery({

@@ -54,8 +54,18 @@ export class EmployeesService {
       throw new ConflictException('Employee with this email already exists');
     }
 
-    // Generate employee ID
-    let employeeId = await this.generateEmployeeId();
+    // Use provided 4-digit employee ID (left as-is). Ensure uniqueness.
+    let employeeId = createEmployeeDto.employeeId;
+    if (!/^\d{4}$/.test(employeeId)) {
+      throw new BadRequestException('Employee ID must be exactly 4 digits');
+    }
+    const existingId = await this.prisma.employee.findUnique({
+      where: { employeeId },
+      select: { id: true },
+    });
+    if (existingId) {
+      throw new ConflictException('Employee with this employee ID already exists');
+    }
 
     // Convert dateOfBirth string to Date if provided
     const dateOfBirth = createEmployeeDto.dateOfBirth
@@ -82,7 +92,9 @@ export class EmployeesService {
       const maybeHandled = await this.handleCreateUniqueConstraintError(
         error,
         async () => {
-          employeeId = await this.generateEmployeeId();
+          // On employeeId conflict retry is not applicable now because user provides ID.
+          // Re-throw to surface conflict clearly.
+          throw new ConflictException('Employee with this employee ID already exists');
           return this.prisma.employee.create({
             data: this.buildEmployeeCreateData(
               createEmployeeDto,
@@ -121,6 +133,19 @@ export class EmployeesService {
       where: whereClause,
     });
     return !existing;
+  }
+
+  async isEmployeeIdAvailable(
+    employeeId: string,
+    excludeEmployeeDbId?: string,
+  ): Promise<boolean> {
+    const where: Prisma.EmployeeWhereUniqueInput = { employeeId };
+    const existing = await this.prisma.employee.findUnique({ where });
+    if (!existing) return true;
+    if (excludeEmployeeDbId && String(existing.id) === String(excludeEmployeeDbId)) {
+      return true;
+    }
+    return false;
   }
 
   async findAll(query: QueryEmployeeDto): Promise<EmployeeListResponseDto> {
@@ -465,7 +490,7 @@ export class EmployeesService {
         headerMap[h.toLowerCase()] = i;
       }
 
-      const required = ['first name', 'last name', 'email'];
+      const required = ['employee id', 'first name', 'last name', 'email'];
       const missing = required.filter((h) => !(h in headerMap));
       if (missing.length) {
         return this.handleValidationOutcome(
@@ -486,9 +511,11 @@ export class EmployeesService {
         .slice(1)
         .map((line) => {
           const cols = line.split(',');
+          const employeeIdRaw = cols[headerMap['employee id']]?.trim();
           const firstName = cols[headerMap['first name']]?.trim();
           const lastName = cols[headerMap['last name']]?.trim();
           return {
+            employeeId: employeeIdRaw,
             firstName: firstName ? this.formatName(firstName) : firstName,
             lastName: lastName ? this.formatName(lastName) : lastName,
             email: cols[headerMap['email']]?.trim(),
@@ -523,9 +550,11 @@ export class EmployeesService {
         if (v instanceof Date) return v.toISOString();
         return undefined;
       };
+      const employeeId = readCell('Employee ID');
       const firstName = readCell('First Name');
       const lastName = readCell('Last Name');
       return {
+        employeeId,
         firstName: firstName ? this.formatName(firstName) : firstName,
         lastName: lastName ? this.formatName(lastName) : lastName,
         email: readCell('Email'),
@@ -540,12 +569,23 @@ export class EmployeesService {
   private validateBasicRowData(rows: any[]): {
     errors: Array<{ row: number; field: string; message: string }>;
     emails: string[];
+    employeeIds: string[];
   } {
     const errors: Array<{ row: number; field: string; message: string }> = [];
     const emails: string[] = [];
+    const employeeIds: string[] = [];
     for (let idx = 0; idx < rows.length; idx++) {
       const r = rows[idx];
       const rowNum = idx + 2; // header is row 1
+      const empId = (r.employeeId ?? '').toString().trim();
+      if (!empId) {
+        errors.push({ row: rowNum, field: 'employeeId', message: 'Employee ID is required' });
+      } else if (!/^\d{4}$/.test(empId) || empId === '0000') {
+        errors.push({ row: rowNum, field: 'employeeId', message: 'Employee ID must be 4 digits (0001-9999)' });
+      } else {
+        employeeIds.push(empId);
+        r.employeeId = empId;
+      }
       const isFirstNameMissing = r.firstName === undefined || r.firstName === null || r.firstName === '';
       if (isFirstNameMissing)
         errors.push({ row: rowNum, field: 'firstName', message: 'First Name is required' });
@@ -562,8 +602,24 @@ export class EmployeesService {
       if (r.dateOfBirth && !/^\d{4}-\d{2}-\d{2}$/.test(r.dateOfBirth)) {
         errors.push({ row: rowNum, field: 'dateOfBirth', message: 'Date of Birth must be YYYY-MM-DD' });
       }
+      // Age validation: at least 16 years old; also not in future
+      if (r.dateOfBirth && /^\d{4}-\d{2}-\d{2}$/.test(r.dateOfBirth)) {
+        try {
+          const today = new Date();
+          const birthDate = new Date(String(r.dateOfBirth));
+          const minAgeDate = new Date();
+          minAgeDate.setFullYear(today.getFullYear() - 16);
+          if (birthDate > today) {
+            errors.push({ row: rowNum, field: 'dateOfBirth', message: 'Date of Birth cannot be in the future' });
+          } else if (birthDate > minAgeDate) {
+            errors.push({ row: rowNum, field: 'dateOfBirth', message: 'Employee must be at least 16 years old' });
+          }
+        } catch {
+          // if parsing throws, ignore here since format check covers it
+        }
+      }
     }
-    return { errors, emails };
+    return { errors, emails, employeeIds };
   }
 
   private validateDuplicateEmailsInFile(emails: string[]): Array<{ row: number; field: string; message: string }> {
@@ -575,6 +631,40 @@ export class EmployeesService {
         errors.push({ row: i + 2, field: 'email', message: 'Duplicate email in file' });
       }
       seen.add(e);
+    }
+    return errors;
+  }
+
+  private validateDuplicateEmployeeIdsInFile(employeeIds: string[]): Array<{ row: number; field: string; message: string }> {
+    const errors: Array<{ row: number; field: string; message: string }> = [];
+    const seen = new Map<string, number>();
+    for (let i = 0; i < employeeIds.length; i++) {
+      const id = employeeIds[i];
+      if (seen.has(id)) {
+        errors.push({ row: i + 2, field: 'employeeId', message: 'Duplicate Employee ID in file' });
+      } else {
+        seen.set(id, i);
+      }
+    }
+    return errors;
+  }
+
+  private async validateDuplicateEmployeeIdsInDb(
+    employeeIds: string[],
+    rows: any[],
+  ): Promise<Array<{ row: number; field: string; message: string }>> {
+    if (employeeIds.length === 0) return [];
+    const existing = await this.prisma.employee.findMany({
+      where: { employeeId: { in: employeeIds } },
+      select: { employeeId: true },
+    });
+    const existingSet = new Set(existing.map((e) => e.employeeId));
+    const errors: Array<{ row: number; field: string; message: string }> = [];
+    for (let idx = 0; idx < rows.length; idx++) {
+      const r = rows[idx];
+      if (r.employeeId && existingSet.has(String(r.employeeId))) {
+        errors.push({ row: idx + 2, field: 'employeeId', message: 'Employee ID already exists in database' });
+      }
     }
     return errors;
   }
@@ -602,7 +692,7 @@ export class EmployeesService {
   private async insertEmployeesTransaction(rows: any[], userId: number): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       for (const r of rows) {
-        const employeeId = await this.generateEmployeeId();
+        const employeeId = r.employeeId as string;
         const dateOfBirth = r.dateOfBirth ? new Date(r.dateOfBirth) : null;
         await tx.employee.create({
           data: {
@@ -647,11 +737,13 @@ export class EmployeesService {
     }
 
     // Basic validation + collect emails
-    const { errors, emails } = this.validateBasicRowData(rows);
+    const { errors, emails, employeeIds } = this.validateBasicRowData(rows);
     // Check duplicates within file and against DB
     errors.push(
       ...this.validateDuplicateEmailsInFile(emails),
-      ...(await this.validateDuplicateEmailsInDb(emails, rows))
+      ...(await this.validateDuplicateEmailsInDb(emails, rows)),
+      ...this.validateDuplicateEmployeeIdsInFile(employeeIds),
+      ...(await this.validateDuplicateEmployeeIdsInDb(employeeIds, rows))
     );
 
     if (validateOnly) {
@@ -690,11 +782,15 @@ export class EmployeesService {
     id: string,
     includeAssets: boolean = true,
   ): Promise<EmployeeDetailResponseDto> {
-    // Check if id is numeric (database ID) or string (employeeId)
-    const isNumericId = /^\d+$/.test(id);
-    const whereClause = isNumericId
-      ? { id: Number.parseInt(id, 10) }
-      : { employeeId: id };
+    // Disambiguate: 4-digit numeric strings are treated as employeeId; other all-digit strings map to DB id
+    let whereClause: Prisma.EmployeeWhereUniqueInput;
+    if (/^\d{4}$/.test(id)) {
+      whereClause = { employeeId: id };
+    } else if (/^\d+$/.test(id)) {
+      whereClause = { id: Number.parseInt(id, 10) };
+    } else {
+      whereClause = { employeeId: id };
+    }
 
     const employee = await this.prisma.employee.findUnique({
       where: whereClause,
@@ -785,11 +881,15 @@ export class EmployeesService {
     updateEmployeeDto: UpdateEmployeeDto,
     userId: number,
   ): Promise<EmployeeDetailResponseDto> {
-    // Check if id is numeric (database ID) or string (employeeId)
-    const isNumericId = /^\d+$/.test(id);
-    const whereClause = isNumericId
-      ? { id: Number.parseInt(id, 10) }
-      : { employeeId: id };
+    // Disambiguate: 4-digit numeric strings are treated as employeeId; other all-digit strings map to DB id
+    let whereClause: Prisma.EmployeeWhereUniqueInput;
+    if (/^\d{4}$/.test(id)) {
+      whereClause = { employeeId: id };
+    } else if (/^\d+$/.test(id)) {
+      whereClause = { id: Number.parseInt(id, 10) };
+    } else {
+      whereClause = { employeeId: id };
+    }
 
     const existingEmployee = await this.prisma.employee.findUnique({
       where: whereClause,
@@ -921,11 +1021,15 @@ export class EmployeesService {
     userId: number,
     reassignAssetsTo?: string,
   ): Promise<EmployeeDetailResponseDto> {
-    // Check if id is numeric (database ID) or string (employeeId)
-    const isNumericId = /^\d+$/.test(id);
-    const whereClause = isNumericId
-      ? { id: Number.parseInt(id, 10) }
-      : { employeeId: id };
+    // Disambiguate: 4-digit numeric strings are treated as employeeId; other all-digit strings map to DB id
+    let whereClause: Prisma.EmployeeWhereUniqueInput;
+    if (/^\d{4}$/.test(id)) {
+      whereClause = { employeeId: id };
+    } else if (/^\d+$/.test(id)) {
+      whereClause = { id: Number.parseInt(id, 10) };
+    } else {
+      whereClause = { employeeId: id };
+    }
 
     const employee = await this.prisma.employee.findUnique({
       where: whereClause,

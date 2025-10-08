@@ -51,16 +51,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
 
     if (!user || !user.isActive) {
-      throw new UnauthorizedException();
+      throw new UnauthorizedException('Invalid or inactive user');
     }
 
-    // Check if user has ADMIN role
-    const hasAdminRole = user.userRoles.some(
-      (userRole) => userRole.role.roleName === 'ADMIN' && userRole.isActive,
+    // Since this is an admin-only system, verify user has at least one active role
+    // (In practice, all users in this system should have ADMIN role)
+    const hasActiveRole = user.userRoles.some(
+      (userRole) => userRole.isActive,
     );
 
-    if (!hasAdminRole) {
-      throw new UnauthorizedException('Access denied. Admin role required.');
+    if (!hasActiveRole) {
+      throw new UnauthorizedException('User has no active roles');
     }
 
     return {

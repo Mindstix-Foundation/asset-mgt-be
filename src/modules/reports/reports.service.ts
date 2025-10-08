@@ -193,10 +193,8 @@ export class ReportsService {
       percentage: Math.round((item._count.id / totalAssets) * 100),
     }));
 
-    // Get comprehensive recent activities from last 24 hours
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
-    const recentActivity = await this.getRecentActivities(twentyFourHoursAgo);
+    // Get latest N recent activities regardless of time window
+    const recentActivity = await this.getRecentActivitiesLastN(20);
 
     return {
       assetDistribution,
@@ -364,6 +362,88 @@ export class ReportsService {
       (a, b) => b.timestamp.getTime() - a.timestamp.getTime(),
     );
     return sorted.slice(0, 20);
+  }
+
+  /**
+   * Returns the latest `limit` activities across supported domains.
+   * This method does not restrict by time window; instead it fetches
+   * the most recent records from each table and merges them.
+   */
+  private async getRecentActivitiesLastN(limit: number): Promise<RecentActivityData[]> {
+    const activities: RecentActivityData[] = [];
+
+    // Use an epoch start so activity builders include both created/updated events
+    const since = new Date(0);
+
+    // Assets
+    const recentAssets = await this.prisma.asset.findMany({
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      include: {
+        assetType: true,
+        brand: true,
+        model: true,
+        createdByUser: { include: { employee: true } },
+        updatedByUser: { include: { employee: true } },
+      },
+      take: limit,
+    });
+    for (const asset of recentAssets)
+      activities.push(...this.activitiesFromAsset(asset, since));
+
+    // Asset Issues
+    const recentAssetIssues = await this.prisma.assetIssue.findMany({
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      include: {
+        asset: { include: { assetType: true, brand: true, model: true } },
+        employee: true,
+        issuedByUser: { include: { employee: true } },
+      },
+      take: limit,
+    });
+    for (const issue of recentAssetIssues)
+      activities.push(...this.activitiesFromIssue(issue, since));
+
+    // Employees
+    const recentEmployees = await this.prisma.employee.findMany({
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      include: {
+        createdByUser: { include: { employee: true } },
+        updatedByUser: { include: { employee: true } },
+      },
+      take: limit,
+    });
+    for (const employee of recentEmployees)
+      activities.push(...this.activitiesFromEmployee(employee, since));
+
+    // Maintenance
+    const recentMaintenance = await this.prisma.maintenanceSchedule.findMany({
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      include: {
+        asset: { include: { assetType: true, brand: true, model: true } },
+        createdByUser: { include: { employee: true } },
+        updatedByUser: { include: { employee: true } },
+      },
+      take: limit,
+    });
+    for (const maintenance of recentMaintenance)
+      activities.push(...this.activitiesFromMaintenance(maintenance, since));
+
+    // Vendors
+    const recentVendors = await this.prisma.vendor.findMany({
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      include: {
+        createdByUser: { include: { employee: true } },
+        updatedByUser: { include: { employee: true } },
+      },
+      take: limit,
+    });
+    for (const vendor of recentVendors)
+      activities.push(...this.activitiesFromVendor(vendor, since));
+
+    const sorted = activities.toSorted(
+      (a, b) => b.timestamp.getTime() - a.timestamp.getTime(),
+    );
+    return sorted.slice(0, limit);
   }
 
   private buildActivity(

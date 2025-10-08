@@ -4,6 +4,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import * as crypto from 'crypto';
 
 (async () => {
   try {
@@ -12,7 +13,7 @@ import cookieParser from 'cookie-parser';
     // Cookie parser middleware (MUST be before other middleware)
     app.use(cookieParser());
 
-    // Security middleware
+    // Enhanced Security middleware
     app.use(
       helmet({
         contentSecurityPolicy: {
@@ -21,18 +22,51 @@ import cookieParser from 'cookie-parser';
             styleSrc: ["'self'", "'unsafe-inline'"],
             scriptSrc: ["'self'"],
             imgSrc: ["'self'", 'data:', 'https:'],
+            connectSrc: ["'self'", 'http://localhost:5173', 'http://localhost:5174'],
           },
         },
         crossOriginEmbedderPolicy: false,
+        hsts: {
+          maxAge: 31536000,
+          includeSubDomains: true,
+          preload: true,
+        },
       }),
     );
 
     // Enable CORS for frontend connection with credentials
+    const isProduction = process.env.NODE_ENV === 'production';
+    const allowedOrigins = isProduction
+      ? [process.env.FRONTEND_URL || 'https://your-production-domain.com']
+      : ['http://localhost:5173', 'http://localhost:5174'];
+
     app.enableCors({
-      origin: ['http://localhost:5173', 'http://localhost:5174'], // Vite dev server ports
+      origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, Postman, etc.)
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
       credentials: true, // Allow cookies to be sent
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Device-Id'],
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-Device-Id',
+        'X-Request-ID',
+        'X-Fingerprint',
+      ],
+      exposedHeaders: ['X-Request-ID'],
+      maxAge: 86400, // 24 hours
+    });
+
+    // Add request ID middleware for tracking
+    app.use((req: any, res: any, next: any) => {
+      req.id = crypto.randomUUID();
+      res.setHeader('X-Request-ID', req.id);
+      next();
     });
 
     // Enable validation pipes

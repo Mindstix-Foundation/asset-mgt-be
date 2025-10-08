@@ -5,10 +5,21 @@ import {
   IsDateString,
   MinLength,
   MaxLength,
+  Matches,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateEmployeeDto {
+  @ApiProperty({
+    description: '4-digit numeric employee ID (0001-9999)',
+    example: '0042',
+    minLength: 4,
+    maxLength: 4,
+  })
+  @IsString()
+  @Matches(/^\d{4}$/,{ message: 'Employee ID must be exactly 4 digits' })
+  employeeId: string;
+
   @ApiProperty({
     description: 'Employee first name',
     example: 'John',

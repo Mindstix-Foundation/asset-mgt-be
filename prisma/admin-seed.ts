@@ -35,7 +35,7 @@ async function main() {
   console.log('📝 Creating admin employee...');
   const adminEmployee = await prisma.employee.create({
     data: {
-      employeeId: 'EMP-001',
+      employeeId: '0001',
       firstName: 'System',
       lastName: 'Administrator',
       email: 'admin@trackstix.com',

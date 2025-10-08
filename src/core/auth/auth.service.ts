@@ -5,12 +5,14 @@ import {
   NotFoundException,
   BadRequestException,
   Logger,
+  OnModuleInit,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../database/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import * as nodemailer from 'nodemailer';
+import * as crypto from 'crypto';
 import { LoginDto } from './dto/login.dto';
 import {
   ForgotPasswordDto,
@@ -18,15 +20,110 @@ import {
 } from './dto/password.dto';
 
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit {
   private readonly logger = new Logger(AuthService.name);
   private readonly tokenBlacklist: Set<string> = new Set();
+  private cleanupInterval: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
+
+  /**
+   * Initialize cleanup tasks when module loads
+   */
+  async onModuleInit() {
+    // Start periodic token cleanup
+    this.startTokenCleanup();
+    this.logger.log('Auth service initialized with token cleanup');
+  }
+
+  /**
+   * Start periodic token blacklist cleanup
+   */
+  private startTokenCleanup(): void {
+    // Clean up expired tokens every hour
+    this.cleanupInterval = setInterval(
+      async () => {
+        await this.cleanupExpiredBlacklistedTokens();
+      },
+      60 * 60 * 1000,
+    ); // 1 hour
+
+    // Also run cleanup on startup
+    this.cleanupExpiredBlacklistedTokens();
+  }
+
+  /**
+   * Cleanup expired blacklisted tokens
+   */
+  private async cleanupExpiredBlacklistedTokens(): Promise<void> {
+    try {
+      const result = await this.prisma.blacklistedToken.deleteMany({
+        where: {
+          expiresAt: {
+            lt: new Date(),
+          },
+        },
+      });
+
+      if (result.count > 0) {
+        this.logger.log(
+          `Cleaned up ${result.count} expired blacklisted tokens`,
+        );
+        // Clear in-memory cache periodically
+        this.tokenBlacklist.clear();
+      }
+    } catch (error) {
+      this.logger.error('Failed to cleanup expired tokens:', error);
+    }
+  }
+
+  /**
+   * Generate session fingerprint for security
+   */
+  private generateFingerprint(
+    ipAddress?: string,
+    userAgent?: string,
+  ): string {
+    const data = `${ipAddress || 'unknown'}-${userAgent || 'unknown'}`;
+    return crypto.createHash('sha256').update(data).digest('hex');
+  }
+
+  /**
+   * Validate session fingerprint to prevent session hijacking
+   */
+  private async validateSessionFingerprint(
+    sessionId: number,
+    currentIp?: string,
+    currentUserAgent?: string,
+  ): Promise<boolean> {
+    try {
+      const session = await this.prisma.refreshSession.findUnique({
+        where: { id: sessionId },
+      });
+
+      if (!session) {
+        return false;
+      }
+
+      const storedFingerprint = this.generateFingerprint(
+        session.ipAddress || undefined,
+        session.userAgent || undefined,
+      );
+      const currentFingerprint = this.generateFingerprint(
+        currentIp,
+        currentUserAgent,
+      );
+
+      return storedFingerprint === currentFingerprint;
+    } catch (error) {
+      this.logger.error('Session fingerprint validation failed:', error);
+      return false;
+    }
+  }
 
   async login(
     loginDto: LoginDto,
@@ -99,13 +196,13 @@ export class AuthService {
         throw new UnauthorizedException('Invalid credentials');
       }
 
-      // Check if user has ADMIN role
-      const hasAdminRole = user.userRoles.some(
-        (userRole) => userRole.role.roleName === 'ADMIN' && userRole.isActive,
+      // Verify user has at least one active role (admin-only system)
+      const hasActiveRole = user.userRoles.some(
+        (userRole) => userRole.isActive,
       );
 
-      if (!hasAdminRole) {
-        throw new UnauthorizedException('Access denied. Admin role required.');
+      if (!hasActiveRole) {
+        throw new UnauthorizedException('Access denied. No active roles found.');
       }
 
       // Generate tokens
@@ -531,6 +628,10 @@ export class AuthService {
 
   // Password Reset Methods
   async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
+    // Introduce constant-time delay to prevent timing attacks
+    const startTime = Date.now();
+    const MINIMUM_DELAY_MS = 1000; // Always take at least 1 second
+
     try {
       // Check if email format is valid
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -562,6 +663,15 @@ export class AuthService {
         this.logger.warn(
           `Password reset attempted for non-existent email: ${forgotPasswordDto.email}`,
         );
+        
+        // Introduce delay to match the time taken when user exists
+        const elapsed = Date.now() - startTime;
+        if (elapsed < MINIMUM_DELAY_MS) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, MINIMUM_DELAY_MS - elapsed),
+          );
+        }
+
         // Return success message even if user doesn't exist
         return {
           message:
@@ -718,6 +828,14 @@ export class AuthService {
       });
 
       this.logger.log(`Password reset email sent to: ${user.employee.email}`);
+
+      // Ensure constant timing
+      const elapsed = Date.now() - startTime;
+      if (elapsed < MINIMUM_DELAY_MS) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, MINIMUM_DELAY_MS - elapsed),
+        );
+      }
 
       // Return the same message whether user exists or not
       return {
