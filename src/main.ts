@@ -4,7 +4,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import * as crypto from 'crypto';
+import * as crypto from 'node:crypto';
 
 (async () => {
   try {

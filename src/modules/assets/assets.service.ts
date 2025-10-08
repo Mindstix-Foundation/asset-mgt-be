@@ -372,44 +372,27 @@ export class AssetsService {
         skip,
         take: limit,
         orderBy,
-        include: {
-          assetType: {
-            select: {
-              id: true,
-              name: true,
-              category: { select: { id: true, name: true } },
-            },
-          },
-          brand: { select: { id: true, name: true } },
-          model: { select: { id: true, name: true } },
-          vendor: { select: { id: true, name: true } },
-          createdByUser: { select: { id: true, username: true } },
+        select: {
+          id: true,
+          assetId: true,
+          serialNumber: true,
+          condition: true,
+          status: true,
+          assetType: { select: { name: true } },
+          brand: { select: { name: true } },
+          model: { select: { name: true } },
           assetIssues: {
-            where: { returnDate: null }, // Only active assignments
+            where: { returnDate: null }, // Only current assignments
             select: {
-              id: true,
-              issueDate: true,
-              issueReason: true,
-              notes: true,
               employee: {
                 select: {
-                  id: true,
-                  employeeId: true,
                   firstName: true,
                   lastName: true,
-                  email: true,
-                },
-              },
-              issuedByUser: {
-                select: {
-                  id: true,
-                  username: true,
                 },
               },
             },
-            take: 1, // Only get the most recent active assignment
+            take: 1, // Only get the current assignment
           },
-          _count: { select: { assetIssues: true } },
         },
       }),
       this.prisma.asset.count({ where }),
@@ -435,62 +418,59 @@ export class AssetsService {
   async findOne(id: number) {
     const asset = await this.prisma.asset.findUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        assetId: true,
+        serialNumber: true,
+        condition: true,
+        status: true,
+        location: true,
+        notes: true,
+        purchaseDate: true,
+        purchaseCost: true,
+        warrantyStartDate: true,
+        warrantyEndDate: true,
+        retirementDate: true,
+        retirementReason: true,
+        retirementNotes: true,
+        reactivationDate: true,
+        reactivationReason: true,
         assetType: {
           select: {
-            id: true,
             name: true,
-            description: true,
-            category: { select: { id: true, name: true, description: true } },
+            category: { select: { name: true } },
           },
         },
         brand: {
-          select: { id: true, name: true, description: true },
+          select: { name: true },
         },
         model: {
-          select: { id: true, name: true, specifications: true },
+          select: { name: true },
         },
         vendor: {
-          select: {
-            id: true,
-            name: true,
-            contactPerson: true,
-            email: true,
-            phone: true,
-          },
+          select: { name: true },
         },
-        createdByUser: { select: { id: true, username: true } },
-        updatedByUser: { select: { id: true, username: true } },
+        createdByUser: { select: { username: true } },
+        updatedByUser: { select: { username: true } },
         assetIssues: {
           select: {
             id: true,
             issueDate: true,
             returnDate: true,
-            issueCondition: true,
-            returnCondition: true,
             issueReason: true,
-            returnReason: true,
             notes: true,
             employee: {
               select: {
-                id: true,
                 firstName: true,
                 lastName: true,
-                email: true,
               },
             },
             issuedByUser: {
-              select: { id: true, username: true },
+              select: { username: true },
             },
           },
           orderBy: { issueDate: 'desc' },
-          take: 10,
-        },
-        _count: {
-          select: {
-            assetIssues: true,
-            maintenanceSchedules: true,
-          },
+          take: 1, // Only get the latest assignment
         },
       },
     });
@@ -499,9 +479,15 @@ export class AssetsService {
       throw new NotFoundException('Asset not found');
     }
 
+    // Transform the data to ensure purchaseCost is a number
+    const transformedAsset = {
+      ...asset,
+      purchaseCost: asset.purchaseCost ? Number(asset.purchaseCost) : null,
+    };
+
     return {
       message: 'Asset retrieved successfully',
-      data: { asset },
+      data: { asset: transformedAsset },
     };
   }
 
