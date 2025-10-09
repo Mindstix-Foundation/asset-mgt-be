@@ -435,20 +435,25 @@ export class AssetsService {
         retirementNotes: true,
         reactivationDate: true,
         reactivationReason: true,
+        assetTypeId: true,
+        brandId: true,
+        modelId: true,
+        vendorId: true,
         assetType: {
           select: {
+            id: true,
             name: true,
-            category: { select: { name: true } },
+            category: { select: { id: true, name: true } },
           },
         },
         brand: {
-          select: { name: true },
+          select: { id: true, name: true },
         },
         model: {
-          select: { name: true },
+          select: { id: true, name: true, specifications: true },
         },
         vendor: {
-          select: { name: true },
+          select: { id: true, name: true },
         },
         createdByUser: { select: { username: true } },
         updatedByUser: { select: { username: true } },
