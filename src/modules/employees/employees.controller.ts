@@ -123,6 +123,23 @@ export class EmployeesController {
     return { message: 'Employee ID availability', data: { available } };
   }
 
+  @Get('next-available-id')
+  @ApiOperation({ summary: 'Get the next available employee ID' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Returns the next available employee ID', 
+    schema: { 
+      example: { 
+        message: 'Next available employee ID', 
+        data: { employeeId: '0001' } 
+      } 
+    } 
+  })
+  async getNextAvailableEmployeeId() {
+    const employeeId = await this.employeesService.getNextAvailableEmployeeId();
+    return { message: 'Next available employee ID', data: { employeeId } };
+  }
+
   @Get()
   @ApiOperation({ summary: 'Get all employees with filtering and pagination' })
   @ApiQuery({

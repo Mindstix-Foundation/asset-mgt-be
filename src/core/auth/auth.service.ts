@@ -12,7 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../database/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import * as nodemailer from 'nodemailer';
-import * as crypto from 'crypto';
+import * as crypto from 'node:crypto';
 import { LoginDto } from './dto/login.dto';
 import {
   ForgotPasswordDto,
@@ -461,7 +461,7 @@ export class AuthService implements OnModuleInit {
   }
 
   private generateRefreshToken(): string {
-    return require('node:crypto').randomBytes(64).toString('hex');
+    return crypto.randomBytes(64).toString('hex');
   }
 
   // Token Blacklisting Methods

@@ -2928,8 +2928,8 @@ export class AssetsService {
           brand: { select: { id: true, name: true } },
           model: { select: { id: true, name: true } },
           vendor: { select: { id: true, name: true } },
-          createdByUser: { select: { id: true, username: true } },
-          updatedByUser: { select: { id: true, username: true } },
+          createdByUser: { select: { id: true, username: true, employee: { select: { firstName: true, lastName: true } } } },
+          updatedByUser: { select: { id: true, username: true, employee: { select: { firstName: true, lastName: true } } } },
           assetIssues: {
             where: { returnDate: null }, // Only active assignments
             select: {
@@ -2988,11 +2988,15 @@ export class AssetsService {
           ? new Date(asset.reactivationDate).toLocaleDateString('en-GB')
           : '',
         'Reactivation Reason': asset.reactivationReason || '',
-        'Created By': asset.createdByUser?.username || '',
+        'Created By': (asset.createdByUser?.employee
+          ? `${asset.createdByUser.employee.firstName} ${asset.createdByUser.employee.lastName}`.trim()
+          : asset.createdByUser?.username) || '',
         'Created At': asset.createdAt
           ? new Date(asset.createdAt).toLocaleString('en-GB')
           : '',
-        'Updated By': asset.updatedByUser?.username || '',
+        'Updated By': (asset.updatedByUser?.employee
+          ? `${asset.updatedByUser.employee.firstName} ${asset.updatedByUser.employee.lastName}`.trim()
+          : asset.updatedByUser?.username) || '',
         'Updated At': asset.updatedAt
           ? new Date(asset.updatedAt).toLocaleString('en-GB')
           : '',

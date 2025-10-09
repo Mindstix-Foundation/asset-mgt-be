@@ -32,6 +32,7 @@ type MaintenanceEventRow = {
   actualStartDate?: Date | null;
   actualCompletionDate?: Date | null;
   cancellationDate?: Date | null;
+  performedByName?: string | null;
 };
 
 @Injectable()
@@ -1025,7 +1026,11 @@ export class MaintenanceService {
     const schedules = await this.prisma.maintenanceSchedule.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: { asset: { select: { id: true } } },
+      include: {
+        asset: { select: { id: true } },
+        createdByUser: { select: { username: true, employee: { select: { firstName: true, lastName: true, email: true } } } },
+        updatedByUser: { select: { username: true, employee: { select: { firstName: true, lastName: true, email: true } } } },
+      },
     });
 
     const events = this.buildMaintenanceEvents(schedules);
@@ -1055,6 +1060,7 @@ export class MaintenanceService {
       actualCost: e.actualCost,
       completionNotes: e.completionNotes,
       cancellationNotes: e.cancellationNotes,
+      performedByName: e.performedByName || null,
     }));
 
     return {
@@ -1101,6 +1107,13 @@ export class MaintenanceService {
         month: '2-digit',
         day: '2-digit',
       }).format(s.scheduledDate);
+      const performer = s.updatedByUser || s.createdByUser || null;
+      const employee = performer?.employee || null;
+      const fullName = employee ? `${(employee.firstName || '').trim()} ${(employee.lastName || '').trim()}`.trim() : '';
+      const performerName = performer
+        ? (fullName || employee?.email || performer.username || null)
+        : null;
+
       const base = {
         id: s.id,
         description: s.description,
@@ -1118,6 +1131,7 @@ export class MaintenanceService {
         actualCompletionDate: s.actualCompletionDate,
         cancellationDate: s.cancellationDate,
         scheduledDateOnly: scheduledOnly,
+        performedByName: performerName,
       };
       events.push({ ...base, status: 'SCHEDULED', date: s.createdAt });
       if (s.actualCompletionDate)
@@ -1388,8 +1402,8 @@ export class MaintenanceService {
                 model: { select: { name: true } },
               },
             },
-            createdByUser: { select: { id: true, username: true } },
-            updatedByUser: { select: { id: true, username: true } },
+            createdByUser: { select: { id: true, username: true, employee: { select: { firstName: true, lastName: true } } } },
+            updatedByUser: { select: { id: true, username: true, employee: { select: { firstName: true, lastName: true } } } },
           },
           orderBy,
         },
@@ -1436,8 +1450,12 @@ export class MaintenanceService {
         record.actualCost ? Number(record.actualCost).toFixed(2) : '',
         record.completionNotes || '',
         record.cancellationNotes || '',
-        record.createdByUser?.username || 'System',
-        record.updatedByUser?.username || 'System',
+        (record.createdByUser?.employee
+          ? `${record.createdByUser.employee.firstName} ${record.createdByUser.employee.lastName}`.trim()
+          : record.createdByUser?.username) || 'System',
+        (record.updatedByUser?.employee
+          ? `${record.updatedByUser.employee.firstName} ${record.updatedByUser.employee.lastName}`.trim()
+          : record.updatedByUser?.username) || 'System',
         record.createdAt.toISOString().replace('T', ' ').split('.')[0],
         record.updatedAt.toISOString().replace('T', ' ').split('.')[0],
       ]);
