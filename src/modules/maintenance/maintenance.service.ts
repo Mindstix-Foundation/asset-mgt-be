@@ -32,7 +32,6 @@ type MaintenanceEventRow = {
   actualStartDate?: Date | null;
   actualCompletionDate?: Date | null;
   cancellationDate?: Date | null;
-  performedByName?: string | null;
 };
 
 @Injectable()
@@ -320,23 +319,50 @@ export class MaintenanceService {
     const totalPages = Math.ceil(total / limit);
 
     // Format the results
-    const maintenances = (maintenanceResults as any[]).map((row) => ({
-      id: row.id.toString(),
-      assetId: row.asset_asset_id,
-      assetName: `${row.asset_type_name} - ${row.brand_name} ${row.model_name}`,
-      maintenanceTypeId: row.maintenance_type,
-      maintenanceTypeName: row.maintenance_type,
-      status: row.status,
-      assignedTo: 'Internal Team',
-      scheduledDate: row.scheduled_date,
-      estimatedCost: row.estimated_cost ? Number(row.estimated_cost) : null,
-      actualCost: row.actual_cost ? Number(row.actual_cost) : null,
-      description: row.description,
-      completionNotes: row.completion_notes,
-      cancellationNotes: row.cancellation_notes,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }));
+    const maintenances = (maintenanceResults as any[]).map((row) => {
+      // Determine the relevant date based on status
+      let relevantDate = null;
+      let dateType = '';
+      
+      switch (row.status?.toUpperCase()) {
+        case 'CANCELLED':
+          relevantDate = row.cancellation_date;
+          dateType = 'cancellation';
+          break;
+        case 'COMPLETED':
+          relevantDate = row.actual_completion_date;
+          dateType = 'completion';
+          break;
+        case 'IN_PROGRESS':
+        case 'SCHEDULED':
+        default:
+          relevantDate = row.scheduled_date;
+          dateType = 'scheduled';
+          break;
+      }
+
+      return {
+        id: row.id.toString(),
+        assetId: row.asset_asset_id,
+        assetName: `${row.asset_type_name} - ${row.brand_name} ${row.model_name}`,
+        assetType: row.asset_type_name,
+        assetBrand: row.brand_name,
+        assetModel: row.model_name,
+        maintenanceTypeId: row.maintenance_type,
+        maintenanceTypeName: row.maintenance_type,
+        status: row.status,
+        assignedTo: 'Internal Team',
+        relevantDate: relevantDate,
+        dateType: dateType,
+        estimatedCost: row.estimated_cost ? Number(row.estimated_cost) : null,
+        actualCost: row.actual_cost ? Number(row.actual_cost) : null,
+        description: row.description,
+        completionNotes: row.completion_notes,
+        cancellationNotes: row.cancellation_notes,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      };
+    });
 
     return {
       message: 'Latest maintenance records retrieved successfully',
@@ -1026,11 +1052,7 @@ export class MaintenanceService {
     const schedules = await this.prisma.maintenanceSchedule.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: {
-        asset: { select: { id: true } },
-        createdByUser: { select: { username: true, employee: { select: { firstName: true, lastName: true, email: true } } } },
-        updatedByUser: { select: { username: true, employee: { select: { firstName: true, lastName: true, email: true } } } },
-      },
+      include: { asset: { select: { id: true } } },
     });
 
     const events = this.buildMaintenanceEvents(schedules);
@@ -1060,7 +1082,6 @@ export class MaintenanceService {
       actualCost: e.actualCost,
       completionNotes: e.completionNotes,
       cancellationNotes: e.cancellationNotes,
-      performedByName: e.performedByName || null,
     }));
 
     return {
@@ -1107,13 +1128,6 @@ export class MaintenanceService {
         month: '2-digit',
         day: '2-digit',
       }).format(s.scheduledDate);
-      const performer = s.updatedByUser || s.createdByUser || null;
-      const employee = performer?.employee || null;
-      const fullName = employee ? `${(employee.firstName || '').trim()} ${(employee.lastName || '').trim()}`.trim() : '';
-      const performerName = performer
-        ? (fullName || employee?.email || performer.username || null)
-        : null;
-
       const base = {
         id: s.id,
         description: s.description,
@@ -1131,7 +1145,6 @@ export class MaintenanceService {
         actualCompletionDate: s.actualCompletionDate,
         cancellationDate: s.cancellationDate,
         scheduledDateOnly: scheduledOnly,
-        performedByName: performerName,
       };
       events.push({ ...base, status: 'SCHEDULED', date: s.createdAt });
       if (s.actualCompletionDate)
@@ -1402,8 +1415,8 @@ export class MaintenanceService {
                 model: { select: { name: true } },
               },
             },
-            createdByUser: { select: { id: true, username: true, employee: { select: { firstName: true, lastName: true } } } },
-            updatedByUser: { select: { id: true, username: true, employee: { select: { firstName: true, lastName: true } } } },
+            createdByUser: { select: { id: true, username: true } },
+            updatedByUser: { select: { id: true, username: true } },
           },
           orderBy,
         },
@@ -1450,12 +1463,8 @@ export class MaintenanceService {
         record.actualCost ? Number(record.actualCost).toFixed(2) : '',
         record.completionNotes || '',
         record.cancellationNotes || '',
-        (record.createdByUser?.employee
-          ? `${record.createdByUser.employee.firstName} ${record.createdByUser.employee.lastName}`.trim()
-          : record.createdByUser?.username) || 'System',
-        (record.updatedByUser?.employee
-          ? `${record.updatedByUser.employee.firstName} ${record.updatedByUser.employee.lastName}`.trim()
-          : record.updatedByUser?.username) || 'System',
+        record.createdByUser?.username || 'System',
+        record.updatedByUser?.username || 'System',
         record.createdAt.toISOString().replace('T', ' ').split('.')[0],
         record.updatedAt.toISOString().replace('T', ' ').split('.')[0],
       ]);
