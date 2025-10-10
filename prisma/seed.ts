@@ -127,7 +127,7 @@ async function createSampleEmployees(adminUserId: number) {
   ];
   const lastNames = ['Sharma','Verma','Patel','Gupta','Singh','Iyer','Menon','Kulkarni','Reddy','Nair'];
 
-  const employees = [];
+  const employees: any[] = [];
   for (let i = 2; i <= 36; i++) { // Start from 2 since 0001 is admin
     const fn = firstNames[(i - 2) % firstNames.length];
     const ln = lastNames[(i - 2) % lastNames.length];
