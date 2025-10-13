@@ -18,10 +18,10 @@ export class ReturnAssignmentDto {
   @ApiProperty({
     description: 'Condition of the asset when returned',
     example: 'GOOD',
-    enum: ['GOOD', 'FAIR', 'POOR', 'DAMAGED'],
+    enum: ['GOOD', 'FAIR', 'POOR', 'DAMAGED', 'REFURBISHED'],
   })
-  @IsEnum(['GOOD', 'FAIR', 'POOR', 'DAMAGED'])
-  returnCondition: 'GOOD' | 'FAIR' | 'POOR' | 'DAMAGED';
+  @IsEnum(['GOOD', 'FAIR', 'POOR', 'DAMAGED', 'REFURBISHED'])
+  returnCondition: 'GOOD' | 'FAIR' | 'POOR' | 'DAMAGED' | 'REFURBISHED';
 
   @ApiPropertyOptional({
     description: 'Reason for returning the asset',

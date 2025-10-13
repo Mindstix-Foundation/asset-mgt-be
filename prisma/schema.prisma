@@ -414,6 +414,7 @@ enum ReturnCondition {
   FAIR
   POOR
   DAMAGED
+  REFURBISHED
 }
 
 enum EmployeeStatus {
