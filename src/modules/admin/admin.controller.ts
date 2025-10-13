@@ -79,6 +79,20 @@ export class AdminController {
     );
   }
 
+  @Get('users/:id/can-delete')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Check if admin user can be safely deleted' })
+  @ApiResponse({
+    status: 200,
+    description: 'Deletion check completed',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
+  @ApiResponse({ status: 404, description: 'Admin user not found' })
+  async checkAdminCanBeDeleted(@Param('id') id: string) {
+    return this.adminService.checkAdminCanBeDeleted(Number.parseInt(id, 10));
+  }
+
   @Delete('users/:id')
   @Roles('ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)
