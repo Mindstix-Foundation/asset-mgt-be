@@ -40,6 +40,8 @@ model User {
   updatedMaintenanceSchedules MaintenanceSchedule[] @relation("MaintenanceScheduleUpdatedBy")
   createdModels               Model[]               @relation("ModelCreatedBy")
   updatedModels               Model[]               @relation("ModelUpdatedBy")
+  createdRoles                Role[]                @relation("RoleCreatedBy")
+  updatedRoles                Role[]                @relation("RoleUpdatedBy")
   assignedRoles               UserRole[]            @relation("RoleAssignedBy")
   userRoles                   UserRole[]
   createdByUser               User?                 @relation("UserCreatedBy", fields: [createdBy], references: [id])
@@ -102,8 +104,12 @@ model Role {
   id            Int        @id @default(autoincrement())
   roleName      String     @unique @map("role_name") @db.VarChar(50)
   isActive      Boolean    @default(true) @map("is_active")
+  createdBy     Int        @map("created_by")
   createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedBy     Int        @map("updated_by")
   updatedAt     DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdByUser User       @relation("RoleCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User       @relation("RoleUpdatedBy", fields: [updatedBy], references: [id])
   userRoles     UserRole[]
 
   @@index([isActive])

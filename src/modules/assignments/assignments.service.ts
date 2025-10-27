@@ -533,7 +533,7 @@ export class AssignmentsService {
           data: {
             returnDate: new Date(returnAssignmentDto.returnDate), // Business date
             returnTimestamp: new Date(), // Audit timestamp (current UTC time)
-            returnCondition: returnAssignmentDto.returnCondition,
+            returnCondition: returnAssignmentDto.returnCondition as any,
             returnReason: returnAssignmentDto.returnReason,
             notes: returnAssignmentDto.notes || assignment.notes,
             updatedBy: userId,

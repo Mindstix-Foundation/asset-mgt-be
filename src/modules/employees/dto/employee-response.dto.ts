@@ -20,6 +20,7 @@ export class EmployeeResponseDto {
 export class AssignedAssetDto {
   assetId: string;
   assetName: string;
+  serialNumber?: string;
   assignedDate: string;
   status: string;
   assetType?: string;

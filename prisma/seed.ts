@@ -3,82 +3,154 @@ import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
-function pad(num: number, size: number): string {
-  let s = String(num);
-  while (s.length < size) s = '0' + s;
-  return s;
-}
+/**
+ * MAIN SEED FILE - Cleans Database & Creates Admin User
+ * 
+ * This is the primary seed file that:
+ * 1. Cleans all existing data from the database
+ * 2. Creates the system administrator
+ * 
+ * Other data is seeded using dedicated seed files:
+ * - Asset categories, types, brands, models: seed-asset-categories-updated.ts
+ * - Assets: seed-assets-final.ts
+ * - Employees: (separate employee seed file)
+ * - Asset assignments: seed-asset-assignments.ts
+ */
 
-function randomPhone(i: number): string {
-  // Generate random 10-digit number starting with 9
-  const randomNum = Math.floor(Math.random() * 1000000000) + 9000000000;
-  return `+91 ${randomNum}`;
+async function cleanDatabase() {
+  console.log('🧹 Cleaning database...\n');
+
+  try {
+    // Temporarily disable foreign key constraints to handle circular dependencies
+    console.log('  🔓 Temporarily disabling foreign key constraints...');
+    await prisma.$executeRaw`SET session_replication_role = 'replica'`;
+    
+    // Delete all data (order doesn't matter with FK constraints disabled)
+    console.log('  🗑️  Deleting notifications...');
+    await prisma.notification.deleteMany({});
+    
+    console.log('  🗑️  Deleting refresh sessions...');
+    await prisma.refreshSession.deleteMany({});
+    
+    console.log('  🗑️  Deleting blacklisted tokens...');
+    await prisma.blacklistedToken.deleteMany({});
+    
+    console.log('  🗑️  Deleting password resets...');
+    await prisma.passwordReset.deleteMany({});
+    
+    console.log('  🗑️  Deleting asset events...');
+    await prisma.assetEvent.deleteMany({});
+    
+    console.log('  🗑️  Deleting maintenance schedules...');
+    await prisma.maintenanceSchedule.deleteMany({});
+    
+    console.log('  🗑️  Deleting asset issues...');
+    await prisma.assetIssue.deleteMany({});
+    
+    console.log('  🗑️  Deleting assets...');
+    await prisma.asset.deleteMany({});
+    
+    console.log('  🗑️  Deleting models...');
+    await prisma.model.deleteMany({});
+    
+    console.log('  🗑️  Deleting brands...');
+    await prisma.brand.deleteMany({});
+    
+    console.log('  🗑️  Deleting asset types...');
+    await prisma.assetType.deleteMany({});
+    
+    console.log('  🗑️  Deleting asset categories...');
+    await prisma.assetCategory.deleteMany({});
+    
+    console.log('  🗑️  Deleting vendors...');
+    await prisma.vendor.deleteMany({});
+    
+    console.log('  🗑️  Deleting user roles...');
+    await prisma.userRole.deleteMany({});
+    
+    console.log('  🗑️  Deleting roles...');
+    await prisma.role.deleteMany({});
+    
+    console.log('  🗑️  Deleting users...');
+    await prisma.user.deleteMany({});
+    
+    console.log('  🗑️  Deleting employees...');
+    await prisma.employee.deleteMany({});
+    
+    // Re-enable foreign key constraints
+    console.log('  🔒 Re-enabling foreign key constraints...');
+    await prisma.$executeRaw`SET session_replication_role = 'origin'`;
+    
+    console.log('\n✅ Database cleaned successfully!\n');
+  } catch (error) {
+    // Make sure to re-enable FK constraints even if there's an error
+    try {
+      await prisma.$executeRaw`SET session_replication_role = 'origin'`;
+    } catch (fkError) {
+      console.error('❌ Error re-enabling FK constraints:', fkError);
+    }
+    console.error('❌ Error cleaning database:', error);
+    throw error;
+  }
 }
 
 async function createAdminUser() {
   console.log('🌱 Starting admin seed...');
 
-  // Check if admin user already exists
-  const existingAdmin = await prisma.user.findUnique({
-    where: { username: 'admin' },
-  });
-
-  if (existingAdmin) {
-    console.log('⚠️  Admin user already exists. Skipping admin creation.');
-    console.log('\n📋 Login Credentials:');
-    console.log('   Username: admin');
-    console.log('   Password: Admin@123 (if not changed)\n');
-    return existingAdmin.id;
-  }
-
-  // 1. Create ADMIN role
-  console.log('📝 Creating ADMIN role...');
-  const adminRole = await prisma.role.upsert({
-    where: { roleName: 'ADMIN' },
-    update: {},
-    create: {
-      roleName: 'ADMIN',
-      isActive: true,
-    },
-  });
-  console.log('✅ ADMIN role created:', adminRole);
-
-  // 2. Create admin employee first (without createdBy/updatedBy)
-  console.log('📝 Creating admin employee...');
-  const adminEmployee = await prisma.employee.create({
-    data: {
-      employeeId: '0001',
-      firstName: 'System',
-      lastName: 'Administrator',
-      email: 'admin@trackstix.com',
-      phone: '+91 9999999999',
-      dateOfBirth: new Date('1990-01-01'),
-      address: 'System',
-      status: EmployeeStatus.ACTIVE,
-      // createdBy and updatedBy are now nullable, so we can leave them empty initially
-    },
-  });
-  console.log('✅ Admin employee created:', adminEmployee);
-
-  // 3. Hash the default password
+  // Due to circular dependencies (employee needs user, user needs employee, both need created_by),
+  // we use raw SQL to insert the first records with temporary IDs, then update them properly
+  
+  // 1. Hash the default password
   const defaultPassword = 'Admin@123';
   const passwordHash = await bcrypt.hash(defaultPassword, 10);
 
-  // 4. Create admin user
-  console.log('📝 Creating admin user...');
-  const adminUser = await prisma.user.create({
+  // 2. Temporarily disable foreign key checks to break circular dependency
+  console.log('📝 Temporarily disabling foreign key constraints...');
+  await prisma.$executeRaw`SET session_replication_role = 'replica'`;
+
+  // 3. Insert admin employee with temporary created_by (will update later)
+  console.log('📝 Creating admin employee with raw SQL...');
+  await prisma.$executeRaw`
+    INSERT INTO employees (employee_id, first_name, last_name, email, phone, date_of_birth, address, status, created_by, updated_by)
+    VALUES ('9999', 'System', 'Administrator', 'admin@trackstix.com', '+91 9999999999', '1990-01-01', 'System', 'ACTIVE', 1, 1)
+  `;
+  
+  const adminEmployee = await prisma.employee.findUnique({
+    where: { employeeId: '9999' },
+  });
+  if (!adminEmployee) throw new Error('Failed to create admin employee');
+  console.log('✅ Admin employee created');
+
+  // 4. Insert admin user with temporary created_by (will update later)
+  console.log('📝 Creating admin user with raw SQL...');
+  await prisma.$executeRaw`
+    INSERT INTO users (employee_id, username, password_hash, roles, is_active, created_by, updated_by)
+    VALUES (${adminEmployee.id}, 'admin', ${passwordHash}, ARRAY['ADMIN']::text[], true, 1, 1)
+  `;
+
+  // 5. Re-enable foreign key constraints
+  console.log('📝 Re-enabling foreign key constraints...');
+  await prisma.$executeRaw`SET session_replication_role = 'origin'`;
+  
+  const adminUser = await prisma.user.findUnique({
+    where: { username: 'admin' },
+  });
+  if (!adminUser) throw new Error('Failed to create admin user');
+  console.log('✅ Admin user created');
+
+  // 6. Now create ADMIN role (with admin user as creator)
+  console.log('📝 Creating ADMIN role...');
+  const adminRole = await prisma.role.create({
     data: {
-      employeeId: adminEmployee.id,
-      username: 'admin',
-      passwordHash,
-      roles: ['ADMIN'],
+      roleName: 'ADMIN',
       isActive: true,
-      // createdBy and updatedBy are now nullable, so we can leave them empty initially
+      createdBy: adminUser.id,
+      updatedBy: adminUser.id,
     },
   });
-  console.log('✅ Admin user created:', adminUser);
+  console.log('✅ ADMIN role created');
 
-  // 5. Update employee to reference the admin user
+  // 7. Update employee to reference the admin user properly
   await prisma.employee.update({
     where: { id: adminEmployee.id },
     data: {
@@ -87,7 +159,7 @@ async function createAdminUser() {
     },
   });
 
-  // 6. Update user to reference itself
+  // 8. Update user to reference itself properly
   await prisma.user.update({
     where: { id: adminUser.id },
     data: {
@@ -97,7 +169,7 @@ async function createAdminUser() {
   });
   console.log('✅ Updated audit fields to reference admin user');
 
-  // 7. Assign ADMIN role to admin user
+  // 9. Assign ADMIN role to admin user
   console.log('📝 Assigning ADMIN role to admin user...');
   const userRole = await prisma.userRole.create({
     data: {
@@ -107,7 +179,7 @@ async function createAdminUser() {
       isActive: true,
     },
   });
-  console.log('✅ ADMIN role assigned to user:', userRole);
+  console.log('✅ ADMIN role assigned to user');
 
   console.log('\n🎉 Admin seed completed successfully!');
   console.log('\n📋 Login Credentials:');
@@ -118,131 +190,34 @@ async function createAdminUser() {
   return adminUser.id;
 }
 
-async function createSampleEmployees(adminUserId: number) {
-  console.log('🌱 Starting employee seed...');
-
-  const firstNames = [
-    'Aarav','Vivaan','Aditya','Vihaan','Arjun','Sai','Reyansh','Krishna','Ishaan','Rohan',
-    'Anaya','Diya','Ira','Aadhya','Myra','Anika','Sara','Aarohi','Saanvi','Navya'
-  ];
-  const lastNames = ['Sharma','Verma','Patel','Gupta','Singh','Iyer','Menon','Kulkarni','Reddy','Nair'];
-
-  const employees: any[] = [];
-  for (let i = 2; i <= 36; i++) { // Start from 2 since 0001 is admin
-    const fn = firstNames[(i - 2) % firstNames.length];
-    const ln = lastNames[(i - 2) % lastNames.length];
-    const id = pad(i, 4); // Format: 0002, 0003, ..., 0036
-    const email = `${fn.toLowerCase()}.${ln.toLowerCase()}${i}@example.com`;
-
-    const dob = new Date(1990, ((i % 12) || 1) - 1, ((i % 28) || 1)); // spread months/days
-
-    employees.push({
-      employeeId: id,
-      firstName: fn,
-      lastName: ln,
-      email,
-      phone: randomPhone(i), // Random phone number
-      dateOfBirth: dob,
-      address: `${i} MG Road, Pune, Maharashtra 4110${(i % 10)}`,
-      status: EmployeeStatus.ACTIVE,
-      createdBy: adminUserId,
-      updatedBy: adminUserId,
-    });
-  }
-
-  await prisma.employee.createMany({ data: employees, skipDuplicates: true });
-
-  console.log(`✅ Seeded ${employees.length} employees`);
-}
-
-async function createAssetCategoryAndTypes(adminUserId: number) {
-  console.log('🌱 Starting asset category and types seed...');
-
-  // 1. Create Electronics Asset Category
-  console.log('📝 Creating Electronics asset category...');
-  const assetCategory = await prisma.assetCategory.upsert({
-    where: { name: 'Electronics' },
-    update: {},
-    create: {
-      name: 'Electronics',
-      description: 'Electronic devices and equipment',
-      createdBy: adminUserId,
-      updatedBy: adminUserId,
-    },
-  });
-  console.log('✅ Electronics asset category created:', assetCategory);
-
-  // 2. Create Asset Types for Electronics category
-  console.log('📝 Creating asset types for Electronics category...');
-  const assetTypes = [
-    {
-      name: 'Laptop',
-      description: 'Portable computers',
-      categoryId: assetCategory.id,
-      createdBy: adminUserId,
-      updatedBy: adminUserId,
-    },
-    {
-      name: 'Desktop',
-      description: 'Desktop computers',
-      categoryId: assetCategory.id,
-      createdBy: adminUserId,
-      updatedBy: adminUserId,
-    },
-    {
-      name: 'Mobile',
-      description: 'Mobile phones and tablets',
-      categoryId: assetCategory.id,
-      createdBy: adminUserId,
-      updatedBy: adminUserId,
-    },
-    {
-      name: 'Monitor',
-      description: 'Computer monitors and displays',
-      categoryId: assetCategory.id,
-      createdBy: adminUserId,
-      updatedBy: adminUserId,
-    },
-    {
-      name: 'Tablet',
-      description: 'Tablets and portable devices',
-      categoryId: assetCategory.id,
-      createdBy: adminUserId,
-      updatedBy: adminUserId,
-    },
-    {
-      name: 'Accessories',
-      description: 'Computer accessories and peripherals',
-      categoryId: assetCategory.id,
-      createdBy: adminUserId,
-      updatedBy: adminUserId,
-    },
-  ];
-
-  await prisma.assetType.createMany({ data: assetTypes, skipDuplicates: true });
-  console.log(`✅ Seeded ${assetTypes.length} asset types for Electronics category`);
-}
-
 async function main() {
   try {
-    console.log('🚀 Starting unified database seeding...\n');
+    console.log('🚀 Starting database seeding...\n');
     
-    // First create admin user
-    const adminUserId = await createAdminUser();
+    // Step 1: Clean all existing data
+    await cleanDatabase();
     
-    // Then create sample employees
-    await createSampleEmployees(adminUserId);
+    // Step 2: Create admin user
+    await createAdminUser();
     
-    // Then create asset category and types
-    await createAssetCategoryAndTypes(adminUserId);
-    
-    console.log('\n🎉 All seeding completed successfully!');
+    console.log('\n🎉 Database seeding completed successfully!');
     console.log('\n📊 Summary:');
-    console.log('   - 1 Admin user created');
-    console.log('   - 35 Sample employees created');
-    console.log('   - 1 Asset category (Electronics) created');
-    console.log('   - 6 Asset types created (Laptop, Desktop, Mobile, Monitor, Tablet, Accessories)');
-    console.log('   - Total: 36 users in the system');
+    console.log('   ✓ Database cleaned (all old data removed)');
+    console.log('   ✓ 1 Admin user created (username: admin)');
+    console.log('   ✓ 1 Admin employee created (ID: 9999)');
+    console.log('   ✓ 1 ADMIN role created and assigned');
+    
+    console.log('\n📝 Next Steps:');
+    console.log('   1. Run: npx ts-node prisma/seed-asset-categories-updated.ts');
+    console.log('      (Creates asset categories, types, brands & models)');
+    console.log('   2. Run: npx ts-node prisma/seed-assets-final.ts');
+    console.log('      (Creates 325 assets with proper categorization)');
+    console.log('   3. Run employee seed file if available');
+    console.log('   4. Run: npx ts-node prisma/seed-asset-assignments.ts');
+    console.log('      (Assigns assets to employees)');
+    
+    console.log('\n⚠️  WARNING: All previous data has been deleted!');
+    console.log('   Make sure to run all seed files to populate the database.\n');
     
   } catch (error) {
     console.error('❌ Error during seeding:', error);

@@ -28,6 +28,7 @@ type AssetEventRow = {
   assetType: string;
   brand: string;
   model: string;
+  serialNumber?: string;
   action: AssetEventAction;
   date: Date; // business date
   timestamp: Date; // audit timestamp for ordering
@@ -251,6 +252,7 @@ export class EmployeesService {
       responseDto.assignedAssets = employee.assetIssues.map((issue: any) => ({
         assetId: issue.asset.assetId,
         assetName: `${issue.asset.brand.name} ${issue.asset.model.name}`,
+        serialNumber: issue.asset.serialNumber,
         assignedDate: issue.issueDate.toISOString().split('T')[0],
         status: 'ASSIGNED',
       }));
@@ -922,6 +924,7 @@ export class EmployeesService {
         .map((issue: any) => ({
           assetId: issue.asset.assetId,
           assetName: `${issue.asset.brand.name} ${issue.asset.model.name}`,
+          serialNumber: issue.asset.serialNumber,
           assignedDate: issue.issueDate.toISOString().split('T')[0],
           status: 'ASSIGNED',
           assetType: issue.asset.assetType?.name,
@@ -1122,9 +1125,7 @@ export class EmployeesService {
     const employee = await this.prisma.employee.findUnique({
       where: whereClause,
       include: {
-        assetIssues: {
-          where: { returnDate: null },
-        },
+        assetIssues: true, // Get all asset issues (current and past)
       },
     });
 
@@ -1132,55 +1133,51 @@ export class EmployeesService {
       throw new NotFoundException('Employee not found');
     }
 
-    // Check if employee has assigned assets
-    if (employee.assetIssues.length > 0 && !reassignAssetsTo) {
+    // Check if employee is an admin
+    const adminRole = await this.prisma.role.findFirst({
+      where: { roleName: 'ADMIN' },
+    });
+
+    if (adminRole) {
+      const adminUser = await this.prisma.user.findFirst({
+        where: {
+          employeeId: employee.id,
+          userRoles: {
+            some: {
+              roleId: adminRole.id,
+              isActive: true,
+            },
+          },
+        },
+      });
+
+      if (adminUser) {
+        throw new BadRequestException(
+          'Cannot delete an admin employee. Please remove admin privileges first.',
+        );
+      }
+    }
+
+    // Check if employee has any asset history (current or past)
+    if (employee.assetIssues.length > 0) {
       throw new BadRequestException(
-        'Cannot delete employee with assigned assets without reassignment',
+        'Cannot delete employee with asset history. Only employees without any asset assignments can be permanently deleted.',
       );
     }
 
-    // If reassigning assets, validate the target employee
-    if (reassignAssetsTo) {
-      const targetEmployee = await this.prisma.employee.findUnique({
-        where: { employeeId: reassignAssetsTo },
-      });
-
-      if (!targetEmployee) {
-        throw new NotFoundException(
-          'Target employee for reassignment not found',
-        );
-      }
-
-      // Update asset assignments
-      await this.prisma.assetIssue.updateMany({
-        where: {
-          employeeId: employee.id,
-          returnDate: null,
-        },
-        data: {
-          employeeId: targetEmployee.id,
-          updatedBy: userId,
-        },
-      });
-    }
-
-    // Soft delete - mark as inactive
-    const updatedEmployee = await this.prisma.employee.update({
+    // Hard delete - permanently remove from database
+    const deletedEmployee = await this.prisma.employee.delete({
       where: whereClause,
-      data: {
-        status: EmployeeStatus.INACTIVE,
-        updatedBy: userId,
-      },
     });
 
-    const responseEmployee = this.mapToResponseDto(updatedEmployee);
+    const responseEmployee = this.mapToResponseDto(deletedEmployee);
 
     return {
-      message: 'Employee deleted successfully',
+      message: 'Employee permanently deleted successfully',
       data: {
         employee: {
           ...responseEmployee,
-          assignedAssetsCount: employee.assetIssues.length,
+          assignedAssetsCount: 0,
         },
       },
     };
@@ -1364,7 +1361,9 @@ export class EmployeesService {
       where,
       include: {
         asset: {
-          include: {
+          select: {
+            assetId: true,
+            serialNumber: true,
             assetType: { select: { name: true } },
             brand: { select: { name: true } },
             model: { select: { name: true } },
@@ -1410,6 +1409,7 @@ export class EmployeesService {
       assetType: e.assetType,
       brand: e.brand,
       model: e.model,
+      serialNumber: e.serialNumber,
       action: e.action,
       date: e.date.toISOString().split('T')[0],
       timestamp: e.timestamp.toISOString(),
@@ -1456,6 +1456,7 @@ export class EmployeesService {
         assetType: event.asset.assetType.name,
         brand: event.asset.brand.name,
         model: event.asset.model.name,
+        serialNumber: event.asset.serialNumber || undefined,
         action: 'ASSIGNED',
         date: metadata?.issueDate
           ? new Date(metadata.issueDate)
@@ -1475,6 +1476,7 @@ export class EmployeesService {
         assetType: event.asset.assetType.name,
         brand: event.asset.brand.name,
         model: event.asset.model.name,
+        serialNumber: event.asset.serialNumber || undefined,
         action: 'RETURNED',
         date: metadata?.returnDate
           ? new Date(metadata.returnDate)
@@ -1953,7 +1955,7 @@ export class EmployeesService {
 
     // Build where clause
     const where: Prisma.EmployeeWhereInput = {
-      status: 'ACTIVE', // Only active employees
+      // Include both ACTIVE and INACTIVE employees (no status filter)
       // Exclude employees with any asset history (current or past)
       assetIssues: {
         none: {}, // No asset issues at all
@@ -2054,7 +2056,7 @@ export class EmployeesService {
     };
 
     return {
-      message: 'Deletable employees retrieved successfully',
+      message: 'Deletable employees retrieved successfully (includes both active and inactive employees without asset history)',
       data: {
         employees: responseEmployees,
         pagination,
