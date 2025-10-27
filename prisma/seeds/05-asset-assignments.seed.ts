@@ -410,13 +410,19 @@ async function seedAssetAssignments() {
         }
 
         // Create asset issue (assignment)
+        const issueDate = new Date();
+        issueDate.setHours(0, 0, 0, 0); // Set to midnight for Date-only field
+        
         await prisma.assetIssue.create({
           data: {
             assetId: asset.id,
             employeeId: employee.id,
             issuedBy: adminUser.id,
-            issueDate: new Date(),
+            issueDate: issueDate,
+            issueTimestamp: new Date(), // Explicitly set timestamp (though it has default)
             issueCondition: AssetCondition.NEW,
+            issueReason: 'Initial Assignment', // Add issue reason
+            notes: 'Assigned via seed data', // Add notes
             createdBy: adminUser.id,
             updatedBy: adminUser.id,
           },

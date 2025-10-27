@@ -21,11 +21,9 @@ async function cleanDatabase() {
   console.log('🧹 Cleaning database...\n');
 
   try {
-    // Temporarily disable foreign key constraints to handle circular dependencies
-    console.log('  🔓 Temporarily disabling foreign key constraints...');
-    await prisma.$executeRaw`SET session_replication_role = 'replica'`;
+    // Delete all data in correct order (respecting foreign key constraints)
+    // No need to disable FK constraints if we delete in the right order
     
-    // Delete all data (order doesn't matter with FK constraints disabled)
     console.log('  🗑️  Deleting notifications...');
     await prisma.notification.deleteMany({});
     
@@ -62,11 +60,11 @@ async function cleanDatabase() {
     console.log('  🗑️  Deleting asset categories...');
     await prisma.assetCategory.deleteMany({});
     
-    console.log('  🗑️  Deleting vendors...');
-    await prisma.vendor.deleteMany({});
-    
     console.log('  🗑️  Deleting user roles...');
     await prisma.userRole.deleteMany({});
+    
+    console.log('  🗑️  Deleting vendors...');
+    await prisma.vendor.deleteMany({});
     
     console.log('  🗑️  Deleting roles...');
     await prisma.role.deleteMany({});
@@ -77,18 +75,8 @@ async function cleanDatabase() {
     console.log('  🗑️  Deleting employees...');
     await prisma.employee.deleteMany({});
     
-    // Re-enable foreign key constraints
-    console.log('  🔒 Re-enabling foreign key constraints...');
-    await prisma.$executeRaw`SET session_replication_role = 'origin'`;
-    
     console.log('\n✅ Database cleaned successfully!\n');
   } catch (error) {
-    // Make sure to re-enable FK constraints even if there's an error
-    try {
-      await prisma.$executeRaw`SET session_replication_role = 'origin'`;
-    } catch (fkError) {
-      console.error('❌ Error re-enabling FK constraints:', fkError);
-    }
     console.error('❌ Error cleaning database:', error);
     throw error;
   }
@@ -104,15 +92,11 @@ async function createAdminUser() {
   const defaultPassword = 'Admin@123';
   const passwordHash = await bcrypt.hash(defaultPassword, 10);
 
-  // 2. Temporarily disable foreign key checks to break circular dependency
-  console.log('📝 Temporarily disabling foreign key constraints...');
-  await prisma.$executeRaw`SET session_replication_role = 'replica'`;
-
-  // 3. Insert admin employee with temporary created_by (will update later)
+  // 2. Insert admin employee with NULL created_by (will update later)
   console.log('📝 Creating admin employee with raw SQL...');
   await prisma.$executeRaw`
     INSERT INTO employees (employee_id, first_name, last_name, email, phone, date_of_birth, address, status, created_by, updated_by)
-    VALUES ('9999', 'System', 'Administrator', 'admin@trackstix.com', '+91 9999999999', '1990-01-01', 'System', 'ACTIVE', 1, 1)
+    VALUES ('9999', 'System', 'Administrator', 'admin@trackstix.com', '+91 9999999999', '1990-01-01', 'System', 'ACTIVE', NULL, NULL)
   `;
   
   const adminEmployee = await prisma.employee.findUnique({
@@ -121,16 +105,12 @@ async function createAdminUser() {
   if (!adminEmployee) throw new Error('Failed to create admin employee');
   console.log('✅ Admin employee created');
 
-  // 4. Insert admin user with temporary created_by (will update later)
+  // 3. Insert admin user with NULL created_by (will update later)
   console.log('📝 Creating admin user with raw SQL...');
   await prisma.$executeRaw`
     INSERT INTO users (employee_id, username, password_hash, roles, is_active, created_by, updated_by)
-    VALUES (${adminEmployee.id}, 'admin', ${passwordHash}, ARRAY['ADMIN']::text[], true, 1, 1)
+    VALUES (${adminEmployee.id}, 'admin', ${passwordHash}, ARRAY['ADMIN']::text[], true, NULL, NULL)
   `;
-
-  // 5. Re-enable foreign key constraints
-  console.log('📝 Re-enabling foreign key constraints...');
-  await prisma.$executeRaw`SET session_replication_role = 'origin'`;
   
   const adminUser = await prisma.user.findUnique({
     where: { username: 'admin' },
@@ -138,16 +118,17 @@ async function createAdminUser() {
   if (!adminUser) throw new Error('Failed to create admin user');
   console.log('✅ Admin user created');
 
-  // 6. Now create ADMIN role (with admin user as creator)
-  console.log('📝 Creating ADMIN role...');
-  const adminRole = await prisma.role.create({
-    data: {
-      roleName: 'ADMIN',
-      isActive: true,
-      createdBy: adminUser.id,
-      updatedBy: adminUser.id,
-    },
+  // 6. Now create ADMIN role
+  console.log('📝 Creating ADMIN role with raw SQL...');
+  await prisma.$executeRaw`
+    INSERT INTO roles (role_name, is_active)
+    VALUES ('ADMIN', true)
+  `;
+  
+  const adminRole = await prisma.role.findUnique({
+    where: { roleName: 'ADMIN' },
   });
+  if (!adminRole) throw new Error('Failed to create admin role');
   console.log('✅ ADMIN role created');
 
   // 7. Update employee to reference the admin user properly
@@ -208,16 +189,17 @@ async function main() {
     console.log('   ✓ 1 ADMIN role created and assigned');
     
     console.log('\n📝 Next Steps:');
-    console.log('   1. Run: npx ts-node prisma/seed-asset-categories-updated.ts');
-    console.log('      (Creates asset categories, types, brands & models)');
-    console.log('   2. Run: npx ts-node prisma/seed-assets-final.ts');
-    console.log('      (Creates 325 assets with proper categorization)');
-    console.log('   3. Run employee seed file if available');
-    console.log('   4. Run: npx ts-node prisma/seed-asset-assignments.ts');
-    console.log('      (Assigns assets to employees)');
+    console.log('   Option 1 (Recommended): Run all seeds at once');
+    console.log('      npx ts-node prisma/seeds/run-all-seeds.ts');
+    console.log('');
+    console.log('   Option 2: Run seeds individually in order');
+    console.log('      npx ts-node prisma/seeds/02-asset-structure.seed.ts');
+    console.log('      npx ts-node prisma/seeds/03-assets.seed.ts');
+    console.log('      npx ts-node prisma/seeds/04-employees.seed.ts');
+    console.log('      npx ts-node prisma/seeds/05-asset-assignments.seed.ts');
     
     console.log('\n⚠️  WARNING: All previous data has been deleted!');
-    console.log('   Make sure to run all seed files to populate the database.\n');
+    console.log('   Make sure to run all remaining seed files to populate the database.\n');
     
   } catch (error) {
     console.error('❌ Error during seeding:', error);

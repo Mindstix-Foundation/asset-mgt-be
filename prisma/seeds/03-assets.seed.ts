@@ -412,6 +412,7 @@ async function seedAssets() {
   const stats = {
     created: 0,
     failed: 0,
+    skipped: 0,
     categories: new Map<string, number>(),
     brands: new Map<string, number>(),
   };
@@ -473,8 +474,32 @@ async function seedAssets() {
         console.log(`📱 Created model: ${asset.model}`);
       }
 
-      // Generate a unique asset ID (4 digits)
-      const assetId = `AST-${String(stats.created + 1).padStart(4, '0')}`;
+      // Check if asset already exists
+      const existingAsset = await prisma.asset.findUnique({
+        where: { serialNumber: asset.serialNumber },
+      });
+
+      if (existingAsset) {
+        console.log(`⚠️  Asset ${asset.serialNumber} already exists, skipping...`);
+        stats.skipped++;
+        continue;
+      }
+
+      // Generate a unique asset ID (4 digits) - get max existing asset ID
+      const maxAsset = await prisma.asset.findFirst({
+        orderBy: { id: 'desc' },
+        select: { assetId: true },
+      });
+      
+      let nextAssetNumber = 1;
+      if (maxAsset?.assetId) {
+        const match = maxAsset.assetId.match(/AST-(\d+)/);
+        if (match) {
+          nextAssetNumber = parseInt(match[1]) + 1;
+        }
+      }
+      
+      const assetId = `AST-${String(nextAssetNumber).padStart(4, '0')}`;
 
       // Create the asset
       await prisma.asset.create({

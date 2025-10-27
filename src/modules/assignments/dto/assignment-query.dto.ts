@@ -26,13 +26,13 @@ export class AssignmentQueryDto {
     description: 'Number of items per page',
     example: 15,
     minimum: 1,
-    maximum: 100,
+    maximum: 10000,
   })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(10000)
   limit?: number = 15;
 
   @ApiPropertyOptional({

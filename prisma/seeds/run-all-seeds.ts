@@ -1,12 +1,16 @@
 /**
- * MASTER SEED SCRIPT
+ * 🌱 MASTER SEED SCRIPT - Run All Seeds in Order
  * 
- * Runs all seed files in the correct order:
- * 1. Clean database & create admin
+ * This script runs all seed files in the correct order:
+ * 1. Clean database & create admin user
  * 2. Create asset structure (categories, types, brands, models)
- * 3. Create assets
- * 4. Create employees
- * 5. Assign assets to employees
+ * 3. Create 325 assets with proper categorization
+ * 4. Create 196 employees from data
+ * 5. Assign all assets to employees
+ * 
+ * Usage:
+ *   From project root: npx ts-node prisma/seeds/run-all-seeds.ts
+ *   From prisma folder: npx ts-node seeds/run-all-seeds.ts
  */
 
 import { exec } from 'child_process';
@@ -17,28 +21,28 @@ const execAsync = promisify(exec);
 const seedFiles = [
   {
     name: 'Clean Database & Create Admin',
-    file: 'seed.ts',
+    file: '01-clean-and-admin.seed.ts',
     description: 'Cleans all data and creates admin user',
   },
   {
     name: 'Asset Structure',
-    file: 'seed-asset-categories-updated.ts',
+    file: '02-asset-structure.seed.ts',
     description: 'Creates categories, types, brands, and models',
   },
   {
     name: 'Assets',
-    file: 'seed-assets-final.ts',
+    file: '03-assets.seed.ts',
     description: 'Creates 325 assets with proper categorization',
   },
   {
     name: 'Employees',
-    file: 'seed-employees-from-csv.ts',
-    description: 'Creates employee records from CSV',
+    file: '04-employees.seed.ts',
+    description: 'Creates 196 employee records',
   },
   {
     name: 'Asset Assignments',
-    file: 'seed-asset-assignments.ts',
-    description: 'Assigns assets to employees',
+    file: '05-asset-assignments.seed.ts',
+    description: 'Assigns 325 assets to employees',
   },
 ];
 
@@ -52,7 +56,7 @@ async function runSeedFile(seedFile: typeof seedFiles[0], index: number) {
 
   try {
     const { stdout, stderr } = await execAsync(
-      `npx ts-node prisma/${seedFile.file}`,
+      `npx ts-node prisma/seeds/${seedFile.file}`,
       { maxBuffer: 10 * 1024 * 1024 } // 10MB buffer
     );
 
