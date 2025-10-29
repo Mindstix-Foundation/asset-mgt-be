@@ -82,6 +82,10 @@ async function seedAssetCategoriesAndTypes() {
     { brand: 'Apple', assetType: 'Laptop', name: 'MacBook Pro 13" Retina', description: '13-inch MacBook Pro with Retina display' },
     { brand: 'Apple', assetType: 'Laptop', name: 'MacBook Pro 15" Retina', description: '15-inch MacBook Pro with Retina display' },
     { brand: 'Apple', assetType: 'Laptop', name: 'MacBook Air', description: 'MacBook Air laptop' },
+    { brand: 'Apple', assetType: 'Laptop', name: 'MacBook Air M3', description: 'MacBook Air with M3 chip (8GB/16GB RAM, 256GB/500GB SSD)' },
+    { brand: 'Apple', assetType: 'Laptop', name: 'MacBook Pro M3', description: 'MacBook Pro with M3 chip (16GB/18GB RAM, 250GB/500GB SSD)' },
+    { brand: 'Apple', assetType: 'Laptop', name: 'MacBook Air M4', description: 'MacBook Air with M4 chip' },
+    { brand: 'Apple', assetType: 'Laptop', name: 'MacBook Pro M4', description: 'MacBook Pro with M4 chip (16GB RAM)' },
     
     // Dell Laptop Models
     { brand: 'Dell', assetType: 'Laptop', name: 'Inspiron 3537', description: 'Dell Inspiron 3537 laptop' },
@@ -96,7 +100,9 @@ async function seedAssetCategoriesAndTypes() {
     // Other Laptop Models
     { brand: 'Sony', assetType: 'Laptop', name: 'Vaio 15"', description: 'Sony Vaio 15-inch laptop' },
     { brand: 'Asus', assetType: 'Laptop', name: 'Asus K53SD', description: 'Asus K53SD laptop' },
-    { brand: 'Lenovo', assetType: 'Laptop', name: 'Lenovo ThinkPad', description: 'Lenovo ThinkPad laptop' },
+    { brand: 'Lenovo', assetType: 'Laptop', name: 'Lenovo ThinkPad', description: 'Lenovo ThinkPad business laptop' },
+    { brand: 'Lenovo', assetType: 'Laptop', name: 'ThinkPad E14', description: 'Lenovo ThinkPad E14 business laptop' },
+    { brand: 'Lenovo', assetType: 'Laptop', name: 'ThinkBook 15', description: 'Lenovo ThinkBook 15-inch laptop' },
     
     // Apple Mobile Models
     { brand: 'Apple', assetType: 'Mobile', name: 'iPhone 4S', description: 'Apple iPhone 4S' },
@@ -115,11 +121,15 @@ async function seedAssetCategoriesAndTypes() {
     { brand: 'Samsung', assetType: 'Mobile', name: 'Galaxy Grand 2', description: 'Samsung Galaxy Grand 2 smartphone' },
     { brand: 'Samsung', assetType: 'Mobile', name: 'Galaxy M30', description: 'Samsung Galaxy M30 smartphone' },
     { brand: 'Samsung', assetType: 'Mobile', name: 'Galaxy M12', description: 'Samsung Galaxy M12 smartphone' },
-    { brand: 'Samsung', assetType: 'Mobile', name: 'Galaxy M35', description: 'Samsung Galaxy M35 smartphone' },
+    { brand: 'Samsung', assetType: 'Mobile', name: 'Galaxy M35 5G', description: 'Samsung Galaxy M35 5G smartphone (Model: SM-M356B/DS)' },
+    { brand: 'Samsung', assetType: 'Mobile', name: 'Galaxy M06 5G', description: 'Samsung Galaxy M06 5G smartphone (Model: SM-M066B/DS)' },
+    { brand: 'Samsung', assetType: 'Mobile', name: 'Galaxy S21 FE 5G', description: 'Samsung Galaxy S21 FE 5G smartphone (Model: SM-G990B2/DS)' },
+    { brand: 'Samsung', assetType: 'Mobile', name: 'Galaxy A21s', description: 'Samsung Galaxy A21s smartphone' },
     { brand: 'Samsung', assetType: 'Mobile', name: 'Galaxy Flip3', description: 'Samsung Galaxy Flip3 foldable smartphone' },
     
     // Xiaomi Mobile Models
     { brand: 'Xiaomi', assetType: 'Mobile', name: 'Redmi Note 12 5G', description: 'Xiaomi Redmi Note 12 5G smartphone' },
+    { brand: 'Xiaomi', assetType: 'Mobile', name: 'Redmi 13 5G', description: 'Xiaomi Redmi 13 5G smartphone (Model: 2406ERN9CI)' },
     { brand: 'Xiaomi', assetType: 'Mobile', name: 'Poco F4', description: 'Xiaomi Poco F4 smartphone' },
     { brand: 'Xiaomi', assetType: 'Mobile', name: 'Redmi Note 9 Pro Max', description: 'Xiaomi Redmi Note 9 Pro Max smartphone' },
     { brand: 'Xiaomi', assetType: 'Mobile', name: 'Redmi Note 10S', description: 'Xiaomi Redmi Note 10S smartphone' },
@@ -137,6 +147,7 @@ async function seedAssetCategoriesAndTypes() {
     
     // Other Mobile Models
     { brand: 'Motorola', assetType: 'Mobile', name: 'Moto G3', description: 'Motorola Moto G 3rd generation smartphone' },
+    { brand: 'Motorola', assetType: 'Mobile', name: 'Moto G35 5G', description: 'Motorola Moto G35 5G smartphone (Model: XT2433-3)' },
     
     // Tablet Models
     { brand: 'Apple', assetType: 'Tablet', name: 'iPad', description: 'Apple iPad tablet' },
@@ -298,8 +309,14 @@ async function main() {
     console.log('\n📊 Summary:');
     console.log('   - 6 Asset categories');
     console.log('   - 16 Asset types (Generic: Laptop, Mobile, Tablet, Monitor, etc.)');
-    console.log('   - 16 Brands (Apple, Dell, Samsung, Xiaomi, Google, Nokia, etc.)');
-    console.log('   - 90+ Models (MacBook Pro, iPhone, Galaxy, Redmi, Pixel, etc.)');
+    console.log('   - 16 Brands (Apple, Dell, Samsung, Xiaomi, Google, Nokia, Motorola, Lenovo, etc.)');
+    console.log('   - 100+ Models including:');
+    console.log('     • Apple: MacBook Pro/Air (M1/M3/M4), iPhone series');
+    console.log('     • Samsung: Galaxy S/M series (including M35 5G, M06 5G, S21 FE 5G)');
+    console.log('     • Xiaomi: Redmi series (including Redmi 13 5G), Poco F4');
+    console.log('     • Motorola: Moto G series (including G35 5G)');
+    console.log('     • Lenovo: ThinkPad, ThinkBook series');
+    console.log('     • Dell: Inspiron, Vostro series');
     console.log('\n✅ All asset types use GENERIC names compatible with seed-assets-final.ts');
   } catch (error) {
     console.error('❌ Error during seeding:', error);

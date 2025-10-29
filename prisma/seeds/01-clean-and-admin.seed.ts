@@ -21,9 +21,18 @@ async function cleanDatabase() {
   console.log('🧹 Cleaning database...\n');
 
   try {
-    // Delete all data in correct order (respecting foreign key constraints)
-    // No need to disable FK constraints if we delete in the right order
+    // Temporarily disable all triggers to handle circular dependencies during cleanup
+    console.log('  📝 Disabling foreign key constraints for cleanup...');
+    await prisma.$executeRaw`ALTER TABLE employees DISABLE TRIGGER ALL`;
+    await prisma.$executeRaw`ALTER TABLE users DISABLE TRIGGER ALL`;
+    await prisma.$executeRaw`ALTER TABLE roles DISABLE TRIGGER ALL`;
+    await prisma.$executeRaw`ALTER TABLE asset_categories DISABLE TRIGGER ALL`;
+    await prisma.$executeRaw`ALTER TABLE asset_types DISABLE TRIGGER ALL`;
+    await prisma.$executeRaw`ALTER TABLE brands DISABLE TRIGGER ALL`;
+    await prisma.$executeRaw`ALTER TABLE models DISABLE TRIGGER ALL`;
+    await prisma.$executeRaw`ALTER TABLE vendors DISABLE TRIGGER ALL`;
     
+    // Delete all data - order doesn't matter since constraints are disabled
     console.log('  🗑️  Deleting notifications...');
     await prisma.notification.deleteMany({});
     
@@ -75,6 +84,17 @@ async function cleanDatabase() {
     console.log('  🗑️  Deleting employees...');
     await prisma.employee.deleteMany({});
     
+    // Re-enable all triggers
+    console.log('  📝 Re-enabling foreign key constraints...');
+    await prisma.$executeRaw`ALTER TABLE employees ENABLE TRIGGER ALL`;
+    await prisma.$executeRaw`ALTER TABLE users ENABLE TRIGGER ALL`;
+    await prisma.$executeRaw`ALTER TABLE roles ENABLE TRIGGER ALL`;
+    await prisma.$executeRaw`ALTER TABLE asset_categories ENABLE TRIGGER ALL`;
+    await prisma.$executeRaw`ALTER TABLE asset_types ENABLE TRIGGER ALL`;
+    await prisma.$executeRaw`ALTER TABLE brands ENABLE TRIGGER ALL`;
+    await prisma.$executeRaw`ALTER TABLE models ENABLE TRIGGER ALL`;
+    await prisma.$executeRaw`ALTER TABLE vendors ENABLE TRIGGER ALL`;
+    
     console.log('\n✅ Database cleaned successfully!\n');
   } catch (error) {
     console.error('❌ Error cleaning database:', error);
@@ -92,11 +112,17 @@ async function createAdminUser() {
   const defaultPassword = 'Admin@123';
   const passwordHash = await bcrypt.hash(defaultPassword, 10);
 
-  // 2. Insert admin employee with NULL created_by (will update later)
+  // 2. Temporarily disable foreign key constraints to allow circular dependency resolution
+  console.log('📝 Temporarily disabling foreign key constraints...');
+  await prisma.$executeRaw`ALTER TABLE employees DISABLE TRIGGER ALL`;
+  await prisma.$executeRaw`ALTER TABLE users DISABLE TRIGGER ALL`;
+  await prisma.$executeRaw`ALTER TABLE roles DISABLE TRIGGER ALL`;
+
+  // 3. Insert admin employee with dummy created_by (will update later)
   console.log('📝 Creating admin employee with raw SQL...');
   await prisma.$executeRaw`
     INSERT INTO employees (employee_id, first_name, last_name, email, phone, date_of_birth, address, status, created_by, updated_by)
-    VALUES ('9999', 'System', 'Administrator', 'admin@trackstix.com', '+91 9999999999', '1990-01-01', 'System', 'ACTIVE', NULL, NULL)
+    VALUES ('9999', 'System', 'Administrator', 'admin@trackstix.com', '+91 9999999999', '1990-01-01', 'System', 'ACTIVE', 1, 1)
   `;
   
   const adminEmployee = await prisma.employee.findUnique({
@@ -105,11 +131,11 @@ async function createAdminUser() {
   if (!adminEmployee) throw new Error('Failed to create admin employee');
   console.log('✅ Admin employee created');
 
-  // 3. Insert admin user with NULL created_by (will update later)
+  // 4. Insert admin user with dummy created_by (will update later)
   console.log('📝 Creating admin user with raw SQL...');
   await prisma.$executeRaw`
     INSERT INTO users (employee_id, username, password_hash, roles, is_active, created_by, updated_by)
-    VALUES (${adminEmployee.id}, 'admin', ${passwordHash}, ARRAY['ADMIN']::text[], true, NULL, NULL)
+    VALUES (${adminEmployee.id}, 'admin', ${passwordHash}, ARRAY['ADMIN']::text[], true, 1, 1)
   `;
   
   const adminUser = await prisma.user.findUnique({
@@ -118,11 +144,17 @@ async function createAdminUser() {
   if (!adminUser) throw new Error('Failed to create admin user');
   console.log('✅ Admin user created');
 
-  // 6. Now create ADMIN role
+  // 5. Re-enable foreign key constraints
+  console.log('📝 Re-enabling foreign key constraints...');
+  await prisma.$executeRaw`ALTER TABLE employees ENABLE TRIGGER ALL`;
+  await prisma.$executeRaw`ALTER TABLE users ENABLE TRIGGER ALL`;
+  await prisma.$executeRaw`ALTER TABLE roles ENABLE TRIGGER ALL`;
+
+  // 6. Now create ADMIN role (must be done after re-enabling constraints)
   console.log('📝 Creating ADMIN role with raw SQL...');
   await prisma.$executeRaw`
-    INSERT INTO roles (role_name, is_active)
-    VALUES ('ADMIN', true)
+    INSERT INTO roles (role_name, is_active, created_by, updated_by)
+    VALUES ('ADMIN', true, ${adminUser.id}, ${adminUser.id})
   `;
   
   const adminRole = await prisma.role.findUnique({

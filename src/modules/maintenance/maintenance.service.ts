@@ -282,6 +282,7 @@ export class MaintenanceService {
       SELECT 
         m.*,
         a.asset_id as asset_asset_id,
+        a.serial_number as asset_serial_number,
         at.name as asset_type_name,
         b.name as brand_name,
         mo.name as model_name
@@ -348,6 +349,7 @@ export class MaintenanceService {
         assetType: row.asset_type_name,
         assetBrand: row.brand_name,
         assetModel: row.model_name,
+        serialNumber: row.asset_serial_number,
         maintenanceTypeId: row.maintenance_type,
         maintenanceTypeName: row.maintenance_type,
         status: row.status,
@@ -1229,6 +1231,7 @@ export class MaintenanceService {
       assetType: maintenance.asset?.assetType?.name || '',
       assetBrand: maintenance.asset?.brand?.name || '',
       assetModel: maintenance.asset?.model?.name || '',
+      serialNumber: maintenance.asset?.serialNumber || '',
       maintenanceTypeId: maintenance.maintenanceType,
       maintenanceTypeName:
         maintenance.maintenanceType.charAt(0) +

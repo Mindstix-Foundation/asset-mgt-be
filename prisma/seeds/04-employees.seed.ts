@@ -231,7 +231,6 @@ async function seedEmployeesFromCSV() {
       firstName,
       lastName,
       email,
-      phone: `+91 ${9000000000 + emp.staffId}`,
       status: EmployeeStatus.ACTIVE,
       createdBy: adminUser.id,
       updatedBy: adminUser.id,
