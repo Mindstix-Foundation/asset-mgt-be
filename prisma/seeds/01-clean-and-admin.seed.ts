@@ -97,10 +97,10 @@ async function createAdminUser() {
     if (!adminUser) throw new Error('Failed to create admin user');
     console.log('✅ Admin user created');
 
-    // Create ADMIN role
+    // Create ADMIN role (audit fields removed from roles table)
     await tx.$executeRawUnsafe(`
-      INSERT INTO roles (role_name, is_active, created_by, updated_by)
-      VALUES ('ADMIN', true, ${adminUser.id}, ${adminUser.id})
+      INSERT INTO roles (role_name, is_active)
+      VALUES ('ADMIN', true)
     `);
     
     const adminRole = await tx.role.findUnique({
