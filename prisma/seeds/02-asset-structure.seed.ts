@@ -102,8 +102,13 @@ async function seedAssetCategoriesAndTypes() {
     { brand: 'Sony', assetType: 'Laptop', name: 'Vaio 15"', description: 'Sony Vaio 15-inch laptop' },
     { brand: 'Asus', assetType: 'Laptop', name: 'Asus K53SD', description: 'Asus K53SD laptop' },
     { brand: 'Lenovo', assetType: 'Laptop', name: 'Lenovo ThinkPad', description: 'Lenovo ThinkPad business laptop' },
+    { brand: 'Lenovo', assetType: 'Laptop', name: 'ThinkPad P14s Gen 2', description: 'P14s Gen 2 (Type 20VX, 20VY) Laptop (ThinkPad)' },
+    { brand: 'Lenovo', assetType: 'Laptop', name: 'ThinkPad L470', description: 'L470 (type 20J4, 20J5) Laptop (ThinkPad)' },
     { brand: 'Lenovo', assetType: 'Laptop', name: 'ThinkPad E14', description: 'Lenovo ThinkPad E14 business laptop' },
     { brand: 'Lenovo', assetType: 'Laptop', name: 'ThinkBook 15', description: 'Lenovo ThinkBook 15-inch laptop' },
+    
+    // Lenovo Monitor Models
+    { brand: 'Lenovo', assetType: 'Monitor', name: 'ThinkCentre Tiny-in-One 22 Gen3', description: 'Lenovo ThinkCentre Tiny-in-One 22 Gen3 - Type 10R0 monitor' },
     
     // Apple Mobile Models
     { brand: 'Apple', assetType: 'Mobile', name: 'iPhone 4S', description: 'Apple iPhone 4S' },
@@ -113,6 +118,16 @@ async function seedAssetCategoriesAndTypes() {
     { brand: 'Apple', assetType: 'Mobile', name: 'iPhone 6 Plus', description: 'Apple iPhone 6 Plus' },
     { brand: 'Apple', assetType: 'Mobile', name: 'iPhone 6S', description: 'Apple iPhone 6S' },
     { brand: 'Apple', assetType: 'Mobile', name: 'iPhone 7', description: 'Apple iPhone 7' },
+    { brand: 'Apple', assetType: 'Mobile', name: 'iPhone X', description: 'Apple iPhone X' },
+    { brand: 'Apple', assetType: 'Mobile', name: 'iPhone XS', description: 'Apple iPhone XS' },
+    { brand: 'Apple', assetType: 'Mobile', name: 'iPhone XS Max', description: 'Apple iPhone XS Max' },
+    { brand: 'Apple', assetType: 'Mobile', name: 'iPhone 11', description: 'Apple iPhone 11' },
+    { brand: 'Apple', assetType: 'Mobile', name: 'iPhone 11 Pro', description: 'Apple iPhone 11 Pro' },
+    { brand: 'Apple', assetType: 'Mobile', name: 'iPhone 12', description: 'Apple iPhone 12' },
+    { brand: 'Apple', assetType: 'Mobile', name: 'iPhone 13 mini', description: 'Apple iPhone 13 mini' },
+    { brand: 'Apple', assetType: 'Mobile', name: 'iPhone 14 Pro', description: 'Apple iPhone 14 Pro' },
+    { brand: 'Apple', assetType: 'Mobile', name: 'iPhone 16e', description: 'Apple iPhone 16e' },
+    { brand: 'Apple', assetType: 'Mobile', name: 'iPhone 15 Pro Max', description: 'Apple iPhone 15 Pro Max' },
     
     // Samsung Mobile Models
     { brand: 'Samsung', assetType: 'Mobile', name: 'Galaxy S4', description: 'Samsung Galaxy S4 smartphone' },
