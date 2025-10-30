@@ -6,10 +6,10 @@ const prisma = new PrismaClient();
  * COMPREHENSIVE ASSET SEEDING WITH PROPER TYPES, BRANDS, MODELS & NOTES
  * 
  * This seed file includes:
- * - 333 total assets (325 original + 8 new)
+ * - 360 total assets (333 original + 27 new)
  * - Proper asset type classification:
- *   • Laptop (287): MacBook Pro (M1/M3/M4), MacBook Air (M3/M4), Dell, Lenovo ThinkPad, etc.
- *   • Mobile (30): iPhone, Samsung Galaxy (M35/M06/S21 FE 5G), Pixel, Redmi 13 5G, Motorola G35 5G, Poco, etc.
+ *   • Laptop (313): MacBook Pro (M1/M2/M3/M4), MacBook Air (M3/M4), Dell, Lenovo ThinkPad/ThinkBook, etc.
+ *   • Mobile (31): iPhone, Samsung Galaxy (M35/M06/S21 FE 5G), Pixel, Redmi 13 5G, Motorola G35 5G, Poco, etc.
  *   • Monitor (13): Dell displays
  *   • Tablet (2): iPad, Surface
  *   • Accessory (1): Apple Pencil
@@ -31,9 +31,9 @@ const prisma = new PrismaClient();
  * - MacBooks, Dell Inspiron, Lenovo, Asus → Laptop
  * 
  * Brand distribution (UPDATED):
- * - Apple: 219 assets (MacBook M3/M4 + laptops + mobiles + tablets)
- * - Dell: 89 assets (laptops + monitors, some reassigned to Lenovo ThinkPad)
- * - Lenovo: 8 assets (ThinkPad laptops)
+ * - Apple: 222 assets (MacBook M3/M4 + laptops + mobiles + tablets)
+ * - Lenovo: 62 assets (ThinkPad/ThinkBook laptops - corrected from Dell misassignments)
+ * - Dell: 51 assets (laptops + monitors)
  * - Xiaomi: 8 assets (Redmi 13 5G + Redmi + Poco mobiles)
  * - Samsung: 9 assets (Galaxy M35/M06/S21 FE 5G + other Galaxy mobiles)
  * - Motorola: 1 asset (Moto G35 5G)
@@ -74,7 +74,7 @@ const assetsData: AssetData[] = [
   { serialNumber: 'MN27X43JHQ', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro M3', notes: 'MacBook Pro M3 16GB 250GB' },
   { serialNumber: 'JR20PWKLGV', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: '' },
   { serialNumber: 'C6DMXMGHHD', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
-  { serialNumber: 'PF3RKDCS', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo Thinkpad E14 Gen2' },
+  { serialNumber: 'PF3RKDCS', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkPad E14 Gen2', notes: 'Lenovo Thinkpad E14 Gen2' },
   { serialNumber: 'PG013U2J', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
   { serialNumber: 'KW619TR932', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Air M3', notes: 'MacBook Air M3 16GB' },
   { serialNumber: 'FVFVV6T6J1WK', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'SSD128GB/8GB' },
@@ -108,11 +108,11 @@ const assetsData: AssetData[] = [
   { serialNumber: 'FVFXDAG2HV27', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'SSD128GB/8GB' },
   { serialNumber: 'FVHFW1GYQ05D', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK PRO M1' },
   { serialNumber: 'C02G8M8KQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK AIR M1' },
-  { serialNumber: 'MP27HQ3H', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 15 Inch' },
+  { serialNumber: 'MP27HQ3H', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 15', notes: 'Lenovo ThinkBook 15 Inch' },
   { serialNumber: 'C02KC2CWQ6L7', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Air M1' },
   { serialNumber: 'PF1PL6J4', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
   { serialNumber: 'FVHFW1HFQ05D', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK PRO M1' },
-  { serialNumber: 'MP24BQZ7', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 15 Inch' },
+  { serialNumber: 'MP24BQZ7', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 15', notes: 'Lenovo ThinkBook 15 Inch' },
   { serialNumber: 'MHG94T6HPH', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro M3', notes: 'MacBook Pro M3 18GB 500GB' },
   { serialNumber: 'FVFXN1QTHV27', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Pro' },
   { serialNumber: 'FVHXJCF5J1WK', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'SSD128GB/8GB' },
@@ -140,7 +140,7 @@ const assetsData: AssetData[] = [
   { serialNumber: 'C02JM9UFQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Air M1' },
   { serialNumber: 'V2TQ0HL49W', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Pro 14 Inch' },
   { serialNumber: 'C02FFCW5Q6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK AIR' },
-  { serialNumber: 'MP28J2Z8', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 15 Inch' },
+  { serialNumber: 'MP28J2Z8', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 15', notes: 'Lenovo ThinkBook 15 Inch' },
   { serialNumber: 'LRFV3FT767', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Air M3', notes: 'MacBook Air M3 16GB' },
   { serialNumber: 'C02G8W2LQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK AIR M1' },
   { serialNumber: 'HYXQ72MX19', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro M3', notes: 'MacBook Pro M3 18GB 500GB' },
@@ -153,16 +153,16 @@ const assetsData: AssetData[] = [
   { serialNumber: 'FVFX52BUJ1WK', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'SSD128GB/8GB' },
   { serialNumber: 'C02DXD7QML7H', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Pro' },
   { serialNumber: 'RC2CM94TF3', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Pro 14 inch' },
-  { serialNumber: 'MP2639XH', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 14 inch' },
+  { serialNumber: 'MP2639XH', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 14', notes: 'Lenovo ThinkBook 14 inch' },
   { serialNumber: 'C02JJ9JKQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Air' },
   { serialNumber: 'FVFXF6UVHV27', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'SSD128/8GB' },
   { serialNumber: 'FVFJ6N21WFV', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: '' },
   { serialNumber: 'LY04WH9JFC', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Air M3', notes: 'MacBook Air M3 8GB 500GB' },
   { serialNumber: 'C02G8VX9Q6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK AIR M1' },
   { serialNumber: 'FVFVD2ZGJ1WK', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: '13.3/1.8GHZ/8GB/128GB' },
-  { serialNumber: 'MP263CF2', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 14 inch' },
+  { serialNumber: 'MP263CF2', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 14', notes: 'Lenovo ThinkBook 14 inch' },
   { serialNumber: 'KWPXPP6WPX', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Air M3', notes: 'MacBook Air M3 16GB' },
-  { serialNumber: 'MP263A10', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo Thinkbook' },
+  { serialNumber: 'MP263A10', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook', notes: 'Lenovo Thinkbook' },
   { serialNumber: 'RYY4DXRD4H', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Pro 14 inch' },
   { serialNumber: 'HXVPY74729', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'Macbook Pro A2779' },
   { serialNumber: 'R62FHPH0JN', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
@@ -181,26 +181,26 @@ const assetsData: AssetData[] = [
   { serialNumber: 'R4KJXD39H3', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Pro 14 inch' },
   { serialNumber: 'TDQH62WT07', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
   { serialNumber: 'D9K4R3D2TP', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
-  { serialNumber: 'MP27HQ6M', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 15 Inch' },
-  { serialNumber: 'MP262JY2', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 14 inch' },
+  { serialNumber: 'MP27HQ6M', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 15', notes: 'Lenovo ThinkBook 15 Inch' },
+  { serialNumber: 'MP262JY2', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 14', notes: 'Lenovo ThinkBook 14 inch' },
   { serialNumber: 'C02JMBPVQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: '' },
   { serialNumber: 'C02JGR1YQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Air M1' },
   { serialNumber: 'C02JMBNKQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK AIR M1' },
   { serialNumber: 'T9XHJ6VJKH', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
   { serialNumber: 'D9DJJYCVWX', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
-  { serialNumber: 'MP263CAC', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 14 inch' },
-  { serialNumber: 'MP2637MS', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 14 inch' },
+  { serialNumber: 'MP263CAC', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 14', notes: 'Lenovo ThinkBook 14 inch' },
+  { serialNumber: 'MP2637MS', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 14', notes: 'Lenovo ThinkBook 14 inch' },
   { serialNumber: 'PF58K4XS', assetType: 'Laptop', brand: 'Lenovo', model: 'Lenovo ThinkPad', notes: 'Lenovo ThinkPad' },
   { serialNumber: 'C02JMBPFQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'Lennar' },
-  { serialNumber: 'MP28J32S', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 15 inch' },
+  { serialNumber: 'MP28J32S', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 15', notes: 'Lenovo ThinkBook 15 inch' },
   { serialNumber: 'PG02KF95', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
   { serialNumber: 'C02JMBPAQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'Macbook Air A2337' },
   { serialNumber: 'C02FFCURQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK AIR' },
   { serialNumber: 'FVFJ6J511WFV', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Air M1' },
   { serialNumber: 'PF3Q9B36', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
   { serialNumber: 'KJ2096H79W', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro M3', notes: 'MacBook Pro M3 16GB 250GB' },
-  { serialNumber: 'MP2637S2', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'LENOVO THINKBOOK' },
-  { serialNumber: 'MP28J31Y', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 15 Inch' },
+  { serialNumber: 'MP2637S2', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook', notes: 'LENOVO THINKBOOK' },
+  { serialNumber: 'MP28J31Y', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 15', notes: 'Lenovo ThinkBook 15 Inch' },
   { serialNumber: 'LY74GQXWJ1', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Air M3', notes: 'MacBook Air M3' },
   { serialNumber: 'C17FX04BQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: '' },
   { serialNumber: 'C02G8MA1Q6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK AIR M1' },
@@ -209,18 +209,18 @@ const assetsData: AssetData[] = [
   { serialNumber: 'C9TWV1WVYD', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: '' },
   { serialNumber: 'FVFJ6JFE1WFV', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MAcBook Air M1' },
   { serialNumber: 'C02KC2EUQ6L7', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'Lennar' },
-  { serialNumber: 'MP263A74', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'ThinkBook 14 G2 ITL Laptop - Type 20VD' },
-  { serialNumber: 'MP2637NP', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'LENOVO THINKBOOK' },
+  { serialNumber: 'MP263A74', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 14 G2 ITL', notes: 'ThinkBook 14 G2 ITL Laptop - Type 20VD' },
+  { serialNumber: 'MP2637NP', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook', notes: 'LENOVO THINKBOOK' },
   { serialNumber: 'FVFFLPFBQ05D', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: '' },
-  { serialNumber: 'MP22CSK8', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'ThinkBook 16 GB' },
-  { serialNumber: 'MP263A6K', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 14 inch' },
+  { serialNumber: 'MP22CSK8', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook', notes: 'ThinkBook 16 GB' },
+  { serialNumber: 'MP263A6K', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 14', notes: 'Lenovo ThinkBook 14 inch' },
   { serialNumber: 'MY9WH1W9K7', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: '' },
   { serialNumber: 'FVFFMARYQ05D', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK PRO M1' },
   { serialNumber: 'N4W7FNJKW7', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Pro M2' },
   { serialNumber: 'C02G8W1CQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK AIR M1' },
   { serialNumber: 'C02JMA1DQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK AIR M1' },
   { serialNumber: 'C02JMBQWQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK AIR M1' },
-  { serialNumber: 'MP25X01S', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 14 inch' },
+  { serialNumber: 'MP25X01S', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 14', notes: 'Lenovo ThinkBook 14 inch' },
   { serialNumber: 'PG02KF8V', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
   { serialNumber: 'C02G8ME8Q6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK AIR M1' },
   { serialNumber: 'FVFY84XLHV27', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'SSD128GB/8GB' },
@@ -237,7 +237,7 @@ const assetsData: AssetData[] = [
   { serialNumber: 'X307064YGW', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Pro 14 Inch' },
   { serialNumber: 'FVFFM0CNQ05D', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK PRO M1' },
   { serialNumber: 'J930JFJJTC', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Pro 14 Inch' },
-  { serialNumber: 'MP2639X9', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'LENOVO THINKBOOK' },
+  { serialNumber: 'MP2639X9', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook', notes: 'LENOVO THINKBOOK' },
   { serialNumber: 'FVHW69NWJ1WK', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: '13.3/1.8GHZ/8GB/128GB' },
   { serialNumber: 'C02F8DSFQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK AIR M1' },
   { serialNumber: 'C02F8DS4Q6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Air M1' },
@@ -255,21 +255,21 @@ const assetsData: AssetData[] = [
   { serialNumber: 'PG02KF4Z', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
   { serialNumber: 'C02G1ALFQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK AIR' },
   { serialNumber: 'L43CFL6LR0', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Air M3', notes: 'MacBook Air M3' },
-  { serialNumber: 'MP28PT9Q', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 15 inch' },
+  { serialNumber: 'MP28PT9Q', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 15', notes: 'Lenovo ThinkBook 15 inch' },
   { serialNumber: 'TFXWR630H4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: '' },
   { serialNumber: 'XJ0K62H6GF', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Pro 14 Inch' },
   { serialNumber: 'C02G8M27Q6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK AIR M1' },
   { serialNumber: 'KW7HQVX5M7', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Air M3', notes: 'MacBook Air M3 16GB' },
-  { serialNumber: 'MP263CG4', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'LENOVO THINKBOOK' },
+  { serialNumber: 'MP263CG4', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook', notes: 'LENOVO THINKBOOK' },
   { serialNumber: 'FVHXG6ESHV29', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Pro' },
   { serialNumber: 'C02JJ9K5Q6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Air M1' },
-  { serialNumber: 'MP263FGV', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'LENOVO THINKBOOK' },
-  { serialNumber: 'MP24BPDC', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 15 inch' },
-  { serialNumber: 'MP263A16', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 14 inch' },
+  { serialNumber: 'MP263FGV', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook', notes: 'LENOVO THINKBOOK' },
+  { serialNumber: 'MP24BPDC', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 15', notes: 'Lenovo ThinkBook 15 inch' },
+  { serialNumber: 'MP263A16', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 14', notes: 'Lenovo ThinkBook 14 inch' },
   { serialNumber: 'C02G8AQ6ML7H', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK PRO 16GB' },
   { serialNumber: 'FVFFMBBZQ05D', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK PRO' },
   { serialNumber: 'C02KCDVHQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'Lennar' },
-  { serialNumber: 'PF3W96XX', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo Thinkpad E14 Gen 2' },
+  { serialNumber: 'PF3W96XX', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkPad E14 Gen2', notes: 'Lenovo Thinkpad E14 Gen 2' },
   { serialNumber: 'PG02KESE', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
   { serialNumber: 'R9ZY30G0X2T', assetType: 'Mobile', brand: 'Samsung', model: 'Galaxy M06 5G', notes: 'Samsung Galaxy M06 5G - Model: SM-M066B/DS, IMEI:350160040489153/351989660489153' },
   { serialNumber: 'Q2YF2R6W2M', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: '' },
@@ -278,46 +278,46 @@ const assetsData: AssetData[] = [
   { serialNumber: 'PG01GMWA', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
   { serialNumber: 'C02MDFSVFH00', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: '13 Inch Retina / Dual-core i5 2.4 Ghz / 8GB / 256GB Flash / HD Graphics 4000 / 1 Year Standard Apple Warranty/ Got Logic Board replaced on 1/8/2016 with 3 month warranty.' },
   { serialNumber: 'PG02KF7E', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
-  { serialNumber: 'MP263CFL', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 14 Inch' },
+  { serialNumber: 'MP263CFL', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 14', notes: 'Lenovo ThinkBook 14 Inch' },
   { serialNumber: 'MP263AOP', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
   { serialNumber: 'C02D97TDML7L', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Pro A2251' },
   { serialNumber: 'C02JMBPZQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'As Per the Assets Management Tracker' },
   { serialNumber: 'FVFJ6GN21WFV', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Air M1' },
-  { serialNumber: 'MP24BV67', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 15 Inch' },
-  { serialNumber: 'KNA02QIG', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lennovo Think book' },
+  { serialNumber: 'MP24BV67', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 15', notes: 'Lenovo ThinkBook 15 Inch' },
+  { serialNumber: 'KNA02QIG', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook', notes: 'Lennovo Think book' },
   { serialNumber: 'FVFF9BXPQ05D', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Pro 256 GB' },
   { serialNumber: '10R09704', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
   { serialNumber: 'PF0X2TAH', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
   { serialNumber: 'FVFXP23UJK78', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'SSD256GB/8GB' },
   { serialNumber: 'C02DM29CML7H', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Pro' },
-  { serialNumber: 'PG01P77B', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkPad E490' },
+  { serialNumber: 'PG01P77B', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkPad E490', notes: 'Lenovo ThinkPad E490' },
   { serialNumber: 'MP24BQ27', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
-  { serialNumber: 'MP27HVQ9', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 15 Inch' },
+  { serialNumber: 'MP27HVQ9', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 15', notes: 'Lenovo ThinkBook 15 Inch' },
   { serialNumber: 'RZ8T61E8H2X', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'Samsung Galaxy M12' },
   { serialNumber: 'C02JM9CSQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Air M1' },
-  { serialNumber: 'MP27JBK5', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 16 inch' },
+  { serialNumber: 'MP27JBK5', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 16', notes: 'Lenovo ThinkBook 16 inch' },
   { serialNumber: 'HKGH2WG147', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro M4', notes: 'MacBook Pro M4 16GB' },
-  { serialNumber: 'PG01FY2G', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo Thinkpad E480' },
+  { serialNumber: 'PG01FY2G', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkPad E480', notes: 'Lenovo Thinkpad E480' },
   { serialNumber: 'PF58YTLG', assetType: 'Laptop', brand: 'Lenovo', model: 'Lenovo ThinkPad', notes: 'Lenovo ThinkPad' },
   { serialNumber: 'C02T7D9JGVC1', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MACBOOK PRO' },
   { serialNumber: 'PG01GMUJ', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
   { serialNumber: 'FVFXP0S7HV27', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'SSD128/8GB' },
   { serialNumber: 'L7G91377N2', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro M4', notes: 'MacBook Pro M4 16GB' },
   { serialNumber: 'PG01DZDP', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
-  { serialNumber: 'MP27HSEP', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 15 Inch' },
-  { serialNumber: 'MP263A1J', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 14 Inch 40 GB' },
+  { serialNumber: 'MP27HSEP', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 15', notes: 'Lenovo ThinkBook 15 Inch' },
+  { serialNumber: 'MP263A1J', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 14', notes: 'Lenovo ThinkBook 14 Inch 40 GB' },
   { serialNumber: 'MMQ4JJJ4D6', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Pro 14 Inch' },
   { serialNumber: 'C5YY2JQ4TF', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Air M4', notes: 'MacBook Air M4' },
   { serialNumber: 'FVFZ87CGJ1WK', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: '128SSD/8GB' },
   { serialNumber: 'FVFXN1PEHV27', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'SSD128GB/8GB' },
   { serialNumber: 'LV4P56XRY0', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Air M3', notes: 'MacBook Air M3 16GB' },
-  { serialNumber: 'MP263CCV', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'LENOVO THINKBOOK' },
+  { serialNumber: 'MP263CCV', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook', notes: 'LENOVO THINKBOOK' },
   { serialNumber: 'RZ8T61E82BJ', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'Samsung Galaxy M12' },
   { serialNumber: 'C02T7C4YFVH3', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'Inc13/2.7GHz/8GB/128Gb' },
-  { serialNumber: 'MP26A47W', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 14 inch' },
+  { serialNumber: 'MP26A47W', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 14', notes: 'Lenovo ThinkBook 14 inch' },
   { serialNumber: 'FVFXN3EVHV27', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'SSD128GB/8GB' },
   { serialNumber: 'C02Q4L1JFVH3', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'Inc13/2.7GHz/8GB/128Gb' },
-  { serialNumber: 'MP28PT90', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 15 Inch' },
+  { serialNumber: 'MP28PT90', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 15', notes: 'Lenovo ThinkBook 15 Inch' },
   { serialNumber: 'NCQ0HJ75LQ', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Pro M2' },
   { serialNumber: 'C02T88JSFVH3', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'Inc13/2.7GHz/8GB/128Gb' },
   { serialNumber: 'C02T3KLVFVH3', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'Inc13/2.7GHz/8GB/128Gb/keyboard and mouse Problem' },
@@ -333,9 +333,9 @@ const assetsData: AssetData[] = [
   { serialNumber: 'C02HK45QJR9V', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: '' },
   { serialNumber: 'PF1M6BT7', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: '' },
   { serialNumber: 'C02JJ9K3Q6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Air M1' },
-  { serialNumber: 'MJ0FPFXE', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo Thinkpad X1' },
+  { serialNumber: 'MJ0FPFXE', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkPad X1', notes: 'Lenovo Thinkpad X1' },
   { serialNumber: 'C02JMBPLQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Air M1' },
-  { serialNumber: 'MP263A0H', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15 5000', notes: 'Lenovo ThinkBook 14 Inch' },
+  { serialNumber: 'MP263A0H', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 14', notes: 'Lenovo ThinkBook 14 Inch' },
   // NEW LAPTOP ASSETS
   { serialNumber: 'M7PVXLGJ2G', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Air M3', notes: 'MacBook Air M3' },
   { serialNumber: 'L2DN7C14DW', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro M3', notes: 'MacBook Pro M3 18GB 500GB' },
@@ -348,6 +348,35 @@ const assetsData: AssetData[] = [
   { serialNumber: 'KNA02QIG1', assetType: 'Laptop', brand: 'Lenovo', model: 'Lenovo ThinkPad', notes: 'Lenovo ThinkPad 15 Inch' },
   { serialNumber: 'MP24BWTM', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 15', notes: 'Lenovo ThinkBook 15 Inch' },
   { serialNumber: 'PF3Y0WEL', assetType: 'Laptop', brand: 'Lenovo', model: 'Lenovo ThinkPad', notes: 'Lenovo ThinkPad 15 Inch' },
+  // NEW ASSETS - ADDITIONAL 18 ASSETS (16 Lenovo + 2 Mac + 1 iPhone)
+  { serialNumber: 'PG0105R9', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkPad E470', notes: 'E470 Laptop (ThinkPad)' },
+  { serialNumber: 'FVFXQG04J1WK', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro A1708', notes: 'Macbook Pro A1708' },
+  { serialNumber: 'PG0237DT', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkPad E14', notes: 'E14 (Type 20RA, 20RB) Laptop (ThinkPad)' },
+  { serialNumber: 'PG027306', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkPad L14', notes: 'L14 (type 20U1, 20U2) Laptops (ThinkPad)' },
+  { serialNumber: 'FVFX80MHJ1WK', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro A1708', notes: 'Macbook Pro A1708' },
+  { serialNumber: 'PG013U1X', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkPad E470', notes: 'E470 Laptop (ThinkPad)' },
+  { serialNumber: 'PG013U0U', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkPad E470', notes: 'E470 Laptop (ThinkPad)' },
+  { serialNumber: 'PF3TVT5N', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkPad P14s Gen 2', notes: 'P14s Gen 2 (Type 20VX, 20VY) Laptop (ThinkPad)' },
+  { serialNumber: 'PF1ES56S', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkPad L480', notes: 'L480 (type 20LS, 20LT) Laptops (ThinkPad)' },
+  { serialNumber: 'PG01CH60', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkPad E480', notes: 'E480 (Type 20KN, 20KQ) Laptop (ThinkPad)' },
+  { serialNumber: 'PG01P76N', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkPad E490', notes: 'E490 (Type 20N8, 20N9) Laptop (ThinkPad)' },
+  { serialNumber: 'PG0272YJ', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkPad L14', notes: 'L14 (type 20U1, 20U2) Laptops (ThinkPad)' },
+  { serialNumber: 'PG02KES7', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkBook 14 G2 ITL', notes: 'ThinkBook 14 G2 ITL' },
+  { serialNumber: 'PG02730S', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkPad L14', notes: 'L14 (type 20U1, 20U2) Laptops (ThinkPad)' },
+  { serialNumber: 'L73J7LC253', assetType: 'Mobile', brand: 'Apple', model: 'iPhone 6', notes: 'IPHONE 6' },
+  { serialNumber: 'PG01CH4Z', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkPad E480', notes: 'E480 (Type 20KN, 20KQ) Laptop (ThinkPad)' },
+  { serialNumber: 'PG02KE57', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkPad L14 Gen 2', notes: 'L14 Gen 2 Type 20X1 20X2 Laptops (ThinkPad)' },
+  { serialNumber: 'PG013U5C', assetType: 'Laptop', brand: 'Lenovo', model: 'ThinkPad E470', notes: 'E470 Laptop (ThinkPad)' },
+  { serialNumber: 'GCCV712ZJ1WK', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Air 13"', notes: '13.3/1.8GHZ/8GB/128GB' },
+  // ADDITIONAL 4 ASSETS FROM CSV
+  { serialNumber: 'TNW59NDXDC', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro M2', notes: 'Macbook Pro, M2, 2023' },
+  { serialNumber: 'C17R90QFFVH3', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'Inc13/2.7GHz/8GB/128Gb' },
+  { serialNumber: 'C02F20FLML7H', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro', notes: 'MacBook Pro' },
+  { serialNumber: 'C02G47D0ML7H', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro', notes: 'MACBOOK PRO' },
+  { serialNumber: 'PG011WES', assetType: 'Laptop', brand: 'Lenovo', model: 'Lenovo ThinkPad', notes: 'ThinkPad L470' },
+  { serialNumber: 'C02VMOJOHV2D', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro', notes: 'MacBook Pro A1398' },
+  { serialNumber: 'PG01FXW0', assetType: 'Laptop', brand: 'Lenovo', model: 'Lenovo ThinkPad', notes: 'ThinkPad E470' },
+  { serialNumber: 'PF1MBBT7', assetType: 'Laptop', brand: 'Lenovo', model: 'Lenovo ThinkPad', notes: 'ThinkPad L480' },
   // ASSETS FROM MASTER CSV (Lines 649-1410) - 89 additional assets
   { serialNumber: 'FVFVT748J1WL', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Air', notes: 'SSD256GB/8GB' },
   { serialNumber: 'FVFWTANCJ1WK', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Air', notes: 'SSD128GB/8GB' },
@@ -512,6 +541,21 @@ async function seedAssets() {
   const SYSTEM_USER_ID = adminUser.id;
   console.log(`✅ Using admin user (ID: ${SYSTEM_USER_ID}) for audit fields\n`);
 
+  // List of damaged assets (condition should be DAMAGED)
+  const damagedAssets = new Set([
+    'FVFVT748J1WL', 'FVHTVNMZJ1WK', 'FVHXGFWQJ1WK', 'FVFX5SVAJ1WK', 'FVFTK4M2H3QD',
+    'FVFXQJL2J1WK', 'FVHWLGJFJ1WK', 'C02P33VGG3QH', 'FVHX2B26J1WK', 'FVHX2NYYJ1WK',
+    'FVFXP0SHHV27', 'C02T7CDYFVH3', 'C17S900SFVH3', 'FVHW6BN4J1WK', 'C02S5DJ8FVH3',
+    'FVHW6BKVJ1WK', 'C02Q4KUCFVH3', 'FVFVT71TJ1WL', 'FVFXJ2T2J1WK', 'FVFV4DPZJ1WK',
+    'C17N571MG3QJ', 'C17S907RFVH3', 'C02Q4DEGFVH3', 'C17S907ZFVH3', 'C02L4A12DR53',
+    'C17RR7PTFVH3', 'C02NGJNPG3QJ', 'C1MS70AGDTY3', 'C02S5DNLFVH3', 'C02T75DUFVH3',
+    'C1MSM2FSDTY3', 'FVFXJUU0J1WK', 'C02PJ2S5FVH5', 'GCCV712ZJ1WK', 'C02Q4KQSFVH3',
+    'C02RM1LFFVH3', 'C17PD2HDFVH3', 'C02MK4E6FH00', 'C02S9ZRNFVH3', 'FVFVQ4NRJ1WK',
+    'C02FW8HBMD6M', 'FVHX2AXSJ1WK', 'FVFZ5LYTJ1WK', 'C02T4173FVH3', 'FVFXQG06J1WK',
+    'C02T2NL2FVH3', 'C02PQXA4FVH3', 'C17N5710G3QJ', 'C02TM0LVFVH3', 'FVHZ1B8TJ1WK',
+    'PG013U5C', 'PG012MYU'
+  ]);
+
   // Get Electronics category for fallback
   const electronicsCategory = await prisma.assetCategory.findFirst({
     where: { name: 'Electronics' },
@@ -525,6 +569,7 @@ async function seedAssets() {
     created: 0,
     failed: 0,
     skipped: 0,
+    damaged: 0,
     categories: new Map<string, number>(),
     brands: new Map<string, number>(),
   };
@@ -613,6 +658,9 @@ async function seedAssets() {
       
       const assetId = `AST-${String(nextAssetNumber).padStart(4, '0')}`;
 
+      // Determine condition based on damaged assets list
+      const condition = damagedAssets.has(asset.serialNumber) ? 'DAMAGED' : 'GOOD';
+
       // Create the asset
       await prisma.asset.create({
         data: {
@@ -622,7 +670,7 @@ async function seedAssets() {
           brandId: brand.id,
           modelId: model.id,
           status: 'AVAILABLE',
-          condition: 'GOOD',
+          condition: condition,
           notes: asset.notes || null,
           purchaseDate: new Date('2023-01-01'),
           purchaseCost: 1000.0,
@@ -632,6 +680,9 @@ async function seedAssets() {
       });
 
       stats.created++;
+      if (condition === 'DAMAGED') {
+        stats.damaged++;
+      }
       stats.categories.set(asset.assetType, (stats.categories.get(asset.assetType) || 0) + 1);
       stats.brands.set(asset.brand, (stats.brands.get(asset.brand) || 0) + 1);
 
@@ -648,6 +699,7 @@ async function seedAssets() {
   console.log('📊 Final Statistics:');
   console.log(`  Total assets processed: ${assetsData.length}`);
   console.log(`  Successfully created: ${stats.created}`);
+  console.log(`  Assets marked as DAMAGED: ${stats.damaged}`);
   console.log(`  Failed: ${stats.failed}`);
   
   console.log('\n📦 Assets by Type:');
