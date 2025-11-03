@@ -1,4 +1,4 @@
-import { PrismaClient, AssetStatus, AssetCondition } from '@prisma/client';
+import { PrismaClient, AssetStatus, AssetCondition, AssetEventType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -98,7 +98,6 @@ async function seedAssetAssignments() {
         'C02DXD66ML7H',
         'FVFXKB6DHV27',
         '7294P32',
-        'FVFXKB6DH27',
       ],
     },
     {
@@ -413,19 +412,44 @@ async function seedAssetAssignments() {
         // Create asset issue (assignment)
         const issueDate = new Date();
         issueDate.setHours(0, 0, 0, 0); // Set to midnight for Date-only field
+        const issueTimestamp = new Date();
         
-        await prisma.assetIssue.create({
+        const assignment = await prisma.assetIssue.create({
           data: {
             assetId: asset.id,
             employeeId: employee.id,
             issuedBy: adminUser.id,
             issueDate: issueDate,
-            issueTimestamp: new Date(), // Explicitly set timestamp (though it has default)
+            issueTimestamp: issueTimestamp,
             issueCondition: AssetCondition.NEW,
             issueReason: 'Initial Assignment', // Add issue reason
             notes: 'Assigned via seed data', // Add notes
             createdBy: adminUser.id,
             updatedBy: adminUser.id,
+          },
+        });
+
+        // Create AssetEvent record for history tracking
+        await prisma.assetEvent.create({
+          data: {
+            assetId: asset.id,
+            eventType: AssetEventType.ASSET_ISSUED,
+            eventDate: issueTimestamp,
+            performedBy: adminUser.id,
+            metadata: {
+              assignmentId: assignment.id,
+              employeeId: employee.employeeId,
+              employeeName: `${employee.firstName} ${employee.lastName}`,
+              employeeEmail: employee.email,
+              issuedBy: adminUser.username,
+              issueDate: issueDate.toISOString().split('T')[0], // Format as YYYY-MM-DD
+              issueCondition: AssetCondition.NEW,
+              issueReason: 'Initial Assignment',
+              notes: 'Assigned via seed data',
+              previousStatus: 'AVAILABLE',
+              newStatus: 'ASSIGNED',
+              issuedVia: 'SeedData',
+            },
           },
         });
 

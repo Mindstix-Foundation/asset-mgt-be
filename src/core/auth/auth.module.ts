@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
@@ -11,9 +11,21 @@ import { PrismaService } from '../database/prisma.service';
   imports: [
     ConfigModule,
     PassportModule,
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || 'your-secret-key',
-      signOptions: { expiresIn: '15m' }, // Industry standard: 15 minutes
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => {
+        const secret = configService.get<string>('JWT_SECRET');
+        if (!secret) {
+          throw new Error('JWT_SECRET is not defined in environment variables');
+        }
+        return {
+          secret: secret,
+          signOptions: { 
+            expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '7d',
+          },
+        };
+      },
+      inject: [ConfigService],
     }),
   ],
   controllers: [AuthController],

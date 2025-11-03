@@ -324,7 +324,10 @@ export class EmployeesService {
     // Transform to dropdown format
     const dropdownEmployees = employees.map((employee) => ({
       id: employee.id,
-      employeeId: employee.employeeId,
+      employeeId:
+        typeof employee.employeeId === 'string'
+          ? employee.employeeId.trim()
+          : employee.employeeId,
       firstName: employee.firstName,
       lastName: employee.lastName,
       name: `${employee.firstName} ${employee.lastName}`,
@@ -1542,7 +1545,10 @@ export class EmployeesService {
   private mapToResponseDto(employee: any): EmployeeResponseDto {
     return {
       id: employee.id.toString(),
-      employeeId: employee.employeeId,
+      employeeId:
+        typeof employee.employeeId === 'string'
+          ? employee.employeeId.trim()
+          : employee.employeeId,
       firstName: employee.firstName,
       lastName: employee.lastName,
       email: employee.email,

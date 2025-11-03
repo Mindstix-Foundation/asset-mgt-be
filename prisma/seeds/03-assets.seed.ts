@@ -1,21 +1,35 @@
 import { PrismaClient } from '@prisma/client';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const prisma = new PrismaClient();
+
+// Load purchase data mapping from JSON file
+const purchaseDataPath = path.join(__dirname, 'purchase-data-mapping.json');
+let purchaseDataMapping: { [key: string]: { purchaseDate: string | null; purchaseCost: number | null } } = {};
+
+try {
+  const mappingContent = fs.readFileSync(purchaseDataPath, 'utf-8');
+  purchaseDataMapping = JSON.parse(mappingContent);
+  console.log(`✅ Loaded purchase data for ${Object.keys(purchaseDataMapping).length} assets`);
+} catch (error) {
+  console.warn('⚠️  Could not load purchase data mapping. Using null values for purchase data.');
+}
 
 /**
  * COMPREHENSIVE ASSET SEEDING WITH PROPER TYPES, BRANDS, MODELS & NOTES
  * 
- * This seed file includes:
- * - 360 total assets (333 original + 27 new)
+ * This seed file includes (counts updated at runtime):
+ * - Total assets: computed from assetsData
  * - Proper asset type classification:
- *   • Laptop (313): MacBook Pro (M1/M2/M3/M4), MacBook Air (M3/M4), Dell, Lenovo ThinkPad/ThinkBook, etc.
- *   • Mobile (31): iPhone, Samsung Galaxy (M35/M06/S21 FE 5G), Pixel, Redmi 13 5G, Motorola G35 5G, Poco, etc.
- *   • Monitor (13): Dell displays
- *   • Tablet (2): iPad, Surface
- *   • Accessory (1): Apple Pencil
+ *   • Laptop: MacBook Pro (M1/M2/M3/M4), MacBook Air (M3/M4), Dell, Lenovo ThinkPad/ThinkBook, etc.
+ *   • Mobile: iPhone, Samsung Galaxy (M35/M06/S21 FE 5G/A21s), Pixel, Redmi 13 5G, Motorola G35 5G, Poco, etc.
+ *   • Monitor: Dell displays, Lenovo ThinkCentre Tiny-in-One 22 Gen3
+ *   • Tablet: iPad, Surface
+ *   • Accessory: Apple Pencil
  * 
- * - Correct brand assignment: Apple, Dell, Samsung, Google, Xiaomi, Nokia
- * - Specific model identification (MacBook Pro 13" Retina, iPhone 6, Galaxy M30, Poco F4, etc.)
+ * - Correct brand assignment: Apple, Dell, Samsung, Google, Xiaomi, Nokia, Lenovo, Motorola
+ * - Specific model identification (MacBook Pro 13" Retina, iPhone models incl. 15 Pro Max, Galaxy M30/M12/M35, Poco F4, etc.)
  * - Detailed notes/descriptions extracted from the master CSV
  * 
  * Data source mapping:
@@ -30,15 +44,7 @@ const prisma = new PrismaClient();
  * - iPads, Surface → Tablet
  * - MacBooks, Dell Inspiron, Lenovo, Asus → Laptop
  * 
- * Brand distribution (UPDATED):
- * - Apple: 222 assets (MacBook M3/M4 + laptops + mobiles + tablets)
- * - Lenovo: 62 assets (ThinkPad/ThinkBook laptops - corrected from Dell misassignments)
- * - Dell: 51 assets (laptops + monitors)
- * - Xiaomi: 8 assets (Redmi 13 5G + Redmi + Poco mobiles)
- * - Samsung: 9 assets (Galaxy M35/M06/S21 FE 5G + other Galaxy mobiles)
- * - Motorola: 1 asset (Moto G35 5G)
- * - Google: 2 assets (Pixel/Nexus mobiles)
- * - Nokia: 1 asset (Lumia mobile)
+ * Brand/type distribution is printed after seeding based on the current assetsData.
  */
 
 interface AssetData {
@@ -89,9 +95,8 @@ const assetsData: AssetData[] = [
   { serialNumber: 'FVFXN1Q4HV27', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'SSD128GB/8GB' },
   { serialNumber: 'C02JMBPJQ6L4', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Air M1' },
   { serialNumber: 'C02DXD66ML7H', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: 'MacBook Pro' },
-  { serialNumber: 'FVFXKB6DHV27', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: '' },
+  { serialNumber: 'FVFXKB6DHV27', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: '8GB/128GBSSD' },
   { serialNumber: '7294P32', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 15', notes: 'Core i5/8GB/1TB/Windows8.1' },
-  { serialNumber: 'FVFXKB6DH27', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: '8GB/128GBSSD' },
   { serialNumber: 'F17W543AJCLY', assetType: 'Laptop', brand: 'Apple', model: 'MacBook Pro 13" Retina', notes: '64GB/BLACK' },
   { serialNumber: 'RZ8T50GA2NE', assetType: 'Mobile', brand: 'Samsung', model: 'Galaxy M12', notes: 'Samsung Galaxy M12' },
   { serialNumber: 'F3G9MC2', assetType: 'Laptop', brand: 'Dell', model: 'Inspiron 5559', notes: 'i5/8GB/1TB/WINDOWS 10/SILVER/WITH MS OFFICE' },
@@ -553,7 +558,7 @@ async function seedAssets() {
     'C02RM1LFFVH3', 'C17PD2HDFVH3', 'C02MK4E6FH00', 'C02S9ZRNFVH3', 'FVFVQ4NRJ1WK',
     'C02FW8HBMD6M', 'FVHX2AXSJ1WK', 'FVFZ5LYTJ1WK', 'C02T4173FVH3', 'FVFXQG06J1WK',
     'C02T2NL2FVH3', 'C02PQXA4FVH3', 'C17N5710G3QJ', 'C02TM0LVFVH3', 'FVHZ1B8TJ1WK',
-    'PG013U5C', 'PG012MYU'
+    'PG013U5C', 'PG012MYU', 'PG011WES'
   ]);
 
   // Get Electronics category for fallback
@@ -570,6 +575,9 @@ async function seedAssets() {
     failed: 0,
     skipped: 0,
     damaged: 0,
+    withPurchaseDate: 0,
+    withPurchaseCost: 0,
+    withBothPurchaseData: 0,
     categories: new Map<string, number>(),
     brands: new Map<string, number>(),
   };
@@ -661,6 +669,24 @@ async function seedAssets() {
       // Determine condition based on damaged assets list
       const condition = damagedAssets.has(asset.serialNumber) ? 'DAMAGED' : 'GOOD';
 
+      // Get purchase data from mapping, or use null if not found
+      const purchaseData = purchaseDataMapping[asset.serialNumber];
+      let purchaseDate: Date | null = null;
+      let purchaseCost: number | null = null;
+
+      if (purchaseData) {
+        if (purchaseData.purchaseDate) {
+          try {
+            purchaseDate = new Date(purchaseData.purchaseDate);
+          } catch (error) {
+            console.warn(`⚠️  Invalid date format for ${asset.serialNumber}: ${purchaseData.purchaseDate}`);
+          }
+        }
+        if (purchaseData.purchaseCost && purchaseData.purchaseCost > 0) {
+          purchaseCost = purchaseData.purchaseCost;
+        }
+      }
+
       // Create the asset
       await prisma.asset.create({
         data: {
@@ -672,8 +698,8 @@ async function seedAssets() {
           status: 'AVAILABLE',
           condition: condition,
           notes: asset.notes || null,
-          purchaseDate: new Date('2023-01-01'),
-          purchaseCost: 1000.0,
+          purchaseDate: purchaseDate,
+          purchaseCost: purchaseCost,
           createdBy: SYSTEM_USER_ID,
           updatedBy: SYSTEM_USER_ID,
         },
@@ -682,6 +708,15 @@ async function seedAssets() {
       stats.created++;
       if (condition === 'DAMAGED') {
         stats.damaged++;
+      }
+      if (purchaseDate) {
+        stats.withPurchaseDate++;
+      }
+      if (purchaseCost) {
+        stats.withPurchaseCost++;
+      }
+      if (purchaseDate && purchaseCost) {
+        stats.withBothPurchaseData++;
       }
       stats.categories.set(asset.assetType, (stats.categories.get(asset.assetType) || 0) + 1);
       stats.brands.set(asset.brand, (stats.brands.get(asset.brand) || 0) + 1);
@@ -699,8 +734,15 @@ async function seedAssets() {
   console.log('📊 Final Statistics:');
   console.log(`  Total assets processed: ${assetsData.length}`);
   console.log(`  Successfully created: ${stats.created}`);
+  console.log(`  Skipped (already exists): ${stats.skipped}`);
   console.log(`  Assets marked as DAMAGED: ${stats.damaged}`);
   console.log(`  Failed: ${stats.failed}`);
+  
+  console.log('\n💰 Purchase Data Statistics:');
+  console.log(`  Assets with purchase date: ${stats.withPurchaseDate}`);
+  console.log(`  Assets with purchase cost: ${stats.withPurchaseCost}`);
+  console.log(`  Assets with both date & cost: ${stats.withBothPurchaseData}`);
+  console.log(`  Assets with no purchase data: ${stats.created - Math.max(stats.withPurchaseDate, stats.withPurchaseCost)}`);
   
   console.log('\n📦 Assets by Type:');
   Array.from(stats.categories.entries())
