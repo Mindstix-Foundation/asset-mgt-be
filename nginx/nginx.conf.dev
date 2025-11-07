@@ -1,0 +1,30 @@
+events { }
+
+http {
+  upstream frontend {
+    server frontend:5173;
+  }
+
+  upstream backend {
+    server backend:3000;
+  }
+
+  server {
+    listen 80;
+
+    # API requests → backend service
+    location /api/ {
+      proxy_pass http://backend/api/;
+      proxy_set_header Host $host;
+      proxy_set_header X-Real-IP $remote_addr;
+    }
+
+
+    # All other requests → frontend service
+    location / {
+      proxy_pass http://frontend;
+      proxy_set_header Host $host;
+      proxy_set_header X-Real-IP $remote_addr;
+    }
+  }
+}
