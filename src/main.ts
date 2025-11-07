@@ -21,7 +21,7 @@ async function bootstrap() {
           styleSrc: ["'self'", "'unsafe-inline'"],
           scriptSrc: ["'self'"],
           imgSrc: ["'self'", 'data:', 'https:'],
-          connectSrc: ["'self'", 'http://localhost:5173', 'http://dlxq1ha1b01gx.cloudfront.net'],
+          connectSrc: ["'self'", 'http://localhost:5173', 'http://dlxq1ha1b01gx.cloudfront.net', 'https://dlxq1ha1b01gx.cloudfront.net'],
         },
       },
       crossOriginEmbedderPolicy: false,
@@ -37,7 +37,7 @@ async function bootstrap() {
   const isProduction = process.env.NODE_ENV === 'production';
   const allowedOrigins = isProduction
     ? [process.env.FRONTEND_URL || 'https://your-production-domain.com']
-    : ['http://localhost:5173', 'http://localhost:5174', 'http://dlxq1ha1b01gx.cloudfront.net'];
+    : ['http://localhost:5173', 'http://localhost:5174', 'http://dlxq1ha1b01gx.cloudfront.net', 'https://dlxq1ha1b01gx.cloudfront.net'];
 
   app.enableCors({
     origin: (origin, callback) => {
