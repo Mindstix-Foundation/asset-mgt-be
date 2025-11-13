@@ -1,0 +1,118 @@
+version: "3.8"
+
+# ==============================================
+# Asset Management System (Dev + RDS + Nginx)
+# ==============================================
+
+services:
+  # =======================
+  # Backend API (Node.js)
+  # =======================
+  backend:
+    build:
+      context: ./
+      dockerfile: Dockerfile.dev
+    container_name: asset-mgt-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${BACKEND_PORT:-3000}
+
+      # Constructed dynamically (fallback if DATABASE_URL missing)
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT:-5432}/${DB_NAME}?schema=public&sslmode=require}
+
+    volumes:
+      - ./src:/app/src
+      - ./prisma:/app/prisma
+      - backend_uploads:/app/uploads
+      - backend_node_modules:/app/node_modules
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+      - "9229:9229" # Node.js debug port
+    networks:
+      - asset-mgt-network
+    command: npm run start:dev
+    #healthcheck:
+    #  test: ["CMD-SHELL", "curl -f http://localhost:3000/api || exit 1"]
+    #  interval: 30s
+    #  timeout: 10s
+    #  retries: 5
+    #  start_period: 40s
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:3000/api > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # =======================
+  # Frontend (Vite + React)
+  # =======================
+  frontend:
+    build:
+      context: ../asset-mgt-fe/frontend
+      dockerfile: Dockerfile.dev
+    container_name: asset-mgt-frontend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+    volumes:
+      - ../asset-mgt-fe/frontend/src:/app/src
+      - ../asset-mgt-fe/frontend/public:/app/public
+      - ../asset-mgt-fe/frontend/index.html:/app/index.html
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "5173:5173"
+    # depends_on:
+    #  backend:
+    #    condition: service_healthy
+    networks:
+      - asset-mgt-network
+    command: npm run dev -- --host 0.0.0.0
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5173 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  # =======================
+  # Nginx Reverse Proxy
+  # =======================
+  nginx:
+    image: nginx:alpine
+    container_name: asset-mgt-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+  #depends_on:
+  #    backend:
+  #      condition: service_healthy
+  #    frontend:
+  #      condition: service_healthy
+    networks:
+      - asset-mgt-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+# ==============================================
+# Volumes & Networks
+# ==============================================
+volumes:
+  backend_uploads:
+  backend_node_modules:
+  frontend_node_modules:
+
+networks:
+  asset-mgt-network:
+    driver: bridge
