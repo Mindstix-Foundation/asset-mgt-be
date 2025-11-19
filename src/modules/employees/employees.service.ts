@@ -142,34 +142,34 @@ export class EmployeesService {
   }
 
   async getNextAvailableEmployeeId(): Promise<string> {
-    // Get all existing employee IDs
-    const employees = await this.prisma.employee.findMany({
+    // Get the last created employee by createdAt timestamp
+    // This returns the most recently added employee, not the highest ID
+    const lastEmployee = await this.prisma.employee.findFirst({
       select: { employeeId: true },
+      orderBy: { createdAt: 'desc' },
     });
 
-    // Convert to numbers and filter valid range (1-9999) and 4-digit format
-    const existingIds = employees
-      .filter(emp => emp.employeeId.length === 4 && /^\d{4}$/.test(emp.employeeId))
-      .map(emp => Number.parseInt(emp.employeeId, 10))
-      .filter(id => !Number.isNaN(id) && id >= 1 && id <= 9999)
-      .sort((a, b) => a - b);
+    let nextId = 1; // Default to 0001 if no employees exist
 
-    // Find the first gap or the next available ID
-    let nextId = 1;
-    for (const existingId of existingIds) {
-      if (existingId === nextId) {
-        nextId++;
-      } else {
-        break;
+    if (lastEmployee) {
+      // Trim the employee ID since it's stored as CHAR(8) and may have trailing spaces
+      const trimmedId = lastEmployee.employeeId.trim();
+      
+      // Only process if it's a valid 4-digit numeric employee ID
+      if (trimmedId.length === 4 && /^\d{4}$/.test(trimmedId)) {
+        const lastIdNum = Number.parseInt(trimmedId, 10);
+        
+        // Increment the last ID by 1
+        // If last ID is 9999, wrap around to 0001
+        // Examples: 0899 -> 0900, 9999 -> 0001
+        if (!Number.isNaN(lastIdNum) && lastIdNum >= 1 && lastIdNum <= 9999) {
+          nextId = lastIdNum >= 9999 ? 1 : lastIdNum + 1;
+        }
       }
     }
 
-    // Ensure we don't exceed 9999
-    if (nextId > 9999) {
-      nextId = 1; // Fallback to 1 if all IDs are taken
-    }
-
     // Format as 4-digit string with leading zeros
+    // Examples: 1 -> "0001", 900 -> "0900", 9999 -> "9999"
     return nextId.toString().padStart(4, '0');
   }
 

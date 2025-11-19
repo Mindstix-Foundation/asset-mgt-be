@@ -124,14 +124,14 @@ export class EmployeesController {
   }
 
   @Get('next-available-id')
-  @ApiOperation({ summary: 'Get the next available employee ID' })
+  @ApiOperation({ summary: 'Get the next employee ID (last added + 1)' })
   @ApiResponse({ 
     status: 200, 
-    description: 'Returns the next available employee ID', 
+    description: 'Returns the next employee ID based on the last added employee (increments by 1, wraps to 0001 after 9999)', 
     schema: { 
       example: { 
         message: 'Next available employee ID', 
-        data: { employeeId: '0001' } 
+        data: { employeeId: '0900' } 
       } 
     } 
   })
