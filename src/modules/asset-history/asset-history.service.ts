@@ -101,7 +101,7 @@ export class AssetHistoryService {
    * Build asset creation event details
    */
   private buildAssetCreatedDetails(event: any, asset: any): any {
-    return {
+    const details: any = {
       assetId: event.metadata?.assetId || asset.assetId,
       assetType: event.metadata?.assetType || asset.assetType?.name || null,
       brand: event.metadata?.brand || asset.brand?.name || null,
@@ -117,6 +117,66 @@ export class AssetHistoryService {
       warrantyEndDate: asset.warrantyEndDate || null,
       notes: asset.notes || null,
     };
+
+    // Include specifications if available with label mapping
+    if (event.metadata?.specifications) {
+      const specs = event.metadata.specifications;
+      if (specs && typeof specs === 'object') {
+        // Build label map from asset type's specification template
+        const labelMap = this.buildSpecificationLabelMap(
+          asset.assetType?.specificationTemplate,
+        );
+
+        // Flatten specifications with labels into the details object
+        Object.entries(specs).forEach(([key, value]) => {
+          if (value !== null && value !== undefined && value !== '') {
+            // Use label if available, otherwise use key
+            const label = labelMap[key] || key;
+            details[label] = value;
+          }
+        });
+      }
+    }
+
+    return details;
+  }
+
+  /**
+   * Build specification label map from template
+   */
+  private buildSpecificationLabelMap(
+    specificationTemplate?: any,
+  ): Record<string, string> {
+    if (!specificationTemplate) {
+      return {};
+    }
+
+    // If template is a string (JSON), parse it
+    let template = specificationTemplate;
+    if (typeof specificationTemplate === 'string') {
+      try {
+        template = JSON.parse(specificationTemplate);
+      } catch (e) {
+        return {};
+      }
+    }
+
+    // Check if fields array exists
+    if (
+      !template?.fields ||
+      !Array.isArray(template.fields) ||
+      template.fields.length === 0
+    ) {
+      return {};
+    }
+
+    const labelMap: Record<string, string> = {};
+    for (const field of template.fields) {
+      if (field?.key && field?.label) {
+        labelMap[field.key] = field.label;
+      }
+    }
+    return labelMap;
   }
 
   /**

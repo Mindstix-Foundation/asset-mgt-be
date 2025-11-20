@@ -5,6 +5,7 @@ import {
   IsNumber,
   IsDateString,
   IsEnum,
+  IsObject,
   MaxLength,
   MinLength,
   Min,
@@ -133,6 +134,19 @@ export class CreateAssetDto {
   @IsOptional()
   @IsEnum(['AVAILABLE', 'ASSIGNED', 'IN_MAINTENANCE', 'RETIRED', 'LOST'])
   status?: 'AVAILABLE' | 'ASSIGNED' | 'IN_MAINTENANCE' | 'RETIRED' | 'LOST';
+
+  @ApiPropertyOptional({
+    description: 'Asset specifications (JSON object with key-value pairs)',
+    example: {
+      processor: 'Intel i7-13700H',
+      ram_gb: 16,
+      operating_system: 'Windows 11',
+      storage: '512GB SSD',
+    },
+  })
+  @IsOptional()
+  @IsObject()
+  specifications?: Record<string, any>;
 
   @ApiPropertyOptional({
     description: 'Additional notes about the asset',

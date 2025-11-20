@@ -17,7 +17,7 @@ export class CreateEmployeeDto {
     maxLength: 4,
   })
   @IsString()
-  @Matches(/^\d{4}$/,{ message: 'Employee ID must be exactly 4 digits' })
+  @Matches(/^\d{4}$/, { message: 'Employee ID must be exactly 4 digits' })
   employeeId: string;
 
   @ApiProperty({

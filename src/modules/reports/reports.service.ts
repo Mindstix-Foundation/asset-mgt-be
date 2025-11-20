@@ -369,7 +369,9 @@ export class ReportsService {
    * This method does not restrict by time window; instead it fetches
    * the most recent records from each table and merges them.
    */
-  private async getRecentActivitiesLastN(limit: number): Promise<RecentActivityData[]> {
+  private async getRecentActivitiesLastN(
+    limit: number,
+  ): Promise<RecentActivityData[]> {
     const activities: RecentActivityData[] = [];
 
     // Use an epoch start so activity builders include both created/updated events

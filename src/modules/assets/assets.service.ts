@@ -13,7 +13,7 @@ import {
   RetireAssetDto,
   ReactivateAssetDto,
 } from './dto';
-import { AssetEventType } from '@prisma/client';
+import { AssetEventType, Prisma } from '@prisma/client';
 
 /**
  * Validation context for bulk upload processing
@@ -219,6 +219,7 @@ export class AssetsService {
             id: true,
             name: true,
             category: { select: { id: true, name: true } },
+            specificationTemplate: true,
           },
         },
         brand: { select: { id: true, name: true } },
@@ -247,11 +248,72 @@ export class AssetsService {
           location: asset.location,
           purchaseCost: asset.purchaseCost,
           vendor: vendor?.name || null,
+          specifications: asset.specifications || null,
         },
       },
     });
 
     return asset;
+  }
+
+  private buildSpecificationLabelMap(
+    specificationTemplate?: any,
+  ): Record<string, string> {
+    // Handle null/undefined
+    if (!specificationTemplate) {
+      return {};
+    }
+
+    // If template is a string (JSON), parse it
+    let template = specificationTemplate;
+    if (typeof specificationTemplate === 'string') {
+      try {
+        template = JSON.parse(specificationTemplate);
+      } catch (e) {
+        console.error('Failed to parse specification template JSON:', e);
+        return {};
+      }
+    }
+
+    // Check if fields array exists
+    if (
+      !template?.fields ||
+      !Array.isArray(template.fields) ||
+      template.fields.length === 0
+    ) {
+      return {};
+    }
+
+    const labelMap: Record<string, string> = {};
+    for (const field of template.fields) {
+      if (field?.key && field?.label) {
+        labelMap[field.key] = field.label;
+      }
+    }
+    return labelMap;
+  }
+
+  private transformSpecificationsWithLabels(
+    specifications?: Record<string, any>,
+    labelMap?: Record<string, string>,
+  ): Record<string, any> | undefined {
+    if (
+      !specifications ||
+      !labelMap ||
+      Object.keys(specifications).length === 0
+    ) {
+      return specifications;
+    }
+
+    const transformed: Record<string, any> = {};
+    for (const [key, value] of Object.entries(specifications)) {
+      if (value === null || value === undefined || value === '') {
+        continue;
+      }
+      const label = labelMap[key] || key;
+      transformed[label] = value;
+    }
+    return transformed;
   }
 
   /**
@@ -321,6 +383,7 @@ export class AssetsService {
       assetStatus,
       sortBy = 'assetId',
       sortOrder = 'asc',
+      specificationFilters,
     } = queryDto;
     const skip = (page - 1) * limit;
 
@@ -364,6 +427,27 @@ export class AssetsService {
       }
     }
 
+    if (specificationFilters) {
+      try {
+        const parsedFilters = JSON.parse(specificationFilters);
+        if (parsedFilters && typeof parsedFilters === 'object') {
+          Object.entries(parsedFilters).forEach(([key, value]) => {
+            if (value !== undefined && value !== null && value !== '') {
+              where.AND = where.AND || [];
+              where.AND.push({
+                specifications: {
+                  path: [key],
+                  equals: value,
+                },
+              });
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Invalid specificationFilters payload:', error);
+      }
+    }
+
     const orderBy = { [sortBy]: sortOrder } as any;
 
     const [assets, totalCount] = await Promise.all([
@@ -378,6 +462,7 @@ export class AssetsService {
           serialNumber: true,
           condition: true,
           status: true,
+          specifications: true,
           assetType: { select: { name: true } },
           brand: { select: { name: true } },
           model: { select: { name: true } },
@@ -439,11 +524,13 @@ export class AssetsService {
         brandId: true,
         modelId: true,
         vendorId: true,
+        specifications: true,
         assetType: {
           select: {
             id: true,
             name: true,
             category: { select: { id: true, name: true } },
+            specificationTemplate: true,
           },
         },
         brand: {
@@ -484,10 +571,16 @@ export class AssetsService {
       throw new NotFoundException('Asset not found');
     }
 
-    // Transform the data to ensure purchaseCost is a number
+    // For edit mode, keep specifications with original keys (NOT transformed to labels)
+    // The frontend form needs the keys to match against the template fields
     const transformedAsset = {
       ...asset,
+      specifications: asset.specifications, // Keep original keys
       purchaseCost: asset.purchaseCost ? Number(asset.purchaseCost) : null,
+      // Include label map separately so frontend can use it if needed for display
+      specificationLabelMap: this.buildSpecificationLabelMap(
+        asset.assetType?.specificationTemplate as any,
+      ),
     };
 
     return {
@@ -606,10 +699,16 @@ export class AssetsService {
         brandId: true,
         modelId: true,
         assetTypeId: true,
+        specifications: true, // IMPORTANT: Include specifications for change tracking
         vendor: { select: { name: true } },
         brand: { select: { name: true } },
         model: { select: { name: true } },
-        assetType: { select: { name: true } },
+        assetType: {
+          select: {
+            name: true,
+            specificationTemplate: true, // Include template for label mapping
+          },
+        },
         assetIssues: {
           select: {
             returnDate: true,
@@ -942,6 +1041,81 @@ export class AssetsService {
           }),
         );
       }
+    }
+
+    // Track specifications changes (deep comparison of JSON object)
+    if (updateData.specifications !== undefined) {
+      const specChanges = this.detectSpecificationChanges(
+        currentAsset.specifications,
+        updateData.specifications,
+        currentAsset.assetType?.specificationTemplate,
+        userId,
+        changeReason,
+        notes,
+      );
+      changes.push(...specChanges);
+    }
+
+    return changes;
+  }
+
+  /**
+   * Detect specification field changes (deep comparison)
+   */
+  private detectSpecificationChanges(
+    currentSpecs: any,
+    updatedSpecs: any,
+    specificationTemplate: any,
+    userId: number,
+    changeReason?: string,
+    notes?: string,
+  ): any[] {
+    const changes: any[] = [];
+
+    // Build label map from specification template
+    const labelMap = this.buildSpecificationLabelMap(specificationTemplate);
+
+    // Normalize specs to objects
+    const currentSpecsObj =
+      currentSpecs && typeof currentSpecs === 'object' ? currentSpecs : {};
+    const updatedSpecsObj =
+      updatedSpecs && typeof updatedSpecs === 'object' ? updatedSpecs : {};
+
+    // Get all unique keys from both specs
+    const allKeys = new Set([
+      ...Object.keys(currentSpecsObj),
+      ...Object.keys(updatedSpecsObj),
+    ]);
+
+    // Check each key for changes
+    for (const key of allKeys) {
+      const oldValue = currentSpecsObj[key];
+      const newValue = updatedSpecsObj[key];
+
+      // Skip if values are the same (including both undefined/null)
+      if (oldValue === newValue) continue;
+
+      // Skip if both are empty/null/undefined
+      if (
+        (oldValue === null || oldValue === undefined || oldValue === '') &&
+        (newValue === null || newValue === undefined || newValue === '')
+      ) {
+        continue;
+      }
+
+      // Use label if available, otherwise use key
+      const fieldLabel = labelMap[key] || key;
+
+      // Record the change
+      changes.push({
+        fieldName: fieldLabel, // Use label instead of key
+        oldValue: this.formatValueForDisplay(oldValue),
+        newValue: this.formatValueForDisplay(newValue),
+        changeType: 'SPECIFICATION_CHANGE' as any,
+        changeReason,
+        changedBy: userId,
+        notes,
+      });
     }
 
     return changes;
@@ -1278,6 +1452,107 @@ export class AssetsService {
         inMaintenance,
         retired,
         lost,
+      },
+    };
+  }
+
+  async getUniqueSpecifications(assetTypeId: number, brandId: number) {
+    // Find all assets matching the type and brand with specifications
+    const assets = await this.prisma.asset.findMany({
+      where: {
+        assetTypeId,
+        brandId,
+        model: {
+          specifications: {
+            not: Prisma.JsonNull,
+          },
+        },
+      },
+      select: {
+        model: {
+          select: {
+            specifications: true,
+          },
+        },
+      },
+    });
+
+    // Extract all specifications
+    const allSpecs: Record<string, string>[] = [];
+    for (const asset of assets) {
+      if (
+        asset.model?.specifications &&
+        typeof asset.model.specifications === 'object' &&
+        asset.model.specifications !== null
+      ) {
+        allSpecs.push(asset.model.specifications as Record<string, string>);
+      }
+    }
+
+    // If no specifications found, return empty result
+    if (allSpecs.length === 0) {
+      return {
+        message: 'No specifications found',
+        data: {
+          requiredSpecs: [],
+          combinations: [],
+        },
+      };
+    }
+
+    // Count frequency of each specification key
+    const specKeyFrequency = new Map<string, number>();
+    for (const spec of allSpecs) {
+      for (const key of Object.keys(spec)) {
+        specKeyFrequency.set(key, (specKeyFrequency.get(key) || 0) + 1);
+      }
+    }
+
+    // Sort by frequency and take top 2 as required specs
+    const requiredSpecs = Array.from(specKeyFrequency.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 2)
+      .map(([key]) => key);
+
+    // If less than 2 required specs, return what we have
+    if (requiredSpecs.length === 0) {
+      return {
+        message: 'Unique specifications retrieved successfully',
+        data: {
+          requiredSpecs: [],
+          combinations: [],
+        },
+      };
+    }
+
+    // Build unique combinations of required specs
+    const uniqueCombinations = new Map<string, Record<string, string>>();
+    for (const spec of allSpecs) {
+      const combination: Record<string, string> = {};
+      let hasAllRequired = true;
+
+      for (const key of requiredSpecs) {
+        if (spec[key]) {
+          combination[key] = spec[key];
+        } else {
+          hasAllRequired = false;
+          break;
+        }
+      }
+
+      if (hasAllRequired) {
+        const combinationKey = requiredSpecs.map((k) => spec[k]).join('|');
+        if (!uniqueCombinations.has(combinationKey)) {
+          uniqueCombinations.set(combinationKey, combination);
+        }
+      }
+    }
+
+    return {
+      message: 'Unique specifications retrieved successfully',
+      data: {
+        requiredSpecs,
+        combinations: Array.from(uniqueCombinations.values()),
       },
     };
   }
@@ -1749,11 +2024,20 @@ export class AssetsService {
    */
   private mapRowToAssetData(row: string[], headers: string[]): any {
     const assetData: any = {};
+    const specifications: Record<string, any> = {};
 
     // Map CSV columns to asset fields
     for (const [index, header] of headers.entries()) {
       const value = row[index]?.trim();
       if (value) {
+        // Check if header is a specification field (starts with 'spec_')
+        if (header.startsWith('spec_')) {
+          const specKey = header.replace('spec_', '');
+          specifications[specKey] = value;
+          continue;
+        }
+
+        // Handle standard fields
         switch (header) {
           case 'assetid':
             assetData.assetId = value;
@@ -1799,6 +2083,11 @@ export class AssetsService {
             break;
         }
       }
+    }
+
+    // Add specifications if any were found
+    if (Object.keys(specifications).length > 0) {
+      assetData.specifications = specifications;
     }
 
     return assetData;
@@ -1860,7 +2149,9 @@ export class AssetsService {
         );
       }
       // Format validation
-      const isValidSerialNumberFormat = /^[A-Za-z0-9\-_]{3,50}$/.test(assetData.serialNumber);
+      const isValidSerialNumberFormat = /^[A-Za-z0-9\-_]{3,50}$/.test(
+        assetData.serialNumber,
+      );
       if (!isValidSerialNumberFormat) {
         rowErrors.push(
           `Serial number must contain only letters, numbers, hyphens, and underscores, got: ${assetData.serialNumber}`,
@@ -2146,6 +2437,28 @@ export class AssetsService {
   }
 
   /**
+   * Validate specifications (basic validation - detailed validation happens in async validation)
+   */
+  private validateSpecifications(assetData: any, rowErrors: string[]): void {
+    if (assetData.specifications) {
+      // Check if specifications is an object
+      if (typeof assetData.specifications !== 'object') {
+        rowErrors.push('Specifications must be a valid object');
+        return;
+      }
+
+      // Check if specification values are reasonable
+      for (const [key, value] of Object.entries(assetData.specifications)) {
+        if (typeof value === 'string' && value.length > 500) {
+          rowErrors.push(
+            `Specification '${key}' value is too long (max 500 characters)`,
+          );
+        }
+      }
+    }
+  }
+
+  /**
    * Validate optional fields (location, dates, cost, notes)
    */
   private validateOptionalFields(assetData: any, rowErrors: string[]): void {
@@ -2200,6 +2513,10 @@ export class AssetsService {
         rowErrors,
       );
       this.validateOptionalFields(assetData, rowErrors);
+      // Validate specifications if present
+      if (assetData.specifications) {
+        this.validateSpecifications(assetData, rowErrors);
+      }
 
       if (rowErrors.length > 0) {
         // Add individual error messages for better readability
@@ -2331,6 +2648,9 @@ export class AssetsService {
         `Missing required headers: ${missingHeaders.join(', ')}`,
       );
     }
+
+    // Note: Specification headers (spec_*) are optional and validated dynamically
+    // based on the asset type's specification template
   }
 
   /**
@@ -2338,10 +2658,19 @@ export class AssetsService {
    */
   private mapBulkUploadRowData(row: string[], headers: string[]): any {
     const assetData: any = {};
+    const specifications: Record<string, any> = {};
 
     for (const [index, header] of headers.entries()) {
       const value = row[index]?.trim();
       if (value) {
+        // Check if header is a specification field (starts with 'spec_')
+        if (header.startsWith('spec_')) {
+          const specKey = header.replace('spec_', '');
+          specifications[specKey] = value;
+          continue;
+        }
+
+        // Handle standard fields
         switch (header) {
           case 'assetid':
             assetData.assetId = value;
@@ -2379,8 +2708,19 @@ export class AssetsService {
           case 'vendorid':
             assetData.vendorId = Number.parseInt(value);
             break;
+          case 'warrantystartdate':
+            assetData.warrantyStartDate = value;
+            break;
+          case 'warrantyenddate':
+            assetData.warrantyEndDate = value;
+            break;
         }
       }
+    }
+
+    // Add specifications if any were found
+    if (Object.keys(specifications).length > 0) {
+      assetData.specifications = specifications;
     }
 
     return assetData;
@@ -2389,12 +2729,13 @@ export class AssetsService {
   /**
    * Validate asset data for bulk upload
    */
-  private validateBulkUploadAssetData(
+  private async validateBulkUploadAssetData(
     assetData: any,
     rowNumber: number,
-  ): any[] {
+  ): Promise<any[]> {
     const errors: any[] = [];
 
+    // Validate required fields
     if (
       !assetData.assetId ||
       !assetData.assetTypeId ||
@@ -2409,6 +2750,7 @@ export class AssetsService {
       });
     }
 
+    // Validate ID fields are numbers
     if (
       Number.isNaN(assetData.assetTypeId) ||
       Number.isNaN(assetData.brandId) ||
@@ -2421,12 +2763,65 @@ export class AssetsService {
       });
     }
 
-    if (assetData.status && assetData.status !== 'AVAILABLE') {
+    // Validate status
+    const validStatuses = [
+      'AVAILABLE',
+      'ASSIGNED',
+      'IN_MAINTENANCE',
+      'RETIRED',
+      'LOST',
+    ];
+    if (assetData.status && !validStatuses.includes(assetData.status)) {
       errors.push({
         row: rowNumber,
         field: 'status',
-        message: `Status value '${assetData.status}' is not valid. Only 'AVAILABLE' status is allowed for bulk uploads`,
+        message: `Status value '${assetData.status}' is not valid. Allowed values: ${validStatuses.join(', ')}`,
       });
+    }
+
+    // Validate condition
+    const validConditions = ['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED'];
+    if (assetData.condition && !validConditions.includes(assetData.condition)) {
+      errors.push({
+        row: rowNumber,
+        field: 'condition',
+        message: `Condition value '${assetData.condition}' is not valid. Allowed values: ${validConditions.join(', ')}`,
+      });
+    }
+
+    // Validate specifications against asset type template (if assetTypeId is valid)
+    if (assetData.assetTypeId && !Number.isNaN(assetData.assetTypeId)) {
+      try {
+        const assetType = await this.prisma.assetType.findUnique({
+          where: { id: assetData.assetTypeId },
+          select: { specificationTemplate: true },
+        });
+
+        if (assetType?.specificationTemplate) {
+          const template = assetType.specificationTemplate as any;
+          if (template.fields && Array.isArray(template.fields)) {
+            // Validate required specification fields
+            for (const field of template.fields) {
+              if (field.required) {
+                const specValue = assetData.specifications?.[field.key];
+                if (!specValue || specValue.trim() === '') {
+                  errors.push({
+                    row: rowNumber,
+                    field: `spec_${field.key}`,
+                    message: `Required specification field '${field.label}' is missing`,
+                  });
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        // Log but don't fail validation if we can't fetch asset type
+        console.error(
+          `Error validating specifications for row ${rowNumber}:`,
+          error,
+        );
+      }
     }
 
     return errors;
@@ -2472,6 +2867,13 @@ export class AssetsService {
           purchaseDate: createData.purchaseDate
             ? new Date(createData.purchaseDate)
             : null,
+          warrantyStartDate: createData.warrantyStartDate
+            ? new Date(createData.warrantyStartDate)
+            : null,
+          warrantyEndDate: createData.warrantyEndDate
+            ? new Date(createData.warrantyEndDate)
+            : null,
+          specifications: createData.specifications || {},
         },
       });
 
@@ -2536,7 +2938,7 @@ export class AssetsService {
 
         try {
           const assetData = this.mapBulkUploadRowData(row, headers);
-          const validationErrors = this.validateBulkUploadAssetData(
+          const validationErrors = await this.validateBulkUploadAssetData(
             assetData,
             rowNumber,
           );
@@ -2928,8 +3330,20 @@ export class AssetsService {
           brand: { select: { id: true, name: true } },
           model: { select: { id: true, name: true } },
           vendor: { select: { id: true, name: true } },
-          createdByUser: { select: { id: true, username: true, employee: { select: { firstName: true, lastName: true } } } },
-          updatedByUser: { select: { id: true, username: true, employee: { select: { firstName: true, lastName: true } } } },
+          createdByUser: {
+            select: {
+              id: true,
+              username: true,
+              employee: { select: { firstName: true, lastName: true } },
+            },
+          },
+          updatedByUser: {
+            select: {
+              id: true,
+              username: true,
+              employee: { select: { firstName: true, lastName: true } },
+            },
+          },
           assetIssues: {
             where: { returnDate: null }, // Only active assignments
             select: {
@@ -2988,15 +3402,17 @@ export class AssetsService {
           ? new Date(asset.reactivationDate).toLocaleDateString('en-GB')
           : '',
         'Reactivation Reason': asset.reactivationReason || '',
-        'Created By': (asset.createdByUser?.employee
-          ? `${asset.createdByUser.employee.firstName} ${asset.createdByUser.employee.lastName}`.trim()
-          : asset.createdByUser?.username) || '',
+        'Created By':
+          (asset.createdByUser?.employee
+            ? `${asset.createdByUser.employee.firstName} ${asset.createdByUser.employee.lastName}`.trim()
+            : asset.createdByUser?.username) || '',
         'Created At': asset.createdAt
           ? new Date(asset.createdAt).toLocaleString('en-GB')
           : '',
-        'Updated By': (asset.updatedByUser?.employee
-          ? `${asset.updatedByUser.employee.firstName} ${asset.updatedByUser.employee.lastName}`.trim()
-          : asset.updatedByUser?.username) || '',
+        'Updated By':
+          (asset.updatedByUser?.employee
+            ? `${asset.updatedByUser.employee.firstName} ${asset.updatedByUser.employee.lastName}`.trim()
+            : asset.updatedByUser?.username) || '',
         'Updated At': asset.updatedAt
           ? new Date(asset.updatedAt).toLocaleString('en-GB')
           : '',

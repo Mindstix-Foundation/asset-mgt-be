@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Body,
   Param,
   Delete,
@@ -19,7 +20,11 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { AssetTypesService } from './asset-types.service';
-import { CreateAssetTypeDto, AssetTypeQueryDto } from './dto';
+import {
+  CreateAssetTypeDto,
+  AssetTypeQueryDto,
+  UpdateAssetTypeDto,
+} from './dto';
 
 @ApiTags('asset-types')
 @ApiBearerAuth('JWT-auth')
@@ -49,6 +54,24 @@ export class AssetTypesController {
   })
   async findAll(@Query() queryDto: AssetTypeQueryDto) {
     return this.assetTypesService.findAll(queryDto);
+  }
+
+  @Put(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update asset type by ID' })
+  @ApiParam({ name: 'id', description: 'Asset Type ID' })
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateAssetTypeDto: UpdateAssetTypeDto,
+    @Request() req: any,
+  ) {
+    if (!req.user?.id) {
+      throw new UnauthorizedException(
+        'User authentication required. Please login to update asset types.',
+      );
+    }
+    const userId = req.user.id;
+    return this.assetTypesService.update(id, updateAssetTypeDto, userId);
   }
 
   @Get('by-category/:categoryId')

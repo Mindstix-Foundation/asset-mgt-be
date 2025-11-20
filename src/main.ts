@@ -21,7 +21,11 @@ async function bootstrap() {
           styleSrc: ["'self'", "'unsafe-inline'"],
           scriptSrc: ["'self'"],
           imgSrc: ["'self'", 'data:', 'https:'],
-          connectSrc: ["'self'", 'http://localhost:5173', 'http://localhost:5174'],
+          connectSrc: [
+            "'self'",
+            'http://localhost:5173',
+            'http://localhost:5174',
+          ],
         },
       },
       crossOriginEmbedderPolicy: false,

@@ -111,6 +111,14 @@ export class AssetQueryDto {
   location?: string;
 
   @ApiPropertyOptional({
+    description: 'Specification filters JSON object (e.g. {"ram":"16GB"})',
+    example: '{"ram":"16GB","processor":"M2"}',
+  })
+  @IsOptional()
+  @IsString()
+  specificationFilters?: string;
+
+  @ApiPropertyOptional({
     description: 'Filter assets created on/after this date (YYYY-MM-DD)',
     example: '2024-01-01',
   })

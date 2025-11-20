@@ -114,8 +114,7 @@ export function IsGstNumber(validationOptions?: ValidationOptions) {
           const upperValue = value.toUpperCase();
 
           // GST format: 2 digits + 5 letters + 4 digits + 1 letter + 1 letter + 1 letter + 1 letter
-          const gstRegex =
-            /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+          const gstRegex = /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 
           // Also accept simpler tax ID formats for international vendors
           const simpleTaxIdRegex = /^[A-Z0-9]{5,20}$/;

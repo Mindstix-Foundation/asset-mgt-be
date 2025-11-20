@@ -20,7 +20,7 @@ import { PrismaService } from '../database/prisma.service';
         }
         return {
           secret: secret,
-          signOptions: { 
+          signOptions: {
             expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '7d',
           },
         };

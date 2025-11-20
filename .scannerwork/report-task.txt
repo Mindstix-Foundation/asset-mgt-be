@@ -1,0 +1,6 @@
+projectKey=TrackStix-Backend
+serverUrl=http://localhost:9000
+serverVersion=25.10.0.114319
+dashboardUrl=http://localhost:9000/dashboard?id=TrackStix-Backend
+ceTaskId=76e0cfb7-c9d6-44f1-b486-cd7ffc5371cf
+ceTaskUrl=http://localhost:9000/api/ce/task?id=76e0cfb7-c9d6-44f1-b486-cd7ffc5371cf

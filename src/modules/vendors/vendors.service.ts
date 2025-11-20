@@ -435,7 +435,9 @@ export class VendorsService {
    */
   private validateHeaders(data: any[]): void {
     const firstRow = data[0];
-    const headers = new Set(Object.keys(firstRow).map((h) => h.trim().toLowerCase()));
+    const headers = new Set(
+      Object.keys(firstRow).map((h) => h.trim().toLowerCase()),
+    );
     const requiredHeaders = ['vendor name', 'name'];
 
     // Check if at least one required header exists

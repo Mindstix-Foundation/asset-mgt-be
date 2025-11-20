@@ -14,10 +14,7 @@ import * as bcrypt from 'bcryptjs';
 import * as nodemailer from 'nodemailer';
 import * as crypto from 'node:crypto';
 import { LoginDto } from './dto/login.dto';
-import {
-  ForgotPasswordDto,
-  ResetPasswordDto,
-} from './dto/password.dto';
+import { ForgotPasswordDto, ResetPasswordDto } from './dto/password.dto';
 
 @Injectable()
 export class AuthService implements OnModuleInit {
@@ -84,10 +81,7 @@ export class AuthService implements OnModuleInit {
   /**
    * Generate session fingerprint for security
    */
-  private generateFingerprint(
-    ipAddress?: string,
-    userAgent?: string,
-  ): string {
+  private generateFingerprint(ipAddress?: string, userAgent?: string): string {
     const data = `${ipAddress || 'unknown'}-${userAgent || 'unknown'}`;
     return crypto.createHash('sha256').update(data).digest('hex');
   }
@@ -168,7 +162,7 @@ export class AuthService implements OnModuleInit {
 
       // Check if account is locked
       if (user.lockedUntil && user.lockedUntil > new Date()) {
-      const lockTimeRemaining = Math.ceil(
+        const lockTimeRemaining = Math.ceil(
           (user.lockedUntil.getTime() - Date.now()) / 60000,
         );
         throw new UnauthorizedException(
@@ -202,7 +196,9 @@ export class AuthService implements OnModuleInit {
       );
 
       if (!hasActiveRole) {
-        throw new UnauthorizedException('Access denied. No active roles found.');
+        throw new UnauthorizedException(
+          'Access denied. No active roles found.',
+        );
       }
 
       // Generate tokens
@@ -663,7 +659,7 @@ export class AuthService implements OnModuleInit {
         this.logger.warn(
           `Password reset attempted for non-existent email: ${forgotPasswordDto.email}`,
         );
-        
+
         // Introduce delay to match the time taken when user exists
         const elapsed = Date.now() - startTime;
         if (elapsed < MINIMUM_DELAY_MS) {

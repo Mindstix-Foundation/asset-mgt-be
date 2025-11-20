@@ -56,9 +56,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     // Since this is an admin-only system, verify user has at least one active role
     // (In practice, all users in this system should have ADMIN role)
-    const hasActiveRole = user.userRoles.some(
-      (userRole) => userRole.isActive,
-    );
+    const hasActiveRole = user.userRoles.some((userRole) => userRole.isActive);
 
     if (!hasActiveRole) {
       throw new UnauthorizedException('User has no active roles');

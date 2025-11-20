@@ -1,10 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Request,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Request } from '@nestjs/common';
 import { NotificationService } from './notification.service';
 import { MarkAsReadDto } from './dto/mark-as-read.dto';
 

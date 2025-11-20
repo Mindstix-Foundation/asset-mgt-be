@@ -217,6 +217,47 @@ export class AssetsController {
     return this.assetsService.getAssetStats();
   }
 
+  @Get('unique-specifications')
+  @ApiOperation({
+    summary: 'Get unique specification combinations for filtering',
+  })
+  @ApiQuery({
+    name: 'assetTypeId',
+    required: true,
+    description: 'Asset Type ID to filter by',
+  })
+  @ApiQuery({
+    name: 'brandId',
+    required: true,
+    description: 'Brand ID to filter by',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Unique specification combinations retrieved successfully',
+    schema: {
+      example: {
+        message: 'Unique specifications retrieved successfully',
+        data: {
+          requiredSpecs: ['size', 'panel'],
+          combinations: [
+            { size: '21.5"', panel: 'IPS' },
+            { size: '21.5"', panel: 'OLED' },
+            { size: '32"', panel: 'IPS' },
+          ],
+        },
+      },
+    },
+  })
+  async getUniqueSpecifications(
+    @Query('assetTypeId') assetTypeId: string,
+    @Query('brandId') brandId: string,
+  ) {
+    return this.assetsService.getUniqueSpecifications(
+      Number.parseInt(assetTypeId),
+      Number.parseInt(brandId),
+    );
+  }
+
   @Get('export')
   @ApiOperation({
     summary: 'Export assets to Excel file with filtering support',

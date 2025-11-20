@@ -324,7 +324,7 @@ export class MaintenanceService {
       // Determine the relevant date based on status
       let relevantDate = null;
       let dateType = '';
-      
+
       switch (row.status?.toUpperCase()) {
         case 'CANCELLED':
           relevantDate = row.cancellation_date;
@@ -490,8 +490,12 @@ export class MaintenanceService {
               })
               .filter((key) => {
                 // Only include fields that actually changed
-                const oldValue = this.formatValueForComparison(existingMaintenance[key]);
-                const newValue = this.formatValueForComparison(updateMaintenanceDto[key]);
+                const oldValue = this.formatValueForComparison(
+                  existingMaintenance[key],
+                );
+                const newValue = this.formatValueForComparison(
+                  updateMaintenanceDto[key],
+                );
 
                 return oldValue !== newValue;
               })
@@ -1580,7 +1584,7 @@ export class MaintenanceService {
         scheduled_date: Date;
         created_at: Date;
       }>;
-      
+
       for (const record of records) {
         counts.total++;
         if (record.status === MaintenanceStatus.IN_PROGRESS)
