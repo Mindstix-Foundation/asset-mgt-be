@@ -249,13 +249,26 @@ export class EmployeesService {
     const responseEmployees = pagedEmployees.map((employee: any) => {
       const responseDto = this.mapToResponseDto(employee);
       responseDto.assignedAssetsCount = employee._count.assetIssues;
-      responseDto.assignedAssets = employee.assetIssues.map((issue: any) => ({
-        assetId: issue.asset.assetId,
-        assetName: `${issue.asset.brand.name} ${issue.asset.model.name}`,
-        serialNumber: issue.asset.serialNumber,
-        assignedDate: issue.issueDate.toISOString().split('T')[0],
-        status: 'ASSIGNED',
-      }));
+      responseDto.assignedAssets = employee.assetIssues.map((issue: any) => {
+        const { specifications, specificationLabelMap } =
+          this.extractAssetSpecifications(issue.asset);
+        const specificationDescription =
+          this.getAssetNotesDescription(issue.asset);
+
+        return {
+          assetId: issue.asset.assetId,
+          assetName: `${issue.asset.brand.name} ${issue.asset.model.name}`,
+          serialNumber: issue.asset.serialNumber,
+          assignedDate: issue.issueDate.toISOString().split('T')[0],
+          status: 'ASSIGNED',
+          assetType: issue.asset.assetType?.name,
+          brand: issue.asset.brand?.name,
+          model: issue.asset.model?.name,
+          specifications: specifications || undefined,
+          specificationLabelMap: specificationLabelMap || undefined,
+          specificationDescription: specificationDescription || undefined,
+        };
+      });
 
       // Add admin status
       const isAdmin =
@@ -924,16 +937,26 @@ export class EmployeesService {
         (employee as any)._count?.assetIssues || 0;
       responseEmployee.assignedAssets = (employee as any).assetIssues
         .filter((issue: any) => issue.returnDate == null) // Only active assignments
-        .map((issue: any) => ({
-          assetId: issue.asset.assetId,
-          assetName: `${issue.asset.brand.name} ${issue.asset.model.name}`,
-          serialNumber: issue.asset.serialNumber,
-          assignedDate: issue.issueDate.toISOString().split('T')[0],
-          status: 'ASSIGNED',
-          assetType: issue.asset.assetType?.name,
-          brand: issue.asset.brand?.name,
-          model: issue.asset.model?.name,
-        }));
+        .map((issue: any) => {
+          const { specifications, specificationLabelMap } =
+            this.extractAssetSpecifications(issue.asset);
+          const specificationDescription =
+            this.getAssetNotesDescription(issue.asset);
+
+          return {
+            assetId: issue.asset.assetId,
+            assetName: `${issue.asset.brand.name} ${issue.asset.model.name}`,
+            serialNumber: issue.asset.serialNumber,
+            assignedDate: issue.issueDate.toISOString().split('T')[0],
+            status: 'ASSIGNED',
+            assetType: issue.asset.assetType?.name,
+            brand: issue.asset.brand?.name,
+            model: issue.asset.model?.name,
+            specifications: specifications || undefined,
+            specificationLabelMap: specificationLabelMap || undefined,
+            specificationDescription: specificationDescription || undefined,
+          };
+        });
     }
 
     return {
@@ -1367,9 +1390,20 @@ export class EmployeesService {
           select: {
             assetId: true,
             serialNumber: true,
-            assetType: { select: { name: true } },
+            specifications: true,
+            assetType: { 
+              select: { 
+                name: true,
+                specificationTemplate: true
+              } 
+            },
             brand: { select: { name: true } },
-            model: { select: { name: true } },
+            model: { 
+              select: { 
+                name: true,
+                specifications: true
+              } 
+            },
           },
         },
         performedByUser: {
@@ -1389,10 +1423,15 @@ export class EmployeesService {
     });
 
     // Transform events, apply filters and sorting via helpers
-    const transformed: AssetEventRow[] = events
-      .map((event) => this.transformAssetEvent(event))
-      .filter((row): row is AssetEventRow => row !== null);
+    // Map events to include both transformed row and original event for specifications extraction
+    const eventsWithRows = events
+      .map((event) => {
+        const row = this.transformAssetEvent(event);
+        return row ? { row, event } : null;
+      })
+      .filter((item): item is { row: AssetEventRow; event: any } => item !== null);
 
+    const transformed: AssetEventRow[] = eventsWithRows.map((item) => item.row);
     const filtered = this.applyAssetEventFilters(transformed, query);
     this.sortAssetEvents(
       filtered,
@@ -1405,22 +1444,32 @@ export class EmployeesService {
     const pageSafe = Math.min(Math.max(page, 1), totalPages);
     const start = (pageSafe - 1) * limit;
     const end = start + limit;
-    const pageItems = filtered.slice(start, end).map((e) => ({
-      id: e.id,
-      assetId: e.assetId,
-      assetName: e.assetName,
-      assetType: e.assetType,
-      brand: e.brand,
-      model: e.model,
-      serialNumber: e.serialNumber,
-      action: e.action,
-      date: e.date.toISOString().split('T')[0],
-      timestamp: e.timestamp.toISOString(),
-      condition: e.condition,
-      reason: e.reason,
-      notes: e.notes,
-      performedBy: e.performedBy,
-    }));
+    const pageItems = filtered.slice(start, end).map((e) => {
+      // Find the original event for this row to extract specifications
+      const originalEvent = eventsWithRows.find((item) => item.row.id === e.id)?.event;
+      const { specifications, specificationLabelMap } = originalEvent
+        ? this.extractAssetSpecifications(originalEvent.asset)
+        : { specifications: null, specificationLabelMap: null };
+
+      return {
+        id: e.id,
+        assetId: e.assetId,
+        assetName: e.assetName,
+        assetType: e.assetType,
+        brand: e.brand,
+        model: e.model,
+        serialNumber: e.serialNumber,
+        action: e.action,
+        date: e.date.toISOString().split('T')[0],
+        timestamp: e.timestamp.toISOString(),
+        condition: e.condition,
+        reason: e.reason,
+        notes: e.notes,
+        performedBy: e.performedBy,
+        specifications: specifications || undefined,
+        specificationLabelMap: specificationLabelMap || undefined,
+      };
+    });
 
     return {
       message: 'Asset events retrieved successfully',
@@ -1643,6 +1692,113 @@ export class EmployeesService {
       if (assetCountRange === '3+') return assetCount >= 3;
       return true;
     });
+  }
+
+  private extractAssetSpecifications(asset: any): {
+    specifications: Record<string, any> | null;
+    specificationLabelMap: Record<string, string> | null;
+  } {
+    if (!asset) {
+      return {
+        specifications: null,
+        specificationLabelMap: null,
+      };
+    }
+
+    const assetSpecs = this.parseSpecificationsPayload(asset.specifications);
+    const modelSpecs = this.parseSpecificationsPayload(
+      asset.model?.specifications,
+    );
+    const specifications = assetSpecs || modelSpecs || null;
+    const specificationLabelMap = this.buildSpecificationLabelMap(asset.assetType);
+
+    return { specifications, specificationLabelMap };
+  }
+
+  private parseSpecificationsPayload(input: unknown): Record<string, any> | null {
+    if (input === null || input === undefined) {
+      return null;
+    }
+
+    if (typeof input === 'string') {
+      const trimmed = input.trim();
+      if (!trimmed) {
+        return null;
+      }
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return this.stripDescriptionField(parsed as Record<string, any>);
+        }
+      } catch (error) {
+        console.warn('Failed to parse specifications JSON:', error);
+        return null;
+      }
+      return null;
+    }
+
+    if (typeof input === 'object' && !Array.isArray(input)) {
+      return this.stripDescriptionField(input as Record<string, any>);
+    }
+
+    return null;
+  }
+
+  private stripDescriptionField(payload: Record<string, any>): Record<string, any> | null {
+    const specs: Record<string, any> = { ...payload };
+    for (const key of Object.keys(specs)) {
+      if (key.toLowerCase() === 'description') {
+        delete specs[key];
+      }
+    }
+    return Object.keys(specs).length > 0 ? specs : null;
+  }
+
+  private getAssetNotesDescription(asset: any): string | null {
+    if (!asset?.notes) return null;
+    const trimmed = String(asset.notes).trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  private buildSpecificationLabelMap(assetType: any): Record<string, string> | null {
+    if (!assetType?.specificationTemplate) {
+      return null;
+    }
+
+    let template = assetType.specificationTemplate;
+    if (typeof template === 'string') {
+      try {
+        template = JSON.parse(template);
+      } catch (error) {
+        console.warn('Failed to parse specification template JSON:', error);
+        return null;
+      }
+    }
+
+    const fields = Array.isArray(template?.fields) ? template.fields : [];
+    if (fields.length === 0) {
+      return null;
+    }
+
+    const labelMap: Record<string, string> = {};
+    for (const field of fields) {
+      if (field?.key) {
+        labelMap[field.key] =
+          field.label || this.formatSpecificationLabel(field.key);
+      }
+    }
+
+    return Object.keys(labelMap).length > 0 ? labelMap : null;
+  }
+
+  private formatSpecificationLabel(key: string): string {
+    return key
+      .replace(/[_\s]+/g, ' ')
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .split(' ')
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   }
 
   private buildEmployeeCreateData(

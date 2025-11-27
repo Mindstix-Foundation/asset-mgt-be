@@ -97,6 +97,7 @@ export class MaintenanceQueryDto {
       'status',
       'maintenanceType',
       'estimatedCost',
+      'assetId',
     ],
   })
   @IsOptional()

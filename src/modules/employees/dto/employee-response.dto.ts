@@ -26,6 +26,9 @@ export class AssignedAssetDto {
   assetType?: string;
   brand?: string;
   model?: string;
+  specifications?: Record<string, any>;
+  specificationLabelMap?: Record<string, string>;
+  specificationDescription?: string;
 }
 
 export class PaginationDto {

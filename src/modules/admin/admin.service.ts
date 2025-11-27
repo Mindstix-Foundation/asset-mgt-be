@@ -31,7 +31,6 @@ export class AdminService {
           userRoles: {
             some: {
               roleId: adminRole.id,
-              isActive: true,
             },
           },
         },
@@ -53,9 +52,19 @@ export class AdminService {
         },
       });
 
+      const usersWithDeletionInfo = await Promise.all(
+        users.map(async (user) => {
+          const deletionInfo = await this.computeDeletionInfo(user.id);
+          return {
+            ...user,
+            canBeDeleted: deletionInfo.canBeDeleted,
+          };
+        }),
+      );
+
       return {
         success: true,
-        data: users,
+        data: usersWithDeletionInfo,
       };
     } catch (error) {
       this.logger.error('Error fetching admin users:', error);
@@ -264,129 +273,6 @@ export class AdminService {
     }
   }
 
-  /**
-   * Check if an admin user can be safely deleted
-   * Returns true if user has no related records in any createdBy/updatedBy fields
-   */
-  async checkAdminCanBeDeleted(id: number) {
-    try {
-      // Check if user exists
-      const user = await this.prisma.user.findUnique({
-        where: { id },
-        include: {
-          employee: true,
-        },
-      });
-
-      if (!user) {
-        throw new NotFoundException('User not found');
-      }
-
-      // Check all tables for createdBy/updatedBy references
-      const checks = await Promise.all([
-        // Check Assets
-        this.prisma.asset.count({
-          where: {
-            OR: [{ createdBy: id }, { updatedBy: id }],
-          },
-        }),
-        // Check Asset Categories
-        this.prisma.assetCategory.count({
-          where: {
-            OR: [{ createdBy: id }, { updatedBy: id }],
-          },
-        }),
-        // Check Asset Types
-        this.prisma.assetType.count({
-          where: {
-            OR: [{ createdBy: id }, { updatedBy: id }],
-          },
-        }),
-        // Check Asset Issues
-        this.prisma.assetIssue.count({
-          where: {
-            OR: [{ createdBy: id }, { updatedBy: id }, { issuedBy: id }],
-          },
-        }),
-        // Check Asset Events
-        this.prisma.assetEvent.count({
-          where: { performedBy: id },
-        }),
-        // Check Brands
-        this.prisma.brand.count({
-          where: {
-            OR: [{ createdBy: id }, { updatedBy: id }],
-          },
-        }),
-        // Check Models
-        this.prisma.model.count({
-          where: {
-            OR: [{ createdBy: id }, { updatedBy: id }],
-          },
-        }),
-        // Check Vendors
-        this.prisma.vendor.count({
-          where: {
-            OR: [{ createdBy: id }, { updatedBy: id }],
-          },
-        }),
-        // Check Employees
-        this.prisma.employee.count({
-          where: {
-            OR: [{ createdBy: id }, { updatedBy: id }],
-          },
-        }),
-        // Check Maintenance Schedules
-        this.prisma.maintenanceSchedule.count({
-          where: {
-            OR: [{ createdBy: id }, { updatedBy: id }],
-          },
-        }),
-        // Check Users (created or updated other users)
-        this.prisma.user.count({
-          where: {
-            OR: [{ createdBy: id }, { updatedBy: id }],
-          },
-        }),
-        // Check UserRoles (assigned roles to others)
-        this.prisma.userRole.count({
-          where: { assignedBy: id },
-        }),
-      ]);
-
-      const totalReferences = checks.reduce((sum, count) => sum + count, 0);
-      const canBeDeleted = totalReferences === 0;
-
-      return {
-        success: true,
-        data: {
-          canBeDeleted,
-          totalReferences,
-          breakdown: {
-            assets: checks[0],
-            assetCategories: checks[1],
-            assetTypes: checks[2],
-            assetIssues: checks[3],
-            assetEvents: checks[4],
-            brands: checks[5],
-            models: checks[6],
-            vendors: checks[7],
-            employees: checks[8],
-            maintenanceSchedules: checks[9],
-            users: checks[10],
-            userRoles: checks[11],
-          },
-        },
-      };
-    } catch (error) {
-      this.logger.error('Error checking admin deletion eligibility:', error);
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      throw new BadRequestException('Failed to check admin deletion status');
-    }
-  }
-
   async removeAdminUser(id: number, currentUserId: number) {
     try {
       // First check if user exists at all
@@ -432,10 +318,10 @@ export class AdminService {
       }
 
       // Check if admin can be safely deleted
-      const deletionCheck = await this.checkAdminCanBeDeleted(id);
-      if (!deletionCheck.data.canBeDeleted) {
+      const deletionInfo = await this.computeDeletionInfo(id);
+      if (!deletionInfo.canBeDeleted) {
         throw new BadRequestException(
-          `Cannot delete admin user: This admin has ${deletionCheck.data.totalReferences} related records in the system. ` +
+          `Cannot delete admin user: This admin has ${deletionInfo.totalReferences} related records in the system. ` +
             `Please use Activate/Deactivate instead to preserve data integrity and audit trails.`,
         );
       }
@@ -470,5 +356,92 @@ export class AdminService {
       }
       throw new BadRequestException('Failed to remove admin privileges');
     }
+  }
+
+  private async computeDeletionInfo(id: number) {
+    const checks = await Promise.all([
+      this.prisma.asset.count({
+        where: {
+          OR: [{ createdBy: id }, { updatedBy: id }],
+        },
+      }),
+      this.prisma.assetCategory.count({
+        where: {
+          OR: [{ createdBy: id }, { updatedBy: id }],
+        },
+      }),
+      this.prisma.assetType.count({
+        where: {
+          OR: [{ createdBy: id }, { updatedBy: id }],
+        },
+      }),
+      this.prisma.assetIssue.count({
+        where: {
+          OR: [{ createdBy: id }, { updatedBy: id }, { issuedBy: id }],
+        },
+      }),
+      this.prisma.assetEvent.count({
+        where: { performedBy: id },
+      }),
+      this.prisma.brand.count({
+        where: {
+          OR: [{ createdBy: id }, { updatedBy: id }],
+        },
+      }),
+      this.prisma.model.count({
+        where: {
+          OR: [{ createdBy: id }, { updatedBy: id }],
+        },
+      }),
+      this.prisma.vendor.count({
+        where: {
+          OR: [{ createdBy: id }, { updatedBy: id }],
+        },
+      }),
+      this.prisma.employee.count({
+        where: {
+          OR: [{ createdBy: id }, { updatedBy: id }],
+        },
+      }),
+      this.prisma.maintenanceSchedule.count({
+        where: {
+          OR: [{ createdBy: id }, { updatedBy: id }],
+        },
+      }),
+      this.prisma.user.count({
+        where: {
+          OR: [{ createdBy: id }, { updatedBy: id }],
+        },
+      }),
+      this.prisma.userRole.count({
+        where: { assignedBy: id },
+      }),
+    ]);
+
+    const breakdown = {
+      assets: checks[0],
+      assetCategories: checks[1],
+      assetTypes: checks[2],
+      assetIssues: checks[3],
+      assetEvents: checks[4],
+      brands: checks[5],
+      models: checks[6],
+      vendors: checks[7],
+      employees: checks[8],
+      maintenanceSchedules: checks[9],
+      users: checks[10],
+      userRoles: checks[11],
+    };
+
+    const totalReferences = Object.values(breakdown).reduce(
+      (sum, count) => sum + count,
+      0,
+    );
+
+    return {
+      canBeDeleted: totalReferences === 0,
+      totalReferences,
+      breakdown,
+    };
   }
 }

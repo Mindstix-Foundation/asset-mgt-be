@@ -117,9 +117,12 @@ export class MaintenanceService {
               select: {
                 id: true,
                 assetId: true,
-                assetType: { select: { name: true } },
+                specifications: true,
+                assetType: {
+                  select: { name: true, specificationTemplate: true },
+                },
                 brand: { select: { name: true } },
-                model: { select: { name: true } },
+                model: { select: { name: true, specifications: true } },
               },
             },
           },
@@ -272,7 +275,10 @@ export class MaintenanceService {
         orderByClause = `ORDER BY m.maintenance_type ${sortOrder.toUpperCase()}`;
         break;
       case 'estimatedCost':
-        orderByClause = `ORDER BY m.estimated_cost ${sortOrder.toUpperCase()}`;
+        orderByClause = `ORDER BY COALESCE(m.actual_cost, m.estimated_cost) ${sortOrder.toUpperCase()}`;
+        break;
+      case 'assetId':
+        orderByClause = `ORDER BY a.asset_id ${sortOrder.toUpperCase()}, m.id ${sortOrder.toUpperCase()}`;
         break;
     }
 
@@ -283,9 +289,12 @@ export class MaintenanceService {
         m.*,
         a.asset_id as asset_asset_id,
         a.serial_number as asset_serial_number,
+        a.specifications as asset_specifications,
         at.name as asset_type_name,
+        at.specification_template as asset_type_spec_template,
         b.name as brand_name,
-        mo.name as model_name
+        mo.name as model_name,
+        mo.specifications as model_specifications
       FROM latest_maintenance m
       LEFT JOIN assets a ON m.asset_id = a.id
       LEFT JOIN asset_types at ON a.asset_type_id = at.id
@@ -320,7 +329,12 @@ export class MaintenanceService {
     const totalPages = Math.ceil(total / limit);
 
     // Format the results
-    const maintenances = (maintenanceResults as any[]).map((row) => {
+    const maintenancesNeedingSpecs: Array<{
+      index: number;
+      assetId: number;
+    }> = [];
+
+    const maintenances = (maintenanceResults as any[]).map((row, index) => {
       // Determine the relevant date based on status
       let relevantDate = null;
       let dateType = '';
@@ -342,7 +356,14 @@ export class MaintenanceService {
           break;
       }
 
-      return {
+      const assetSpecifications =
+        this.parseSpecificationsField(row.asset_specifications) ||
+        this.parseSpecificationsField(row.model_specifications);
+      const specificationLabelMap = this.buildSpecificationLabelMap(
+        row.asset_type_spec_template,
+      );
+
+      const maintenanceRow = {
         id: row.id.toString(),
         assetId: row.asset_asset_id,
         assetName: `${row.asset_type_name} - ${row.brand_name} ${row.model_name}`,
@@ -363,8 +384,56 @@ export class MaintenanceService {
         cancellationNotes: row.cancellation_notes,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
+        specifications: assetSpecifications || undefined,
+        specificationLabelMap:
+          Object.keys(specificationLabelMap).length > 0
+            ? specificationLabelMap
+            : undefined,
       };
+
+      const hasSpecifications =
+        !!assetSpecifications && Object.keys(assetSpecifications).length > 0;
+
+      if (!hasSpecifications) {
+        maintenancesNeedingSpecs.push({ index, assetId: row.asset_id });
+      }
+
+      return maintenanceRow;
     });
+
+    if (maintenancesNeedingSpecs.length > 0) {
+      const assetIds = [
+        ...new Set(maintenancesNeedingSpecs.map((entry) => entry.assetId)),
+      ];
+
+      const assets = await this.prisma.asset.findMany({
+        where: { id: { in: assetIds } },
+        select: {
+          id: true,
+          specifications: true,
+          assetType: { select: { specificationTemplate: true } },
+          model: { select: { specifications: true } },
+        },
+      });
+
+      const assetMap = new Map(assets.map((asset) => [asset.id, asset]));
+
+      for (const entry of maintenancesNeedingSpecs) {
+        const asset = assetMap.get(entry.assetId);
+        if (!asset) continue;
+
+        const specs =
+          this.parseSpecificationsField(asset.specifications) ||
+          this.parseSpecificationsField(asset.model?.specifications);
+        const labelMap = this.buildSpecificationLabelMap(
+          asset.assetType?.specificationTemplate,
+        );
+
+        maintenances[entry.index].specifications = specs || undefined;
+        maintenances[entry.index].specificationLabelMap =
+          Object.keys(labelMap).length > 0 ? labelMap : undefined;
+      }
+    }
 
     return {
       message: 'Latest maintenance records retrieved successfully',
@@ -389,9 +458,12 @@ export class MaintenanceService {
           select: {
             id: true,
             assetId: true,
-            assetType: { select: { name: true } },
+            specifications: true,
+            assetType: {
+              select: { name: true, specificationTemplate: true },
+            },
             brand: { select: { name: true } },
-            model: { select: { name: true } },
+            model: { select: { name: true, specifications: true } },
           },
         },
       },
@@ -441,9 +513,12 @@ export class MaintenanceService {
             select: {
               id: true,
               assetId: true,
-              assetType: { select: { name: true } },
+              specifications: true,
+              assetType: {
+              select: { name: true, specificationTemplate: true },
+            },
               brand: { select: { name: true } },
-              model: { select: { name: true } },
+              model: { select: { name: true, specifications: true } },
             },
           },
         },
@@ -601,10 +676,13 @@ export class MaintenanceService {
           select: {
             id: true,
             assetId: true,
+            specifications: true,
             status: true,
-            assetType: { select: { name: true } },
+            assetType: {
+              select: { name: true, specificationTemplate: true },
+            },
             brand: { select: { name: true } },
-            model: { select: { name: true } },
+            model: { select: { name: true, specifications: true } },
           },
         },
       },
@@ -722,10 +800,13 @@ export class MaintenanceService {
             select: {
               id: true,
               assetId: true,
+              specifications: true,
               status: true,
-              assetType: { select: { name: true } },
+              assetType: {
+              select: { name: true, specificationTemplate: true },
+            },
               brand: { select: { name: true } },
-              model: { select: { name: true } },
+              model: { select: { name: true, specifications: true } },
             },
           },
         },
@@ -825,10 +906,13 @@ export class MaintenanceService {
             select: {
               id: true,
               assetId: true,
+              specifications: true,
               status: true,
-              assetType: { select: { name: true } },
+              assetType: {
+              select: { name: true, specificationTemplate: true },
+            },
               brand: { select: { name: true } },
-              model: { select: { name: true } },
+              model: { select: { name: true, specifications: true } },
             },
           },
         },
@@ -931,9 +1015,12 @@ export class MaintenanceService {
           select: {
             id: true,
             assetId: true,
-            assetType: { select: { name: true } },
+            specifications: true,
+            assetType: {
+              select: { name: true, specificationTemplate: true },
+            },
             brand: { select: { name: true } },
-            model: { select: { name: true } },
+            model: { select: { name: true, specifications: true } },
           },
         });
       } else {
@@ -943,9 +1030,12 @@ export class MaintenanceService {
           select: {
             id: true,
             assetId: true,
-            assetType: { select: { name: true } },
+            specifications: true,
+            assetType: {
+              select: { name: true, specificationTemplate: true },
+            },
             brand: { select: { name: true } },
-            model: { select: { name: true } },
+            model: { select: { name: true, specifications: true } },
           },
         });
       }
@@ -966,9 +1056,12 @@ export class MaintenanceService {
               select: {
                 id: true,
                 assetId: true,
-                assetType: { select: { name: true } },
+            specifications: true,
+                assetType: {
+              select: { name: true, specificationTemplate: true },
+            },
                 brand: { select: { name: true } },
-                model: { select: { name: true } },
+                model: { select: { name: true, specifications: true } },
               },
             },
           },
@@ -1032,6 +1125,7 @@ export class MaintenanceService {
     // Resolve asset
     const asset = await this.resolveAssetId(assetIdParam);
     if (!asset) throw new NotFoundException('Asset not found');
+    const assetSummary = this.formatAssetSummaryForHistory(asset);
 
     const page = Math.max(query.page || 1, 1);
     const limit = Math.min(query.limit || 20, 100);
@@ -1093,6 +1187,7 @@ export class MaintenanceService {
     return {
       message: 'Maintenance events retrieved successfully',
       data: {
+        asset: assetSummary,
         events: pageItems,
         pagination: {
           totalCount,
@@ -1107,15 +1202,23 @@ export class MaintenanceService {
 
   private async resolveAssetId(assetIdParam: string) {
     const isNumeric = /^\d+$/.test(assetIdParam);
-    if (isNumeric) {
-      return this.prisma.asset.findUnique({
-        where: { id: Number.parseInt(assetIdParam) },
-        select: { id: true },
-      });
-    }
+    const where = isNumeric
+      ? { id: Number.parseInt(assetIdParam) }
+      : { assetId: assetIdParam };
+
     return this.prisma.asset.findUnique({
-      where: { assetId: assetIdParam },
-      select: { id: true },
+      where,
+      select: {
+        id: true,
+        assetId: true,
+        serialNumber: true,
+        specifications: true,
+        assetType: {
+          select: { name: true, specificationTemplate: true },
+        },
+        brand: { select: { name: true } },
+        model: { select: { name: true, specifications: true } },
+      },
     });
   }
 
@@ -1123,6 +1226,38 @@ export class MaintenanceService {
     const from = dateFrom ? new Date(dateFrom) : undefined;
     const to = dateTo ? new Date(dateTo) : undefined;
     return { from, to };
+  }
+
+  private formatAssetSummaryForHistory(asset: any) {
+    if (!asset) {
+      return null;
+    }
+
+    const specifications =
+      this.parseSpecificationsField(asset.specifications) ||
+      this.parseSpecificationsField(asset.model?.specifications);
+    const specificationLabelMap = this.buildSpecificationLabelMap(
+      asset.assetType?.specificationTemplate,
+    );
+
+    const name = `${asset.brand?.name || ''} ${asset.model?.name || ''}`
+      .trim()
+      .replace(/\s+/g, ' ');
+
+    return {
+      id: asset.id,
+      assetId: asset.assetId,
+      name: name || asset.assetId || 'Asset',
+      assetType: asset.assetType?.name || '',
+      brand: asset.brand?.name || '',
+      model: asset.model?.name || '',
+      serialNumber: asset.serialNumber || '',
+      specifications: specifications || undefined,
+      specificationLabelMap:
+        specificationLabelMap && Object.keys(specificationLabelMap).length > 0
+          ? specificationLabelMap
+          : undefined,
+    };
   }
 
   private buildMaintenanceEvents(schedules: any[]): MaintenanceEventRow[] {
@@ -1224,9 +1359,76 @@ export class MaintenanceService {
     }
   }
 
+  private parseSpecificationsField(field: any): Record<string, any> | null {
+    if (!field) {
+      return null;
+    }
+
+    if (typeof field === 'string') {
+      try {
+        const parsed = JSON.parse(field);
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+          ? (parsed as Record<string, any>)
+          : null;
+      } catch {
+        return null;
+      }
+    }
+
+    if (typeof field === 'object' && !Array.isArray(field)) {
+      return field as Record<string, any>;
+    }
+
+    return null;
+  }
+
+  private buildSpecificationLabelMap(
+    specificationTemplate?: any,
+  ): Record<string, string> {
+    if (!specificationTemplate) {
+      return {};
+    }
+
+    let template = specificationTemplate;
+
+    if (typeof specificationTemplate === 'string') {
+      try {
+        template = JSON.parse(specificationTemplate);
+      } catch (error) {
+        console.warn(
+          'Failed to parse specification template JSON in maintenance service:',
+          error,
+        );
+        return {};
+      }
+    }
+
+    const fields = template?.fields;
+    if (!Array.isArray(fields)) {
+      return {};
+    }
+
+    const labelMap: Record<string, string> = {};
+    for (const field of fields) {
+      if (field?.key) {
+        labelMap[field.key] = field?.label || field.key;
+      }
+    }
+
+    return labelMap;
+  }
+
   private formatMaintenanceResponse(maintenance: any) {
     const assetName =
       `${maintenance.asset?.brand?.name || ''} ${maintenance.asset?.model?.name || ''} ${maintenance.asset?.assetType?.name || ''}`.trim();
+
+    const assetSpecifications =
+      this.parseSpecificationsField(maintenance.asset?.specifications) ||
+      this.parseSpecificationsField(maintenance.asset?.model?.specifications);
+
+    const specificationLabelMap = this.buildSpecificationLabelMap(
+      maintenance.asset?.assetType?.specificationTemplate,
+    );
 
     return {
       id: maintenance.id,
@@ -1265,6 +1467,11 @@ export class MaintenanceService {
       cancellationNotes: maintenance.cancellationNotes,
       createdAt: maintenance.createdAt.toISOString(),
       updatedAt: maintenance.updatedAt.toISOString(),
+      specifications: assetSpecifications || undefined,
+      specificationLabelMap:
+        Object.keys(specificationLabelMap).length > 0
+          ? specificationLabelMap
+          : undefined,
     };
   }
 
@@ -1417,9 +1624,11 @@ export class MaintenanceService {
           include: {
             asset: {
               include: {
-                assetType: { select: { name: true } },
+                assetType: {
+              select: { name: true, specificationTemplate: true },
+            },
                 brand: { select: { name: true } },
-                model: { select: { name: true } },
+                model: { select: { name: true, specifications: true } },
               },
             },
             createdByUser: { select: { id: true, username: true } },
