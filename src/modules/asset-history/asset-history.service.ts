@@ -128,13 +128,13 @@ export class AssetHistoryService {
         );
 
         // Flatten specifications with labels into the details object
-        Object.entries(specs).forEach(([key, value]) => {
+        for (const [key, value] of Object.entries(specs)) {
           if (value !== null && value !== undefined && value !== '') {
             // Use label if available, otherwise use key
             const label = labelMap[key] || key;
             details[label] = value;
           }
-        });
+        }
       }
     }
 
@@ -156,7 +156,9 @@ export class AssetHistoryService {
     if (typeof specificationTemplate === 'string') {
       try {
         template = JSON.parse(specificationTemplate);
-      } catch (e) {
+      } catch (error) {
+        // Invalid JSON template, return empty map
+        console.error('Failed to parse specification template:', error);
         return {};
       }
     }

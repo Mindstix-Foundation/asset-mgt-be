@@ -178,24 +178,142 @@ export class MaintenanceService {
     }
   }
 
+  private buildWhereConditions(
+    query: MaintenanceQueryDto,
+  ): { conditions: string[]; params: any[] } {
+    const conditions: string[] = ['m.is_active = true'];
+    const params: any[] = [];
+
+    if (query.search) {
+      conditions.push(`(
+        m.description ILIKE $${params.length + 1} OR 
+        a.asset_id ILIKE $${params.length + 1} OR 
+        m.completion_notes ILIKE $${params.length + 1}
+      )`);
+      params.push(`%${query.search}%`);
+    }
+
+    if (query.status) {
+      conditions.push(`UPPER(m.status::text) = UPPER($${params.length + 1})`);
+      params.push(query.status);
+    }
+
+    if (query.assetId) {
+      conditions.push(`m.asset_id = $${params.length + 1}`);
+      params.push(query.assetId);
+    }
+
+    if (query.maintenanceType) {
+      conditions.push(
+        `UPPER(m.maintenance_type::text) = UPPER($${params.length + 1})`,
+      );
+      params.push(query.maintenanceType);
+    }
+
+    if (query.scheduledDateFrom) {
+      conditions.push(`m.scheduled_date >= $${params.length + 1}`);
+      params.push(new Date(query.scheduledDateFrom));
+    }
+
+    if (query.scheduledDateTo) {
+      conditions.push(`m.scheduled_date <= $${params.length + 1}`);
+      params.push(new Date(query.scheduledDateTo));
+    }
+
+    if (query.assetType) {
+      conditions.push(`at.name ILIKE $${params.length + 1}`);
+      params.push(`%${query.assetType}%`);
+    }
+
+    return { conditions, params };
+  }
+
+  private buildOrderByClause(sortBy: string, sortOrder: string): string {
+    const order = sortOrder.toUpperCase();
+    
+    switch (sortBy) {
+      case 'scheduledDate':
+        return `ORDER BY m.scheduled_date ${order}`;
+      case 'createdAt':
+        return `ORDER BY m.created_at ${order}`;
+      case 'status':
+        return `ORDER BY m.status ${order}`;
+      case 'maintenanceType':
+        return `ORDER BY m.maintenance_type ${order}`;
+      case 'estimatedCost':
+        return `ORDER BY COALESCE(m.actual_cost, m.estimated_cost) ${order}`;
+      case 'assetId':
+        return `ORDER BY a.asset_id ${order}, m.id ${order}`;
+      default:
+        return 'ORDER BY m.scheduled_date DESC';
+    }
+  }
+
+  private determineRelevantDate(status: string, row: any): { date: any; type: string } {
+    const upperStatus = status?.toUpperCase();
+    
+    if (upperStatus === 'CANCELLED') {
+      return { date: row.cancellation_date, type: 'cancellation' };
+    }
+    
+    if (upperStatus === 'COMPLETED') {
+      return { date: row.actual_completion_date, type: 'completion' };
+    }
+    
+    return { date: row.scheduled_date, type: 'scheduled' };
+  }
+
+  private async enrichMaintenancesWithSpecs(
+    maintenances: any[],
+    maintenancesNeedingSpecs: Array<{ index: number; assetId: number }>,
+  ): Promise<void> {
+    if (maintenancesNeedingSpecs.length === 0) {
+      return;
+    }
+
+    const assetIds = [
+      ...new Set(maintenancesNeedingSpecs.map((entry) => entry.assetId)),
+    ];
+
+    const assets = await this.prisma.asset.findMany({
+      where: { id: { in: assetIds } },
+      select: {
+        id: true,
+        specifications: true,
+        assetType: { select: { specificationTemplate: true } },
+        model: { select: { specifications: true } },
+      },
+    });
+
+    const assetMap = new Map(assets.map((asset) => [asset.id, asset]));
+
+    for (const entry of maintenancesNeedingSpecs) {
+      const asset = assetMap.get(entry.assetId);
+      if (!asset) continue;
+
+      const specs =
+        this.parseSpecificationsField(asset.specifications) ||
+        this.parseSpecificationsField(asset.model?.specifications);
+      const labelMap = this.buildSpecificationLabelMap(
+        asset.assetType?.specificationTemplate,
+      );
+
+      maintenances[entry.index].specifications = specs || undefined;
+      maintenances[entry.index].specificationLabelMap =
+        Object.keys(labelMap).length > 0 ? labelMap : undefined;
+    }
+  }
+
   async findAll(query: MaintenanceQueryDto) {
     const {
       page = 1,
       limit = 10,
-      search,
-      status,
-      assetId,
-      maintenanceType,
-      scheduledDateFrom,
-      scheduledDateTo,
-      assetType,
       sortBy = 'scheduledDate',
       sortOrder = 'desc',
     } = query;
 
     const skip = (page - 1) * limit;
 
-    // First, get the latest maintenance record for each asset
     const latestMaintenanceSubquery = `
       SELECT DISTINCT ON (asset_id) 
         id, asset_id, maintenance_type, scheduled_date, frequency_days, description,
@@ -207,80 +325,10 @@ export class MaintenanceService {
       ORDER BY asset_id, created_at DESC
     `;
 
-    // Build where conditions for the subquery results
-    const conditions: string[] = ['m.is_active = true'];
-    const params: any[] = [];
-
-    if (search) {
-      conditions.push(`(
-        m.description ILIKE $${params.length + 1} OR 
-        a.asset_id ILIKE $${params.length + 1} OR 
-        m.completion_notes ILIKE $${params.length + 1}
-      )`);
-      params.push(`%${search}%`);
-    }
-
-    if (status) {
-      // Compare as text to avoid enum mismatch issues
-      conditions.push(`UPPER(m.status::text) = UPPER($${params.length + 1})`);
-      params.push(status);
-    }
-
-    if (assetId) {
-      conditions.push(`m.asset_id = $${params.length + 1}`);
-      params.push(assetId);
-    }
-
-    if (maintenanceType) {
-      // Compare as text to avoid enum mismatch issues
-      conditions.push(
-        `UPPER(m.maintenance_type::text) = UPPER($${params.length + 1})`,
-      );
-      params.push(maintenanceType);
-    }
-
-    // vendor filters removed
-
-    if (scheduledDateFrom) {
-      conditions.push(`m.scheduled_date >= $${params.length + 1}`);
-      params.push(new Date(scheduledDateFrom));
-    }
-
-    if (scheduledDateTo) {
-      conditions.push(`m.scheduled_date <= $${params.length + 1}`);
-      params.push(new Date(scheduledDateTo));
-    }
-
-    if (assetType) {
-      conditions.push(`at.name ILIKE $${params.length + 1}`);
-      params.push(`%${assetType}%`);
-    }
-
+    const { conditions, params } = this.buildWhereConditions(query);
     const whereClause =
       conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-    // Build order by clause
-    let orderByClause = 'ORDER BY m.scheduled_date DESC';
-    switch (sortBy) {
-      case 'scheduledDate':
-        orderByClause = `ORDER BY m.scheduled_date ${sortOrder.toUpperCase()}`;
-        break;
-      case 'createdAt':
-        orderByClause = `ORDER BY m.created_at ${sortOrder.toUpperCase()}`;
-        break;
-      case 'status':
-        orderByClause = `ORDER BY m.status ${sortOrder.toUpperCase()}`;
-        break;
-      case 'maintenanceType':
-        orderByClause = `ORDER BY m.maintenance_type ${sortOrder.toUpperCase()}`;
-        break;
-      case 'estimatedCost':
-        orderByClause = `ORDER BY COALESCE(m.actual_cost, m.estimated_cost) ${sortOrder.toUpperCase()}`;
-        break;
-      case 'assetId':
-        orderByClause = `ORDER BY a.asset_id ${sortOrder.toUpperCase()}, m.id ${sortOrder.toUpperCase()}`;
-        break;
-    }
+    const orderByClause = this.buildOrderByClause(sortBy, sortOrder);
 
     // Get paginated results
     const maintenanceQuery = `
@@ -335,26 +383,10 @@ export class MaintenanceService {
     }> = [];
 
     const maintenances = (maintenanceResults as any[]).map((row, index) => {
-      // Determine the relevant date based on status
-      let relevantDate = null;
-      let dateType = '';
-
-      switch (row.status?.toUpperCase()) {
-        case 'CANCELLED':
-          relevantDate = row.cancellation_date;
-          dateType = 'cancellation';
-          break;
-        case 'COMPLETED':
-          relevantDate = row.actual_completion_date;
-          dateType = 'completion';
-          break;
-        case 'IN_PROGRESS':
-        case 'SCHEDULED':
-        default:
-          relevantDate = row.scheduled_date;
-          dateType = 'scheduled';
-          break;
-      }
+      const { date: relevantDate, type: dateType } = this.determineRelevantDate(
+        row.status,
+        row,
+      );
 
       const assetSpecifications =
         this.parseSpecificationsField(row.asset_specifications) ||
@@ -401,39 +433,7 @@ export class MaintenanceService {
       return maintenanceRow;
     });
 
-    if (maintenancesNeedingSpecs.length > 0) {
-      const assetIds = [
-        ...new Set(maintenancesNeedingSpecs.map((entry) => entry.assetId)),
-      ];
-
-      const assets = await this.prisma.asset.findMany({
-        where: { id: { in: assetIds } },
-        select: {
-          id: true,
-          specifications: true,
-          assetType: { select: { specificationTemplate: true } },
-          model: { select: { specifications: true } },
-        },
-      });
-
-      const assetMap = new Map(assets.map((asset) => [asset.id, asset]));
-
-      for (const entry of maintenancesNeedingSpecs) {
-        const asset = assetMap.get(entry.assetId);
-        if (!asset) continue;
-
-        const specs =
-          this.parseSpecificationsField(asset.specifications) ||
-          this.parseSpecificationsField(asset.model?.specifications);
-        const labelMap = this.buildSpecificationLabelMap(
-          asset.assetType?.specificationTemplate,
-        );
-
-        maintenances[entry.index].specifications = specs || undefined;
-        maintenances[entry.index].specificationLabelMap =
-          Object.keys(labelMap).length > 0 ? labelMap : undefined;
-      }
-    }
+    await this.enrichMaintenancesWithSpecs(maintenances, maintenancesNeedingSpecs);
 
     return {
       message: 'Latest maintenance records retrieved successfully',
@@ -1242,7 +1242,7 @@ export class MaintenanceService {
 
     const name = `${asset.brand?.name || ''} ${asset.model?.name || ''}`
       .trim()
-      .replace(/\s+/g, ' ');
+      .replaceAll(/\s+/g, ' ');
 
     return {
       id: asset.id,

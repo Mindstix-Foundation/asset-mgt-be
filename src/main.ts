@@ -137,6 +137,7 @@ async function bootstrap() {
   );
 }
 
+// NOSONAR: Top-level await requires ES modules, but this is a CommonJS NestJS project
 (async () => {
   try {
     await bootstrap();

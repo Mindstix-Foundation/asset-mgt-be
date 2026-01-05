@@ -365,6 +365,101 @@ export class AssetsService {
     }
   }
 
+  private buildSearchFilter(search: string | undefined): any {
+    if (!search) return {};
+    return {
+      OR: [
+        { assetId: { contains: search, mode: 'insensitive' as const } },
+        { serialNumber: { contains: search, mode: 'insensitive' as const } },
+        { notes: { contains: search, mode: 'insensitive' as const } },
+      ],
+    };
+  }
+
+  private buildSimpleFilters(
+    assetTypeId: number | undefined,
+    brandId: number | undefined,
+    modelId: number | undefined,
+    vendorId: number | undefined,
+    status: string | undefined,
+    condition: string | undefined,
+    location: string | undefined,
+  ): any {
+    const filters: any = {};
+    if (assetTypeId) filters.assetTypeId = assetTypeId;
+    if (brandId) filters.brandId = brandId;
+    if (modelId) filters.modelId = modelId;
+    if (vendorId) filters.vendorId = vendorId;
+    if (status) filters.status = status;
+    if (condition) filters.condition = condition;
+    if (location) {
+      filters.location = { contains: location, mode: 'insensitive' as const };
+    }
+    return filters;
+  }
+
+  private buildStringBasedFilters(
+    assetType: string | undefined,
+    assetStatus: string | undefined,
+  ): any {
+    const filters: any = {};
+    if (assetType) {
+      filters.assetType = {
+        name: { contains: assetType, mode: 'insensitive' as const },
+      };
+    }
+    if (assetStatus) {
+      filters.status = assetStatus;
+    }
+    return filters;
+  }
+
+  private buildDateRangeFilter(
+    fromDate: string | undefined,
+    toDate: string | undefined,
+  ): any {
+    if (!fromDate && !toDate) return {};
+    
+    const dateFilter: any = {};
+    if (fromDate) {
+      dateFilter.gte = new Date(fromDate);
+    }
+    if (toDate) {
+      const end = new Date(toDate);
+      end.setHours(23, 59, 59, 999);
+      dateFilter.lte = end;
+    }
+    return { createdAt: dateFilter };
+  }
+
+  private buildSpecificationFilters(specificationFilters: string | undefined): any {
+    if (!specificationFilters) return {};
+    
+    try {
+      const parsedFilters = JSON.parse(specificationFilters);
+      if (!parsedFilters || typeof parsedFilters !== 'object') {
+        return {};
+      }
+      
+      const andConditions: any[] = [];
+      for (const [key, value] of Object.entries(parsedFilters)) {
+        if (value !== undefined && value !== null && value !== '') {
+          andConditions.push({
+            specifications: {
+              path: [key],
+              equals: value,
+            },
+          });
+        }
+      }
+      
+      return andConditions.length > 0 ? { AND: andConditions } : {};
+    } catch (error) {
+      console.error('Invalid specificationFilters payload:', error);
+      return {};
+    }
+  }
+
   async findAll(queryDto: AssetQueryDto) {
     const {
       page = 1,
@@ -387,65 +482,16 @@ export class AssetsService {
     } = queryDto;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: any = {
+      ...this.buildSearchFilter(search),
+      ...this.buildSimpleFilters(assetTypeId, brandId, modelId, vendorId, status, condition, location),
+      ...this.buildStringBasedFilters(assetType, assetStatus),
+      ...this.buildDateRangeFilter(fromDate, toDate),
+    };
 
-    if (search) {
-      where.OR = [
-        { assetId: { contains: search, mode: 'insensitive' as const } },
-        { serialNumber: { contains: search, mode: 'insensitive' as const } },
-        { notes: { contains: search, mode: 'insensitive' as const } },
-      ];
-    }
-
-    if (assetTypeId) where.assetTypeId = assetTypeId;
-    if (brandId) where.brandId = brandId;
-    if (modelId) where.modelId = modelId;
-    if (vendorId) where.vendorId = vendorId;
-    if (status) where.status = status;
-    if (condition) where.condition = condition;
-    if (location)
-      where.location = { contains: location, mode: 'insensitive' as const };
-
-    // Handle string-based filters for custom reports
-    if (assetType) {
-      where.assetType = {
-        name: { contains: assetType, mode: 'insensitive' as const },
-      };
-    }
-    if (assetStatus) {
-      where.status = assetStatus;
-    }
-
-    // Date range filter (createdAt)
-    if (fromDate || toDate) {
-      where.createdAt = {} as any;
-      if (fromDate) where.createdAt.gte = new Date(fromDate);
-      if (toDate) {
-        const end = new Date(toDate);
-        end.setHours(23, 59, 59, 999);
-        where.createdAt.lte = end;
-      }
-    }
-
-    if (specificationFilters) {
-      try {
-        const parsedFilters = JSON.parse(specificationFilters);
-        if (parsedFilters && typeof parsedFilters === 'object') {
-          Object.entries(parsedFilters).forEach(([key, value]) => {
-            if (value !== undefined && value !== null && value !== '') {
-              where.AND = where.AND || [];
-              where.AND.push({
-                specifications: {
-                  path: [key],
-                  equals: value,
-                },
-              });
-            }
-          });
-        }
-      } catch (error) {
-        console.error('Invalid specificationFilters payload:', error);
-      }
+    const specFilters = this.buildSpecificationFilters(specificationFilters);
+    if (specFilters.AND) {
+      where.AND = where.AND ? [...where.AND, ...specFilters.AND] : specFilters.AND;
     }
 
     const orderBy = { [sortBy]: sortOrder } as any;
@@ -1456,8 +1502,84 @@ export class AssetsService {
     };
   }
 
+  private extractSpecificationsFromAssets(assets: any[]): Record<string, string>[] {
+    const allSpecs: Record<string, string>[] = [];
+    for (const asset of assets) {
+      if (
+        asset.model?.specifications &&
+        typeof asset.model.specifications === 'object' &&
+        asset.model.specifications !== null
+      ) {
+        allSpecs.push(asset.model.specifications as Record<string, string>);
+      }
+    }
+    return allSpecs;
+  }
+
+  private countSpecKeyFrequency(allSpecs: Record<string, string>[]): Map<string, number> {
+    const specKeyFrequency = new Map<string, number>();
+    for (const spec of allSpecs) {
+      for (const key of Object.keys(spec)) {
+        specKeyFrequency.set(key, (specKeyFrequency.get(key) || 0) + 1);
+      }
+    }
+    return specKeyFrequency;
+  }
+
+  private getTopRequiredSpecs(specKeyFrequency: Map<string, number>, topN: number = 2): string[] {
+    return Array.from(specKeyFrequency.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, topN)
+      .map(([key]) => key);
+  }
+
+  private buildUniqueCombinations(
+    allSpecs: Record<string, string>[],
+    requiredSpecs: string[],
+  ): Map<string, Record<string, string>> {
+    const uniqueCombinations = new Map<string, Record<string, string>>();
+    
+    for (const spec of allSpecs) {
+      const combination = this.buildCombination(spec, requiredSpecs);
+      if (combination) {
+        const combinationKey = requiredSpecs.map((k) => spec[k]).join('|');
+        if (!uniqueCombinations.has(combinationKey)) {
+          uniqueCombinations.set(combinationKey, combination);
+        }
+      }
+    }
+    
+    return uniqueCombinations;
+  }
+
+  private buildCombination(
+    spec: Record<string, string>,
+    requiredSpecs: string[],
+  ): Record<string, string> | null {
+    const combination: Record<string, string> = {};
+    
+    for (const key of requiredSpecs) {
+      if (spec[key]) {
+        combination[key] = spec[key];
+      } else {
+        return null;
+      }
+    }
+    
+    return combination;
+  }
+
+  private createEmptyResult(message: string) {
+    return {
+      message,
+      data: {
+        requiredSpecs: [] as string[],
+        combinations: [] as Record<string, string>[],
+      },
+    };
+  }
+
   async getUniqueSpecifications(assetTypeId: number, brandId: number) {
-    // Find all assets matching the type and brand with specifications
     const assets = await this.prisma.asset.findMany({
       where: {
         assetTypeId,
@@ -1477,76 +1599,20 @@ export class AssetsService {
       },
     });
 
-    // Extract all specifications
-    const allSpecs: Record<string, string>[] = [];
-    for (const asset of assets) {
-      if (
-        asset.model?.specifications &&
-        typeof asset.model.specifications === 'object' &&
-        asset.model.specifications !== null
-      ) {
-        allSpecs.push(asset.model.specifications as Record<string, string>);
-      }
-    }
-
-    // If no specifications found, return empty result
+    const allSpecs = this.extractSpecificationsFromAssets(assets);
+    
     if (allSpecs.length === 0) {
-      return {
-        message: 'No specifications found',
-        data: {
-          requiredSpecs: [],
-          combinations: [],
-        },
-      };
+      return this.createEmptyResult('No specifications found');
     }
 
-    // Count frequency of each specification key
-    const specKeyFrequency = new Map<string, number>();
-    for (const spec of allSpecs) {
-      for (const key of Object.keys(spec)) {
-        specKeyFrequency.set(key, (specKeyFrequency.get(key) || 0) + 1);
-      }
-    }
-
-    // Sort by frequency and take top 2 as required specs
-    const requiredSpecs = Array.from(specKeyFrequency.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 2)
-      .map(([key]) => key);
-
-    // If less than 2 required specs, return what we have
+    const specKeyFrequency = this.countSpecKeyFrequency(allSpecs);
+    const requiredSpecs = this.getTopRequiredSpecs(specKeyFrequency);
+    
     if (requiredSpecs.length === 0) {
-      return {
-        message: 'Unique specifications retrieved successfully',
-        data: {
-          requiredSpecs: [],
-          combinations: [],
-        },
-      };
+      return this.createEmptyResult('Unique specifications retrieved successfully');
     }
 
-    // Build unique combinations of required specs
-    const uniqueCombinations = new Map<string, Record<string, string>>();
-    for (const spec of allSpecs) {
-      const combination: Record<string, string> = {};
-      let hasAllRequired = true;
-
-      for (const key of requiredSpecs) {
-        if (spec[key]) {
-          combination[key] = spec[key];
-        } else {
-          hasAllRequired = false;
-          break;
-        }
-      }
-
-      if (hasAllRequired) {
-        const combinationKey = requiredSpecs.map((k) => spec[k]).join('|');
-        if (!uniqueCombinations.has(combinationKey)) {
-          uniqueCombinations.set(combinationKey, combination);
-        }
-      }
-    }
+    const uniqueCombinations = this.buildUniqueCombinations(allSpecs, requiredSpecs);
 
     return {
       message: 'Unique specifications retrieved successfully',
@@ -2726,16 +2792,11 @@ export class AssetsService {
     return assetData;
   }
 
-  /**
-   * Validate asset data for bulk upload
-   */
-  private async validateBulkUploadAssetData(
+  private validateRequiredFields(
     assetData: any,
     rowNumber: number,
-  ): Promise<any[]> {
+  ): any[] {
     const errors: any[] = [];
-
-    // Validate required fields
     if (
       !assetData.assetId ||
       !assetData.assetTypeId ||
@@ -2749,8 +2810,14 @@ export class AssetsService {
           'Missing required fields: assetId, assetTypeId, brandId, or modelId',
       });
     }
+    return errors;
+  }
 
-    // Validate ID fields are numbers
+  private validateIdFields(
+    assetData: any,
+    rowNumber: number,
+  ): any[] {
+    const errors: any[] = [];
     if (
       Number.isNaN(assetData.assetTypeId) ||
       Number.isNaN(assetData.brandId) ||
@@ -2762,8 +2829,80 @@ export class AssetsService {
         message: 'AssetTypeId, BrandId, and ModelId must be valid numbers',
       });
     }
+    return errors;
+  }
 
-    // Validate status
+  private validateEnumValue(
+    value: string | undefined,
+    validValues: string[],
+    fieldName: string,
+    rowNumber: number,
+  ): any[] {
+    const errors: any[] = [];
+    if (value && !validValues.includes(value)) {
+      errors.push({
+        row: rowNumber,
+        field: fieldName,
+        message: `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} value '${value}' is not valid. Allowed values: ${validValues.join(', ')}`,
+      });
+    }
+    return errors;
+  }
+
+  private async validateSpecificationsAgainstTemplate(
+    assetData: any,
+    rowNumber: number,
+  ): Promise<any[]> {
+    const errors: any[] = [];
+    
+    if (!assetData.assetTypeId || Number.isNaN(assetData.assetTypeId)) {
+      return errors;
+    }
+
+    try {
+      const assetType = await this.prisma.assetType.findUnique({
+        where: { id: assetData.assetTypeId },
+        select: { specificationTemplate: true },
+      });
+
+      if (!assetType?.specificationTemplate) {
+        return errors;
+      }
+
+      const template = assetType.specificationTemplate as any;
+      if (!template.fields || !Array.isArray(template.fields)) {
+        return errors;
+      }
+
+      for (const field of template.fields) {
+        if (field.required) {
+          const specValue = assetData.specifications?.[field.key];
+          if (!specValue || specValue.trim() === '') {
+            errors.push({
+              row: rowNumber,
+              field: `spec_${field.key}`,
+              message: `Required specification field '${field.label}' is missing`,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error(
+        `Error validating specifications for row ${rowNumber}:`,
+        error,
+      );
+    }
+
+    return errors;
+  }
+
+  /**
+   * Validate asset data for bulk upload
+   */
+  private async validateBulkUploadAssetData(
+    assetData: any,
+    rowNumber: number,
+  ): Promise<any[]> {
     const validStatuses = [
       'AVAILABLE',
       'ASSIGNED',
@@ -2771,58 +2910,15 @@ export class AssetsService {
       'RETIRED',
       'LOST',
     ];
-    if (assetData.status && !validStatuses.includes(assetData.status)) {
-      errors.push({
-        row: rowNumber,
-        field: 'status',
-        message: `Status value '${assetData.status}' is not valid. Allowed values: ${validStatuses.join(', ')}`,
-      });
-    }
-
-    // Validate condition
     const validConditions = ['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED'];
-    if (assetData.condition && !validConditions.includes(assetData.condition)) {
-      errors.push({
-        row: rowNumber,
-        field: 'condition',
-        message: `Condition value '${assetData.condition}' is not valid. Allowed values: ${validConditions.join(', ')}`,
-      });
-    }
 
-    // Validate specifications against asset type template (if assetTypeId is valid)
-    if (assetData.assetTypeId && !Number.isNaN(assetData.assetTypeId)) {
-      try {
-        const assetType = await this.prisma.assetType.findUnique({
-          where: { id: assetData.assetTypeId },
-          select: { specificationTemplate: true },
-        });
-
-        if (assetType?.specificationTemplate) {
-          const template = assetType.specificationTemplate as any;
-          if (template.fields && Array.isArray(template.fields)) {
-            // Validate required specification fields
-            for (const field of template.fields) {
-              if (field.required) {
-                const specValue = assetData.specifications?.[field.key];
-                if (!specValue || specValue.trim() === '') {
-                  errors.push({
-                    row: rowNumber,
-                    field: `spec_${field.key}`,
-                    message: `Required specification field '${field.label}' is missing`,
-                  });
-                }
-              }
-            }
-          }
-        }
-      } catch (error) {
-        // Log but don't fail validation if we can't fetch asset type
-        console.error(
-          `Error validating specifications for row ${rowNumber}:`,
-          error,
-        );
-      }
-    }
+    const errors: any[] = [
+      ...this.validateRequiredFields(assetData, rowNumber),
+      ...this.validateIdFields(assetData, rowNumber),
+      ...this.validateEnumValue(assetData.status, validStatuses, 'status', rowNumber),
+      ...this.validateEnumValue(assetData.condition, validConditions, 'condition', rowNumber),
+      ...await this.validateSpecificationsAgainstTemplate(assetData, rowNumber),
+    ];
 
     return errors;
   }

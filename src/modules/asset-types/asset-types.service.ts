@@ -384,9 +384,7 @@ export class AssetTypesService {
         );
       }
 
-      const key = incomingKey
-        ? incomingKey
-        : this.generateUniqueFieldKey(trimmedLabel, usedKeys);
+      const key = incomingKey ?? this.generateUniqueFieldKey(trimmedLabel, usedKeys);
       usedKeys.add(key);
 
       const fieldType = field.type ?? existingField?.type ?? 'dropdown';
@@ -460,7 +458,7 @@ export class AssetTypesService {
     const normalizedOptions: StoredSpecificationOption[] = [];
     const seenValues = new Set<string>();
 
-    field.options.forEach((option, index) => {
+    for (const [index, option] of field.options.entries()) {
       const trimmedValue = option.value?.trim();
       if (!trimmedValue) {
         throw new BadRequestException(
@@ -482,7 +480,7 @@ export class AssetTypesService {
         value: trimmedValue,
         deprecated: option.deprecated ?? existingOption?.deprecated ?? false,
       });
-    });
+    }
 
     if (existingOptionsMap) {
       for (const value of existingOptionsMap.keys()) {
@@ -571,9 +569,9 @@ export class AssetTypesService {
     let baseKey = label
       .trim()
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '_')
-      .replace(/^_+|_+$/g, '')
-      .replace(/_+/g, '_');
+      .replaceAll(/[^a-z0-9]+/g, '_')
+      .replaceAll(/(^_+|_+$)/g, '')
+      .replaceAll(/_+/g, '_');
 
     if (!baseKey) {
       baseKey = 'field';
