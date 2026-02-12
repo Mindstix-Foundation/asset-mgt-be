@@ -1,10 +1,10 @@
-# TrackStix Backend - Asset Management API
+# Pebble Asset Tracker Backend - Asset Management API
 
-NestJS backend API for the TrackStix asset management platform, providing robust services for complete asset lifecycle management, maintenance scheduling, and comprehensive analytics.
+NestJS backend API for the Pebble Asset Tracker asset management platform, providing robust services for complete asset lifecycle management, maintenance scheduling, and comprehensive analytics.
 
 ## 🎯 Overview
 
-The TrackStix backend is a scalable, enterprise-grade API built with NestJS that powers comprehensive asset management capabilities. It provides secure, high-performance services for administrators, managers, and employees with extensive asset tracking, assignment management, maintenance scheduling, and analytics features.
+The Pebble Asset Tracker backend is a scalable, enterprise-grade API built with NestJS that powers comprehensive asset management capabilities. It provides secure, high-performance services for administrators, managers, and employees with extensive asset tracking, assignment management, maintenance scheduling, and analytics features.
 
 ## 🚀 Tech Stack
 
@@ -127,7 +127,7 @@ npm install
    SMTP_SECURE=false
    SMTP_USER="your-email@gmail.com"
    SMTP_PASS="your-app-password"
-   SMTP_FROM="TrackStix <noreply@trackstix.com>"
+   SMTP_FROM="Pebble Asset Tracker <noreply@pebble-asset-tracker.com>"
    
    # File Upload Configuration
    MAX_FILE_SIZE=5242880
@@ -772,7 +772,7 @@ DELETE /admin/users/:id         - Remove admin user
 
 ## 🙏 Acknowledgments
 
-Special thanks to the Mindstix Foundation team and all contributors who have helped make TrackStix a robust and reliable asset management platform.
+Special thanks to the Mindstix Foundation team and all contributors who have helped make Pebble Asset Tracker a robust and reliable asset management platform.
 
 ---
 
@@ -786,7 +786,7 @@ Special thanks to the Mindstix Foundation team and all contributors who have hel
 
 ## 🔗 Related Repositories
 
-- **🖥️ Frontend Repository**: [TrackStix Frontend](../asset-mgt-fe) - Vue.js frontend providing modern user interface
+- **🖥️ Frontend Repository**: [Pebble Asset Tracker Frontend](../asset-mgt-fe) - Vue.js frontend providing modern user interface
 
 ---
 

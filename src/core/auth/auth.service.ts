@@ -727,9 +727,9 @@ export class AuthService implements OnModuleInit {
       await transporter.sendMail({
         from:
           this.configService.get('SMTP_FROM') ||
-          '"TrackStix Support" <trackstix.noreply@gmail.com>',
+          '"Pebble Asset Tracker Support" <pebble-asset-tracker.noreply@gmail.com>',
         to: user.employee.email,
-        subject: 'Password Reset Request - TrackStix Asset Management',
+        subject: 'Password Reset Request - Pebble Asset Tracker Asset Management',
         html: `
           <!DOCTYPE html>
           <html>
@@ -744,7 +744,7 @@ export class AuthService implements OnModuleInit {
               
               <!-- Header Section -->
               <div style="background-color: #212529; color: #ffffff; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-                <h1 style="margin: 0; font-size: 24px; font-weight: bold;">TrackStix Asset Management</h1>
+                <h1 style="margin: 0; font-size: 24px; font-weight: bold;">Pebble Asset Tracker Asset Management</h1>
                 <p style="margin: 8px 0 0; font-size: 14px; opacity: 0.9;">Password Reset Request</p>
               </div>
 
@@ -759,7 +759,7 @@ export class AuthService implements OnModuleInit {
                 </p>
 
                 <p style="margin: 0 0 25px; font-size: 16px; color: #495057;">
-                  We received a request to reset the password for your TrackStix account. 
+                  We received a request to reset the password for your Pebble Asset Tracker account. 
                   Click the button below to reset your password:
                 </p>
 
@@ -805,7 +805,7 @@ export class AuthService implements OnModuleInit {
               <!-- Footer -->
               <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #dee2e6; border-radius: 0 0 8px 8px;">
                 <p style="margin: 0 0 8px; font-size: 14px; color: #212529; font-weight: 600;">
-                  TrackStix Asset Management
+                  Pebble Asset Tracker Asset Management
                 </p>
                 <p style="margin: 0 0 8px; font-size: 12px; color: #6c757d;">
                   Professional Asset Tracking & Management
@@ -814,7 +814,7 @@ export class AuthService implements OnModuleInit {
                   This is an automated message. Please do not reply to this email.
                 </p>
                 <p style="margin: 0; font-size: 10px; color: #adb5bd;">
-                  &copy; ${new Date().getFullYear()} TrackStix. All rights reserved.
+                  &copy; ${new Date().getFullYear()} Pebble Asset Tracker. All rights reserved.
                 </p>
               </div>
             </div>

@@ -174,9 +174,9 @@ export class NotificationService {
       await transporter.sendMail({
         from:
           this.configService.get('SMTP_FROM') ||
-          '"TrackStix Support" <trackstix.noreply@gmail.com>',
+          '"Pebble Asset Tracker Support" <pebble-asset-tracker.noreply@gmail.com>',
         to: userEmail,
-        subject: 'Maintenance Reminder - TrackStix Asset Management',
+        subject: 'Maintenance Reminder - Pebble Asset Tracker Asset Management',
         html: `
           <!DOCTYPE html>
           <html>
@@ -191,7 +191,7 @@ export class NotificationService {
               
               <!-- Header Section -->
               <div style="background-color: #212529; color: #ffffff; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-                <h1 style="margin: 0; font-size: 24px; font-weight: bold;">TrackStix Asset Management</h1>
+                <h1 style="margin: 0; font-size: 24px; font-weight: bold;">Pebble Asset Tracker Asset Management</h1>
                 <p style="margin: 8px 0 0; font-size: 14px; opacity: 0.9;">Maintenance Reminder</p>
               </div>
 
@@ -250,7 +250,7 @@ export class NotificationService {
               <!-- Footer -->
               <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #dee2e6;">
                 <p style="margin: 0; font-size: 12px; color: #6c757d;">
-                  © 2024 TrackStix Asset Management. All rights reserved.
+                  © 2024 Pebble Asset Tracker Asset Management. All rights reserved.
                 </p>
               </div>
             </div>

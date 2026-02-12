@@ -91,7 +91,7 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('Asset Management System API')
     .setDescription(
-      'Comprehensive API documentation for TrackStix Asset Management System',
+      'Comprehensive API documentation for Pebble Asset Tracker Asset Management System',
     )
     .setVersion('1.0')
     .addTag('auth', 'Authentication operations')

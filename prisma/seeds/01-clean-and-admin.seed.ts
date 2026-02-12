@@ -76,7 +76,7 @@ async function createAdminUser() {
     // Insert admin employee with NULL created_by (will update later)
     await tx.$executeRawUnsafe(`
       INSERT INTO employees (employee_id, first_name, last_name, email, phone, date_of_birth, address, status)
-      VALUES ('9999', 'System', 'Administrator', 'admin@trackstix.com', '+91 9999999999', '1990-01-01', 'System', 'ACTIVE')
+      VALUES ('9999', 'System', 'Administrator', 'admin@pebble-asset-tracker.com', '+91 9999999999', '1990-01-01', 'System', 'ACTIVE')
     `);
     
     const adminEmployee = await tx.employee.findUnique({
