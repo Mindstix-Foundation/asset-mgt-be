@@ -662,6 +662,60 @@ export class AssetsService {
   }
 
   /**
+   * Validate serial number uniqueness for update operations
+   */
+  private async validateSerialNumberForUpdate(
+    serialNumber: string,
+    currentAssetId: number,
+  ): Promise<void> {
+    if (!serialNumber?.trim()) {
+      // Serial number is optional, so empty is valid
+      return;
+    }
+
+    const trimmedSerialNumber = serialNumber.trim();
+
+    // Search for exact match, trimmed match, and also check for leading/trailing spaces
+    const serialNumberConditions = [
+      { serialNumber: { equals: trimmedSerialNumber, mode: 'insensitive' } },
+      {
+        serialNumber: {
+          equals: ` ${trimmedSerialNumber}`,
+          mode: 'insensitive',
+        },
+      }, // Leading space
+      {
+        serialNumber: {
+          equals: `${trimmedSerialNumber} `,
+          mode: 'insensitive',
+        },
+      }, // Trailing space
+      {
+        serialNumber: {
+          equals: ` ${trimmedSerialNumber} `,
+          mode: 'insensitive',
+        },
+      }, // Both spaces
+    ];
+
+    const where: any = {
+      OR: serialNumberConditions,
+      id: { not: currentAssetId }, // Exclude current asset
+    };
+
+    const existingAsset = await this.prisma.asset.findFirst({
+      where,
+      select: { id: true, assetId: true, serialNumber: true },
+    });
+
+    if (existingAsset) {
+      throw new ConflictException(
+        `Serial number '${trimmedSerialNumber}' is already in use by asset ${existingAsset.assetId}`,
+      );
+    }
+  }
+
+  /**
    * Validate foreign key references for update operations
    */
   private async validateForeignKeysForUpdate(
@@ -862,6 +916,11 @@ export class AssetsService {
       // Validate assetId format if being updated
       if (updateAssetDto.assetId) {
         await this.validateAssetIdForUpdate(updateAssetDto.assetId, id);
+      }
+
+      // Validate serial number uniqueness if being updated
+      if (updateAssetDto.serialNumber !== undefined) {
+        await this.validateSerialNumberForUpdate(updateAssetDto.serialNumber, id);
       }
 
       // Validate foreign key references
