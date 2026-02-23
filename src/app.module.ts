@@ -1,13 +1,27 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
+import { TimezoneInterceptor } from './shared/timezone.interceptor';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { PrismaModule } from './prisma/prisma.module';
-import { AuthModule } from './auth/auth.module';
-import { EmployeesModule } from './employees/employees.module';
+import { GlobalAuthGuard } from './core/auth/guards/global-auth.guard';
+import { PrismaModule } from './core/database/prisma.module';
+import { AuthModule } from './core/auth/auth.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { EmployeesModule } from './modules/employees/employees.module';
+import { MaintenanceModule } from './modules/maintenance/maintenance.module';
+import { NotificationModule } from './modules/notifications/notification.module';
 import { VendorsModule } from './modules/vendors/vendors.module';
-import { MaintenanceModule } from './maintenance/maintenance.module';
-import { AssetsModule } from './assets/assets.module';
+import { AssetCategoriesModule } from './modules/asset-categories/asset-categories.module';
+import { AssetTypesModule } from './modules/asset-types/asset-types.module';
+import { BrandsModule } from './modules/brands/brands.module';
+import { ModelsModule } from './modules/models/models.module';
+import { AssignmentsModule } from './modules/assignments/assignments.module';
+import { AssetReportsModule } from './modules/asset-reports/asset-reports.module';
+import { AssetsModule } from './modules/assets/assets.module';
+import { AssetHistoryModule } from './modules/asset-history/asset-history.module';
+import { ReportsModule } from './modules/reports/reports.module';
 
 @Module({
   imports: [
@@ -15,14 +29,44 @@ import { AssetsModule } from './assets/assets.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000, // 1 minute
+        limit: 100, // 100 requests per minute
+      },
+    ]),
     PrismaModule,
     AuthModule,
     EmployeesModule,
     VendorsModule,
+    AssetCategoriesModule,
+    AssetTypesModule,
+    BrandsModule,
+    ModelsModule,
+    AssignmentsModule,
+    AssetReportsModule,
     MaintenanceModule,
     AssetsModule,
+    AssetHistoryModule,
+    ReportsModule,
+    AdminModule,
+    NotificationModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: GlobalAuthGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TimezoneInterceptor,
+    },
+  ],
 })
 export class AppModule {}

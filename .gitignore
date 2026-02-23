@@ -101,3 +101,12 @@ prisma/migrations/
 
 # Uploads
 uploads/
+
+# Database Backups (exclude backup files, keep scripts)
+backups/
+backups/full/
+backups/wal/
+backups/logs/
+*.sql.gz
+*.dump
+*.meta

@@ -21,5 +21,15 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "prisma/seed-all.ts",
+    "prisma/seed-asset-assignments.ts", 
+    "prisma/seed-asset-categories-updated.ts",
+    "prisma/seed-assets-final.ts",
+    "prisma/seed-employees-from-csv.ts",
+    "prisma/seed.ts"
+  ]
 }
