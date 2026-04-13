@@ -146,11 +146,10 @@ export function IsVendorName(validationOptions?: ValidationOptions) {
             return false;
           }
 
-          // Vendor name should start with letter, contain letters, numbers, spaces, and common business suffixes
-          // Allow letters, numbers, spaces, and common business punctuation
+          // Normalize case so the regex does not need the case-insensitive flag.
           const vendorNameRegex =
-            /^[A-Z][A-Z0-9\s&.,']*(?:Inc|LLC|Ltd|Corp|Company|Co|Pvt|Limited|Solutions|Tech|Systems|Services|Group|Global)?\.?$/i;
-          return vendorNameRegex.test(value.trim());
+            /^[A-Z][A-Z0-9\s&.,']*(?:INC|LLC|LTD|CORP|COMPANY|CO|PVT|LIMITED|SOLUTIONS|TECH|SYSTEMS|SERVICES|GROUP|GLOBAL)?\.?$/;
+          return vendorNameRegex.test(value.trim().toUpperCase());
         },
         defaultMessage(args: ValidationArguments) {
           return `${args.property} must be a valid vendor name (start with letter, contain only letters, numbers, spaces, and common business suffixes)`;
