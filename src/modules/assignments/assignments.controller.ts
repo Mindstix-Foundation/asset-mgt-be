@@ -50,7 +50,7 @@ export class AssignmentsController {
             assetId: 1,
             employeeId: 1,
             issueDate: '2024-09-18',
-            issueCondition: 'GOOD',
+            issueCondition: 'WORKING_CONDITION',
             issueReason: 'Work from home setup',
             notes: 'Employee needs laptop for remote work',
             asset: {
@@ -59,7 +59,7 @@ export class AssignmentsController {
               assetType: { id: 1, name: 'Laptop' },
               brand: { id: 1, name: 'Apple' },
               model: { id: 1, name: 'MacBook Pro 16"' },
-              condition: 'GOOD',
+              condition: 'WORKING_CONDITION',
               status: 'ASSIGNED',
             },
             employee: {
@@ -153,7 +153,7 @@ export class AssignmentsController {
               employeeId: 1,
               issueDate: '2024-09-18',
               returnDate: null,
-              issueCondition: 'GOOD',
+              issueCondition: 'WORKING_CONDITION',
               issueReason: 'Work from home setup',
               asset: {
                 id: 1,
@@ -161,7 +161,7 @@ export class AssignmentsController {
                 assetType: { id: 1, name: 'Laptop' },
                 brand: { id: 1, name: 'Apple' },
                 model: { id: 1, name: 'MacBook Pro 16"' },
-                condition: 'GOOD',
+                condition: 'WORKING_CONDITION',
                 status: 'ASSIGNED',
                 location: 'Office Floor 3',
               },
@@ -319,8 +319,8 @@ export class AssignmentsController {
             employeeId: 1,
             issueDate: '2024-09-18',
             returnDate: '2024-09-20',
-            issueCondition: 'GOOD',
-            returnCondition: 'GOOD',
+            issueCondition: 'WORKING_CONDITION',
+            returnCondition: 'WORKING_CONDITION',
             returnReason: 'Project completed',
             notes: 'Asset returned in good condition',
             asset: {
@@ -329,8 +329,8 @@ export class AssignmentsController {
               assetType: { id: 1, name: 'Laptop' },
               brand: { id: 1, name: 'Apple' },
               model: { id: 1, name: 'MacBook Pro 16"' },
-              condition: 'GOOD',
-              status: 'AVAILABLE',
+              condition: 'WORKING_CONDITION',
+              status: 'NON_ASSIGNED',
             },
             employee: {
               id: 1,

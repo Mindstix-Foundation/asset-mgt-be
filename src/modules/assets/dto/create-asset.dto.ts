@@ -13,6 +13,33 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type, Transform } from 'class-transformer';
 
+export const ASSET_CONDITION_VALUES = [
+  'NEW',
+  'WORKING_CONDITION',
+  'SOFTWARE_ISSUE',
+  'HARDWARE_ISSUE',
+  'NEEDS_REPAIR',
+  'TRASH',
+  'REFURBISHED',
+] as const;
+export type AssetConditionValue = (typeof ASSET_CONDITION_VALUES)[number];
+
+export const ASSET_STATUS_VALUES = [
+  'NON_ASSIGNED',
+  'ASSIGNED',
+  'IN_MAINTENANCE',
+  'RETIRED',
+  'LOST',
+  'DONATED',
+] as const;
+export type AssetStatusValue = (typeof ASSET_STATUS_VALUES)[number];
+
+export const ASSET_LOCATION_VALUES = [
+  'PUNE_INVENTORY_CENTER',
+  'THANE_INVENTORY_CENTER',
+] as const;
+export type AssetLocationValue = (typeof ASSET_LOCATION_VALUES)[number];
+
 export class CreateAssetDto {
   @ApiPropertyOptional({
     description:
@@ -107,33 +134,35 @@ export class CreateAssetDto {
   @IsDateString()
   warrantyEndDate?: string;
 
-  @ApiPropertyOptional({
-    description: 'Physical location of the asset',
-    example: 'Office Floor 3, Room 301',
+  @ApiProperty({
+    description: 'Physical location of the asset (must be one of allowed centers)',
+    example: 'PUNE_INVENTORY_CENTER',
+    enum: ASSET_LOCATION_VALUES,
   })
-  @IsOptional()
-  @IsString()
-  location?: string;
+  @IsEnum(ASSET_LOCATION_VALUES, {
+    message: `location must be one of: ${ASSET_LOCATION_VALUES.join(', ')}`,
+  })
+  location: AssetLocationValue;
 
   @ApiPropertyOptional({
     description: 'Condition of the asset',
     example: 'NEW',
-    enum: ['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED', 'REFURBISHED'],
+    enum: ASSET_CONDITION_VALUES,
     default: 'NEW',
   })
   @IsOptional()
-  @IsEnum(['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED', 'REFURBISHED'])
-  condition?: 'NEW' | 'GOOD' | 'FAIR' | 'POOR' | 'DAMAGED' | 'REFURBISHED';
+  @IsEnum(ASSET_CONDITION_VALUES)
+  condition?: AssetConditionValue;
 
   @ApiPropertyOptional({
     description: 'Status of the asset',
-    example: 'AVAILABLE',
-    enum: ['AVAILABLE', 'ASSIGNED', 'IN_MAINTENANCE', 'RETIRED', 'LOST'],
-    default: 'AVAILABLE',
+    example: 'NON_ASSIGNED',
+    enum: ASSET_STATUS_VALUES,
+    default: 'NON_ASSIGNED',
   })
   @IsOptional()
-  @IsEnum(['AVAILABLE', 'ASSIGNED', 'IN_MAINTENANCE', 'RETIRED', 'LOST'])
-  status?: 'AVAILABLE' | 'ASSIGNED' | 'IN_MAINTENANCE' | 'RETIRED' | 'LOST';
+  @IsEnum(ASSET_STATUS_VALUES)
+  status?: AssetStatusValue;
 
   @ApiPropertyOptional({
     description: 'Asset specifications (JSON object with key-value pairs)',

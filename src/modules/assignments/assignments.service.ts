@@ -41,10 +41,17 @@ export class AssignmentsService {
         throw new BadRequestException('Employee not found');
       }
 
-      // Check if asset is available
-      if (asset.status !== 'AVAILABLE') {
+      // Check if asset is non-assigned
+      if (asset.status !== 'NON_ASSIGNED') {
         throw new BadRequestException(
           `Asset is currently ${asset.status.toLowerCase()} and cannot be assigned`,
+        );
+      }
+
+      // Block assignment of assets in TRASH condition
+      if (asset.condition === 'TRASH') {
+        throw new BadRequestException(
+          'This asset is marked as TRASH and cannot be assigned. Please update its condition first.',
         );
       }
 
@@ -124,7 +131,7 @@ export class AssignmentsService {
               issueCondition: assignment.issueCondition,
               issueReason: assignment.issueReason,
               notes: assignment.notes,
-              previousStatus: 'AVAILABLE',
+              previousStatus: 'NON_ASSIGNED',
               newStatus: 'ASSIGNED',
               issuedVia: 'IssueAssetView',
             },
@@ -568,9 +575,9 @@ export class AssignmentsService {
           },
         });
 
-        // Update asset status back to AVAILABLE and condition if needed
+        // Update asset status back to NON_ASSIGNED and condition if needed
         const assetUpdateData: any = {
-          status: 'AVAILABLE',
+          status: 'NON_ASSIGNED',
           updatedBy: userId,
         };
 
@@ -600,7 +607,7 @@ export class AssignmentsService {
               returnReason: updatedAssignment.returnReason,
               notes: updatedAssignment.notes,
               previousStatus: 'ASSIGNED',
-              newStatus: 'AVAILABLE',
+              newStatus: 'NON_ASSIGNED',
               previousCondition: updatedAssignment.asset.condition,
               newCondition: returnAssignmentDto.returnCondition,
               collectedVia: 'CollectAssetView',

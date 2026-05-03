@@ -464,7 +464,7 @@ export class AssetHistoryService {
     assetId: number,
   ): Promise<{ status: string; condition: string }> {
     // Start with default initial state
-    let currentStatus = 'AVAILABLE'; // default initial status
+    let currentStatus = 'NON_ASSIGNED'; // default initial status
     let currentCondition = 'NEW'; // default initial condition
 
     // Get the first ASSET_CREATED event to get initial values

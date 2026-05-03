@@ -11,16 +11,19 @@ export class AppService {
 
   async getDashboardStats() {
     try {
-      // Get total assets count (exclude RETIRED and LOST)
+      // Statuses excluded from "active" counts (out of business inventory)
+      const excludedStatuses = ['RETIRED', 'LOST', 'DONATED'] as const;
+
+      // Get total assets count (exclude RETIRED, LOST, and DONATED)
       const totalAssets = await this.prisma.asset.count({
         where: {
           status: {
-            notIn: ['RETIRED', 'LOST'],
+            notIn: [...excludedStatuses],
           },
         },
       });
 
-      // Get assets by status (exclude RETIRED and LOST)
+      // Get assets by status (exclude RETIRED, LOST, and DONATED)
       const assetsByStatus = await this.prisma.asset.groupBy({
         by: ['status'],
         _count: {
@@ -28,7 +31,7 @@ export class AppService {
         },
         where: {
           status: {
-            notIn: ['RETIRED', 'LOST'],
+            notIn: [...excludedStatuses],
           },
         },
       });
@@ -38,7 +41,7 @@ export class AppService {
       const assetsWithActiveMaintenance = await this.prisma.asset.count({
         where: {
           status: {
-            notIn: ['RETIRED', 'LOST'],
+            notIn: [...excludedStatuses],
           },
           maintenanceSchedules: {
             some: {
@@ -53,7 +56,7 @@ export class AppService {
 
       // Initialize counters
       let assigned = 0;
-      let available = 0;
+      let nonAssigned = 0;
       let maintenanceByStatus = 0;
 
       // Count assets by status using exact Prisma enum values
@@ -62,8 +65,8 @@ export class AppService {
           case 'ASSIGNED':
             assigned += group._count.id;
             break;
-          case 'AVAILABLE':
-            available += group._count.id;
+          case 'NON_ASSIGNED':
+            nonAssigned += group._count.id;
             break;
           case 'IN_MAINTENANCE':
             maintenanceByStatus += group._count.id;
@@ -75,14 +78,16 @@ export class AppService {
         }
       }
 
-      // Calculate available assets: Total - Maintenance - Assigned
+      // Calculate non-assigned assets: Total - Maintenance - Assigned
       // This ensures the numbers always add up correctly
-      const availableAssets =
+      const nonAssignedAssets =
         totalAssets - assetsWithActiveMaintenance - assigned;
 
       const result = {
         totalAssets,
-        available: availableAssets,
+        nonAssigned: nonAssignedAssets,
+        // Backwards-compat alias for older clients still expecting `available`
+        available: nonAssignedAssets,
         assigned,
         maintenance: assetsWithActiveMaintenance,
       };
@@ -93,6 +98,7 @@ export class AppService {
       // Return fallback data on error
       return {
         totalAssets: 0,
+        nonAssigned: 0,
         available: 0,
         assigned: 0,
         maintenance: 0,

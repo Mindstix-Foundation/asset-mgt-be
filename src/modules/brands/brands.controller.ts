@@ -179,8 +179,8 @@ export class BrandsController {
               {
                 id: 1,
                 assetId: 'AST001',
-                status: 'AVAILABLE',
-                condition: 'GOOD',
+                status: 'NON_ASSIGNED',
+                condition: 'WORKING_CONDITION',
               },
             ],
             _count: {

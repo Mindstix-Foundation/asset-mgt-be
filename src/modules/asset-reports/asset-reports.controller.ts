@@ -36,7 +36,7 @@ export class AssetReportsController {
           generatedAt: '2024-09-18T14:30:00.000Z',
           filters: {
             assetTypeId: 1,
-            status: 'AVAILABLE',
+            status: 'NON_ASSIGNED',
           },
         },
       },

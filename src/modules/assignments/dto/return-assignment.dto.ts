@@ -7,6 +7,16 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+export const RETURN_CONDITION_VALUES = [
+  'WORKING_CONDITION',
+  'SOFTWARE_ISSUE',
+  'HARDWARE_ISSUE',
+  'NEEDS_REPAIR',
+  'TRASH',
+  'REFURBISHED',
+] as const;
+export type ReturnConditionValue = (typeof RETURN_CONDITION_VALUES)[number];
+
 export class ReturnAssignmentDto {
   @ApiProperty({
     description: 'Return date (business date only)',
@@ -17,11 +27,11 @@ export class ReturnAssignmentDto {
 
   @ApiProperty({
     description: 'Condition of the asset when returned',
-    example: 'GOOD',
-    enum: ['GOOD', 'FAIR', 'POOR', 'DAMAGED', 'REFURBISHED'],
+    example: 'WORKING_CONDITION',
+    enum: RETURN_CONDITION_VALUES,
   })
-  @IsEnum(['GOOD', 'FAIR', 'POOR', 'DAMAGED', 'REFURBISHED'])
-  returnCondition: 'GOOD' | 'FAIR' | 'POOR' | 'DAMAGED' | 'REFURBISHED';
+  @IsEnum(RETURN_CONDITION_VALUES)
+  returnCondition: ReturnConditionValue;
 
   @ApiPropertyOptional({
     description: 'Reason for returning the asset',

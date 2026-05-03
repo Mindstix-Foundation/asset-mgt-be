@@ -9,6 +9,10 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import {
+  ASSET_CONDITION_VALUES,
+  type AssetConditionValue,
+} from '../../assets/dto/create-asset.dto';
 
 export class CreateAssignmentDto {
   @ApiProperty({
@@ -38,12 +42,12 @@ export class CreateAssignmentDto {
 
   @ApiPropertyOptional({
     description: 'Condition of the asset when issued',
-    example: 'GOOD',
-    enum: ['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED', 'REFURBISHED'],
+    example: 'WORKING_CONDITION',
+    enum: ASSET_CONDITION_VALUES,
   })
   @IsOptional()
-  @IsEnum(['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED', 'REFURBISHED'])
-  issueCondition?: 'NEW' | 'GOOD' | 'FAIR' | 'POOR' | 'DAMAGED' | 'REFURBISHED';
+  @IsEnum(ASSET_CONDITION_VALUES)
+  issueCondition?: AssetConditionValue;
 
   @ApiPropertyOptional({
     description: 'Reason for issuing the asset',

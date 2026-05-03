@@ -8,6 +8,12 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import {
+  ASSET_CONDITION_VALUES,
+  ASSET_STATUS_VALUES,
+  type AssetConditionValue,
+  type AssetStatusValue,
+} from '../../assets/dto/create-asset.dto';
 
 export class GenerateReportDto {
   @ApiProperty({
@@ -74,21 +80,21 @@ export class GenerateReportDto {
 
   @ApiPropertyOptional({
     description: 'Filter by status (for assets report)',
-    example: 'AVAILABLE',
-    enum: ['AVAILABLE', 'ASSIGNED', 'IN_MAINTENANCE', 'RETIRED', 'LOST'],
+    example: 'NON_ASSIGNED',
+    enum: ASSET_STATUS_VALUES,
   })
   @IsOptional()
-  @IsEnum(['AVAILABLE', 'ASSIGNED', 'IN_MAINTENANCE', 'RETIRED', 'LOST'])
-  status?: 'AVAILABLE' | 'ASSIGNED' | 'IN_MAINTENANCE' | 'RETIRED' | 'LOST';
+  @IsEnum(ASSET_STATUS_VALUES)
+  status?: AssetStatusValue;
 
   @ApiPropertyOptional({
     description: 'Filter by condition (for assets report)',
-    example: 'GOOD',
-    enum: ['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED'],
+    example: 'WORKING_CONDITION',
+    enum: ASSET_CONDITION_VALUES,
   })
   @IsOptional()
-  @IsEnum(['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED'])
-  condition?: 'NEW' | 'GOOD' | 'FAIR' | 'POOR' | 'DAMAGED';
+  @IsEnum(ASSET_CONDITION_VALUES)
+  condition?: AssetConditionValue;
 
   @ApiPropertyOptional({
     description: 'Start date for date range filtering',

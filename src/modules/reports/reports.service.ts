@@ -174,7 +174,7 @@ export class ReportsService {
       }),
     );
 
-    // Get status overview (exclude RETIRED and LOST)
+    // Get status overview (exclude RETIRED, LOST, and DONATED)
     const assetsByStatus = await this.prisma.asset.groupBy({
       by: ['status'],
       _count: {
@@ -182,7 +182,7 @@ export class ReportsService {
       },
       where: {
         status: {
-          notIn: ['RETIRED', 'LOST'],
+          notIn: ['RETIRED', 'LOST', 'DONATED'],
         },
       },
     });
@@ -763,8 +763,82 @@ export class ReportsService {
         model: issue.asset.model.name,
         serialNumber: issue.asset.serialNumber,
         value: Number(issue.asset.purchaseCost || 0),
+        condition: issue.asset.condition,
+        specifications: this.formatSpecifications(
+          issue.asset.specifications as Record<string, any> | null,
+        ),
+        specificationsObject:
+          (issue.asset.specifications as Record<string, any> | null) ?? null,
       })),
     }));
+  }
+
+  /**
+   * Format an asset specifications JSON object into a readable string,
+   * highlighting common keys (RAM, OS, Processor, Storage) first.
+   */
+  private formatSpecifications(
+    specs: Record<string, any> | null | undefined,
+  ): string {
+    if (!specs || typeof specs !== 'object') return '';
+
+    const priorityKeys = [
+      'ram',
+      'ram_gb',
+      'memory',
+      'operating_system',
+      'os',
+      'processor',
+      'cpu',
+      'storage',
+      'storage_gb',
+      'hard_drive',
+      'screen_size',
+      'display',
+    ];
+
+    const lowerKeyMap = new Map<string, string>();
+    for (const key of Object.keys(specs)) {
+      lowerKeyMap.set(key.toLowerCase(), key);
+    }
+
+    const orderedKeys: string[] = [];
+    const seen = new Set<string>();
+    for (const pk of priorityKeys) {
+      const original = lowerKeyMap.get(pk);
+      if (original && !seen.has(original)) {
+        orderedKeys.push(original);
+        seen.add(original);
+      }
+    }
+    for (const key of Object.keys(specs)) {
+      if (!seen.has(key)) {
+        orderedKeys.push(key);
+        seen.add(key);
+      }
+    }
+
+    return orderedKeys
+      .map((key) => {
+        const label = this.humanizeKey(key);
+        const value = specs[key];
+        if (value === null || value === undefined || value === '') return '';
+        return `${label}: ${value}`;
+      })
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  private humanizeKey(key: string): string {
+    return key
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase())
+      .replace(/\bRam\b/g, 'RAM')
+      .replace(/\bOs\b/g, 'OS')
+      .replace(/\bCpu\b/g, 'CPU')
+      .replace(/\bGb\b/g, 'GB')
+      .replace(/\bHdd\b/g, 'HDD')
+      .replace(/\bSsd\b/g, 'SSD');
   }
 
   async getMaintenanceReport(filters?: ReportFilters) {
@@ -855,6 +929,7 @@ export class ReportsService {
           'Total Assets',
           'Total Value',
           'Asset Details',
+          'Specifications',
         ];
         break;
       case 'maintenance':
@@ -917,8 +992,20 @@ export class ReportsService {
             item.totalAssetsAssigned,
             item.totalAssetValue,
             item.assets
-              .map((a: any) => `${a.type}: ${a.brand} ${a.model}`)
+              .map(
+                (a: any) =>
+                  `${a.type}: ${a.brand} ${a.model}${
+                    a.serialNumber ? ` (SN: ${a.serialNumber})` : ''
+                  }`,
+              )
               .join('; '),
+            item.assets
+              .map((a: any) => {
+                const header = `${a.assetId || a.type}`;
+                const specs = a.specifications || '';
+                return specs ? `${header} → ${specs}` : `${header} → -`;
+              })
+              .join(' | '),
           ];
           break;
         case 'maintenance':

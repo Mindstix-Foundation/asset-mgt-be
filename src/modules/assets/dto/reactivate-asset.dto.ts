@@ -1,5 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsDateString, IsEnum, IsNotEmpty, IsString } from 'class-validator';
+import {
+  ASSET_LOCATION_VALUES,
+  type AssetLocationValue,
+} from './create-asset.dto';
 
 export class ReactivateAssetDto {
   @ApiProperty({
@@ -15,30 +19,34 @@ export class ReactivateAssetDto {
   @ApiProperty({
     description: 'New condition of the asset after reactivation',
     example: 'REFURBISHED',
-    enum: ['REFURBISHED'],
+    enum: ['REFURBISHED', 'WORKING_CONDITION'],
   })
   @IsNotEmpty({ message: 'Asset condition is required' })
-  @IsEnum(['REFURBISHED'], {
-    message: 'Only REFURBISHED condition is allowed for reactivated assets',
+  @IsEnum(['REFURBISHED', 'WORKING_CONDITION'], {
+    message:
+      'Only REFURBISHED or WORKING_CONDITION condition is allowed for reactivated assets',
   })
-  condition: string;
+  condition: 'REFURBISHED' | 'WORKING_CONDITION';
 
   @ApiProperty({
     description: 'New status of the asset after reactivation',
-    example: 'AVAILABLE',
-    enum: ['AVAILABLE'],
+    example: 'NON_ASSIGNED',
+    enum: ['NON_ASSIGNED'],
   })
   @IsNotEmpty({ message: 'Asset status is required' })
-  @IsEnum(['AVAILABLE'], { message: 'Invalid asset status' })
-  status: string;
+  @IsEnum(['NON_ASSIGNED'], { message: 'Invalid asset status' })
+  status: 'NON_ASSIGNED';
 
   @ApiProperty({
     description: 'New location of the asset after reactivation',
-    example: 'Warehouse A, Shelf B2',
+    example: 'PUNE_INVENTORY_CENTER',
+    enum: ASSET_LOCATION_VALUES,
   })
   @IsNotEmpty({ message: 'Asset location is required' })
-  @IsString()
-  location: string;
+  @IsEnum(ASSET_LOCATION_VALUES, {
+    message: `Location must be one of: ${ASSET_LOCATION_VALUES.join(', ')}`,
+  })
+  location: AssetLocationValue;
 
   @ApiProperty({
     description: 'Reason for asset reactivation',

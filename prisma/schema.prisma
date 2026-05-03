@@ -272,9 +272,9 @@ model Asset {
   vendorId             Int?                  @map("vendor_id")
   warrantyStartDate    DateTime?             @map("warranty_start_date") @db.Date
   warrantyEndDate      DateTime?             @map("warranty_end_date") @db.Date
-  location             String?
+  location             AssetLocation?
   condition            AssetCondition        @default(NEW)
-  status               AssetStatus           @default(AVAILABLE)
+  status               AssetStatus           @default(NON_ASSIGNED)
   notes                String?
   retirementDate       DateTime?             @map("retirement_date") @db.Date
   retirementReason     String?               @map("retirement_reason")
@@ -427,19 +427,21 @@ model Notification {
 
 enum AssetCondition {
   NEW
-  GOOD
-  FAIR
-  POOR
-  DAMAGED
+  WORKING_CONDITION
+  SOFTWARE_ISSUE
+  HARDWARE_ISSUE
+  NEEDS_REPAIR
+  TRASH
   REFURBISHED
 }
 
 enum AssetStatus {
-  AVAILABLE
+  NON_ASSIGNED
   ASSIGNED
   IN_MAINTENANCE
   RETIRED
   LOST
+  DONATED
 }
 
 enum MaintenanceStatus {
@@ -450,11 +452,17 @@ enum MaintenanceStatus {
 }
 
 enum ReturnCondition {
-  GOOD
-  FAIR
-  POOR
-  DAMAGED
+  WORKING_CONDITION
+  SOFTWARE_ISSUE
+  HARDWARE_ISSUE
+  NEEDS_REPAIR
+  TRASH
   REFURBISHED
+}
+
+enum AssetLocation {
+  PUNE_INVENTORY_CENTER
+  THANE_INVENTORY_CENTER
 }
 
 enum EmployeeStatus {

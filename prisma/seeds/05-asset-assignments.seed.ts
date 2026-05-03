@@ -446,7 +446,7 @@ async function seedAssetAssignments() {
               issueCondition: AssetCondition.NEW,
               issueReason: 'Initial Assignment',
               notes: 'Assigned via seed data',
-              previousStatus: 'AVAILABLE',
+              previousStatus: 'NON_ASSIGNED',
               newStatus: 'ASSIGNED',
               issuedVia: 'SeedData',
             },

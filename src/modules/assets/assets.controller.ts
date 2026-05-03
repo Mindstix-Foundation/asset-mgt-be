@@ -430,8 +430,8 @@ export class AssetsController {
               },
               brand: { id: 1, name: 'Apple' },
               model: { id: 1, name: 'MacBook Pro 16"' },
-              condition: 'GOOD',
-              status: 'AVAILABLE',
+              condition: 'WORKING_CONDITION',
+              status: 'NON_ASSIGNED',
               location: 'Office Floor 3',
               notes: 'High-performance laptop for development work',
             },
@@ -456,14 +456,21 @@ export class AssetsController {
   @Get('dropdowns')
   @ApiOperation({
     summary:
-      'Get all available assets for dropdown selection (ID and basic info only)',
+      'Get all non-assigned assets for dropdown selection (ID and basic info only)',
   })
   @ApiQuery({
     name: 'status',
     required: false,
-    enum: ['AVAILABLE', 'ASSIGNED', 'IN_MAINTENANCE', 'RETIRED', 'LOST'],
-    description: 'Filter by status (default: AVAILABLE)',
-    example: 'AVAILABLE',
+    enum: [
+      'NON_ASSIGNED',
+      'ASSIGNED',
+      'IN_MAINTENANCE',
+      'RETIRED',
+      'LOST',
+      'DONATED',
+    ],
+    description: 'Filter by status (default: NON_ASSIGNED)',
+    example: 'NON_ASSIGNED',
   })
   @ApiQuery({
     name: 'assetTypeId',
@@ -495,8 +502,8 @@ export class AssetsController {
               assetType: { id: 1, name: 'Laptop' },
               brand: { id: 1, name: 'Apple' },
               model: { id: 1, name: 'MacBook Pro 16"' },
-              condition: 'GOOD',
-              status: 'AVAILABLE',
+              condition: 'WORKING_CONDITION',
+              status: 'NON_ASSIGNED',
               location: 'Office Floor 3',
             },
           ],
@@ -586,8 +593,8 @@ export class AssetsController {
                   storage: '512GB SSD',
                 },
               },
-              condition: 'GOOD',
-              status: 'AVAILABLE',
+              condition: 'WORKING_CONDITION',
+              status: 'NON_ASSIGNED',
               location: 'Office Floor 3',
               vendor: { id: 1, name: 'Apple Store' },
             },
@@ -851,8 +858,8 @@ export class AssetsController {
           asset: {
             id: 1,
             assetId: 'AST-0001',
-            status: 'AVAILABLE',
-            condition: 'GOOD',
+            status: 'NON_ASSIGNED',
+            condition: 'WORKING_CONDITION',
             location: 'Warehouse A, Shelf B2',
             reactivationDate: '2024-12-31T00:00:00.000Z',
             reactivationReason: 'Asset repaired and ready for use',

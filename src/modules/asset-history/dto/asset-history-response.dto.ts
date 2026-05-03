@@ -14,7 +14,7 @@ export class AssetBasicInfoDto {
   @ApiProperty({ description: 'Current status', example: 'ASSIGNED' })
   currentStatus: string;
 
-  @ApiProperty({ description: 'Current condition', example: 'GOOD' })
+  @ApiProperty({ description: 'Current condition', example: 'WORKING_CONDITION' })
   currentCondition: string;
 
   @ApiPropertyOptional({ description: 'Asset type', example: 'Laptop' })
@@ -70,13 +70,13 @@ export class AssetHistoryEventDto {
 
   @ApiProperty({
     description: 'Asset status at time of event (or status change)',
-    example: 'AVAILABLE → ASSIGNED',
+    example: 'NON_ASSIGNED → ASSIGNED',
   })
   status: string;
 
   @ApiProperty({
     description: 'Asset condition at time of event (or condition change)',
-    example: 'GOOD',
+    example: 'WORKING_CONDITION',
   })
   condition: string;
 }
@@ -137,7 +137,7 @@ export class AssetHistorySummaryDto {
   @ApiProperty({ description: 'Current status', example: 'ASSIGNED' })
   currentStatus: string;
 
-  @ApiProperty({ description: 'Current condition', example: 'GOOD' })
+  @ApiProperty({ description: 'Current condition', example: 'WORKING_CONDITION' })
   currentCondition: string;
 
   @ApiProperty({ description: 'Total assignments', example: 23 })
@@ -177,7 +177,7 @@ export class QuickStatsDto {
 
   @ApiPropertyOptional({
     description: 'Most common condition',
-    example: 'GOOD',
+    example: 'WORKING_CONDITION',
   })
   mostCommonCondition?: string;
 }

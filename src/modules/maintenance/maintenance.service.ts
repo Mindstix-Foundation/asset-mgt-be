@@ -704,7 +704,7 @@ export class MaintenanceService {
         },
       });
 
-      // If there are no other active SCHEDULED/IN_PROGRESS maintenances for this asset, set it AVAILABLE
+      // If there are no other active SCHEDULED/IN_PROGRESS maintenances for this asset, set it NON_ASSIGNED
       const stillActive = await tx.maintenanceSchedule.count({
         where: {
           isActive: true,
@@ -719,9 +719,9 @@ export class MaintenanceService {
       if (stillActive === 0) {
         await tx.asset.update({
           where: { id: maintenance.assetId },
-          data: { status: 'AVAILABLE' },
+          data: { status: 'NON_ASSIGNED' },
         });
-        newAssetStatus = 'AVAILABLE';
+        newAssetStatus = 'NON_ASSIGNED';
       }
 
       // Log MAINTENANCE_CANCELLED event to asset history
@@ -812,7 +812,7 @@ export class MaintenanceService {
         },
       });
 
-      // If no other active SCHEDULED/IN_PROGRESS maintenances exist for the asset, mark it AVAILABLE
+      // If no other active SCHEDULED/IN_PROGRESS maintenances exist for the asset, mark it NON_ASSIGNED
       const stillActive = await tx.maintenanceSchedule.count({
         where: {
           isActive: true,
@@ -827,9 +827,9 @@ export class MaintenanceService {
       if (stillActive === 0) {
         await tx.asset.update({
           where: { id: updated.assetId },
-          data: { status: 'AVAILABLE' },
+          data: { status: 'NON_ASSIGNED' },
         });
-        newAssetStatus = 'AVAILABLE';
+        newAssetStatus = 'NON_ASSIGNED';
       }
 
       // Log MAINTENANCE_COMPLETED event to asset history
@@ -918,7 +918,7 @@ export class MaintenanceService {
         },
       });
 
-      // If there are no other active SCHEDULED/IN_PROGRESS maintenances for this asset, set it AVAILABLE
+      // If there are no other active SCHEDULED/IN_PROGRESS maintenances for this asset, set it NON_ASSIGNED
       const stillActive = await tx.maintenanceSchedule.count({
         where: {
           isActive: true,
@@ -933,9 +933,9 @@ export class MaintenanceService {
       if (stillActive === 0) {
         await tx.asset.update({
           where: { id: updated.assetId },
-          data: { status: 'AVAILABLE' },
+          data: { status: 'NON_ASSIGNED' },
         });
-        newAssetStatus = 'AVAILABLE';
+        newAssetStatus = 'NON_ASSIGNED';
       }
 
       // Log MAINTENANCE_CANCELLED event to asset history

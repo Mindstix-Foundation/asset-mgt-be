@@ -546,7 +546,7 @@ async function seedAssets() {
   const SYSTEM_USER_ID = adminUser.id;
   console.log(`✅ Using admin user (ID: ${SYSTEM_USER_ID}) for audit fields\n`);
 
-  // List of damaged assets (condition should be DAMAGED)
+  // List of damaged assets (condition should be HARDWARE_ISSUE)
   const damagedAssets = new Set([
     'FVFVT748J1WL', 'FVHTVNMZJ1WK', 'FVHXGFWQJ1WK', 'FVFX5SVAJ1WK', 'FVFTK4M2H3QD',
     'FVFXQJL2J1WK', 'FVHWLGJFJ1WK', 'C02P33VGG3QH', 'FVHX2B26J1WK', 'FVHX2NYYJ1WK',
@@ -667,7 +667,7 @@ async function seedAssets() {
       const assetId = `AST-${String(nextAssetNumber).padStart(4, '0')}`;
 
       // Determine condition based on damaged assets list
-      const condition = damagedAssets.has(asset.serialNumber) ? 'DAMAGED' : 'GOOD';
+      const condition = damagedAssets.has(asset.serialNumber) ? 'HARDWARE_ISSUE' : 'WORKING_CONDITION';
 
       // Get purchase data from mapping, or use null if not found
       const purchaseData = purchaseDataMapping[asset.serialNumber];
@@ -695,7 +695,8 @@ async function seedAssets() {
           assetTypeId: assetType.id,
           brandId: brand.id,
           modelId: model.id,
-          status: 'AVAILABLE',
+          status: 'NON_ASSIGNED',
+          location: 'PUNE_INVENTORY_CENTER',
           condition: condition,
           notes: asset.notes || null,
           purchaseDate: purchaseDate,
@@ -706,7 +707,7 @@ async function seedAssets() {
       });
 
       stats.created++;
-      if (condition === 'DAMAGED') {
+      if (condition === 'HARDWARE_ISSUE') {
         stats.damaged++;
       }
       if (purchaseDate) {
@@ -735,7 +736,7 @@ async function seedAssets() {
   console.log(`  Total assets processed: ${assetsData.length}`);
   console.log(`  Successfully created: ${stats.created}`);
   console.log(`  Skipped (already exists): ${stats.skipped}`);
-  console.log(`  Assets marked as DAMAGED: ${stats.damaged}`);
+  console.log(`  Assets marked as HARDWARE_ISSUE: ${stats.damaged}`);
   console.log(`  Failed: ${stats.failed}`);
   
   console.log('\n💰 Purchase Data Statistics:');

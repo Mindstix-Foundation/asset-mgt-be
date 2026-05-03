@@ -199,7 +199,7 @@ export class AssetsService {
         serialNumber: createAssetDto.serialNumber
           ? createAssetDto.serialNumber.trim()
           : null, // Trim serial number
-        status: createAssetDto.status || 'AVAILABLE', // Default to AVAILABLE if not provided
+        status: createAssetDto.status || 'NON_ASSIGNED', // Default to NON_ASSIGNED if not provided
         condition: createAssetDto.condition || 'NEW', // Default to NEW if not provided
         purchaseDate: createAssetDto.purchaseDate
           ? new Date(createAssetDto.purchaseDate)
@@ -393,7 +393,7 @@ export class AssetsService {
     if (status) filters.status = status;
     if (condition) filters.condition = condition;
     if (location) {
-      filters.location = { contains: location, mode: 'insensitive' as const };
+      filters.location = location;
     }
     return filters;
   }
@@ -837,7 +837,7 @@ export class AssetsService {
       );
       if (hasReturnedAssignments) {
         throw new BadRequestException(
-          'Asset condition cannot be set to NEW if the asset has been returned from any employee. Please choose GOOD, FAIR, POOR, DAMAGED, or REFURBISHED.',
+          'Asset condition cannot be set to NEW if the asset has been returned from any employee. Please choose WORKING_CONDITION, SOFTWARE_ISSUE, HARDWARE_ISSUE, NEEDS_REPAIR, TRASH, or REFURBISHED.',
         );
       }
     }
@@ -1387,10 +1387,10 @@ export class AssetsService {
         throw new NotFoundException('Asset not found');
       }
 
-      // ✅ CRITERIA 1: Only AVAILABLE assets can be deleted
-      if (assetWithChecks.status !== 'AVAILABLE') {
+      // ✅ CRITERIA 1: Only NON_ASSIGNED assets can be deleted
+      if (assetWithChecks.status !== 'NON_ASSIGNED') {
         throw new BadRequestException(
-          `Cannot delete asset with status '${assetWithChecks.status}'. Only AVAILABLE assets can be deleted.`,
+          `Cannot delete asset with status '${assetWithChecks.status}'. Only NON_ASSIGNED assets can be deleted.`,
         );
       }
 
@@ -1418,7 +1418,7 @@ export class AssetsService {
         details: {
           assetId: assetWithChecks.assetId,
           reason:
-            'Asset met all deletion criteria: AVAILABLE status, never assigned, never maintained',
+            'Asset met all deletion criteria: NON_ASSIGNED status, never assigned, never maintained',
         },
       };
     } catch (error) {
@@ -1465,14 +1465,14 @@ export class AssetsService {
           continue;
         }
 
-        // ✅ CRITERIA 1: Only AVAILABLE assets can be deleted
-        if (assetWithChecks.status !== 'AVAILABLE') {
+        // ✅ CRITERIA 1: Only NON_ASSIGNED assets can be deleted
+        if (assetWithChecks.status !== 'NON_ASSIGNED') {
           errorCount++;
           results.push({
             id,
             assetId: assetWithChecks.assetId,
             status: 'error',
-            message: `Cannot delete asset with status '${assetWithChecks.status}'. Only AVAILABLE assets can be deleted.`,
+            message: `Cannot delete asset with status '${assetWithChecks.status}'. Only NON_ASSIGNED assets can be deleted.`,
           });
           continue;
         }
@@ -1538,25 +1538,36 @@ export class AssetsService {
   }
 
   async getAssetStats() {
-    const [totalAssets, available, assigned, inMaintenance, retired, lost] =
-      await Promise.all([
-        this.prisma.asset.count(),
-        this.prisma.asset.count({ where: { status: 'AVAILABLE' } }),
-        this.prisma.asset.count({ where: { status: 'ASSIGNED' } }),
-        this.prisma.asset.count({ where: { status: 'IN_MAINTENANCE' } }),
-        this.prisma.asset.count({ where: { status: 'RETIRED' } }),
-        this.prisma.asset.count({ where: { status: 'LOST' } }),
-      ]);
+    const [
+      totalAssets,
+      nonAssigned,
+      assigned,
+      inMaintenance,
+      retired,
+      lost,
+      donated,
+    ] = await Promise.all([
+      this.prisma.asset.count(),
+      this.prisma.asset.count({ where: { status: 'NON_ASSIGNED' } }),
+      this.prisma.asset.count({ where: { status: 'ASSIGNED' } }),
+      this.prisma.asset.count({ where: { status: 'IN_MAINTENANCE' } }),
+      this.prisma.asset.count({ where: { status: 'RETIRED' } }),
+      this.prisma.asset.count({ where: { status: 'LOST' } }),
+      this.prisma.asset.count({ where: { status: 'DONATED' } }),
+    ]);
 
     return {
       message: 'Asset statistics retrieved successfully',
       data: {
         totalAssets,
-        available,
+        nonAssigned,
+        // Backwards-compat alias for older clients still expecting `available`
+        available: nonAssigned,
         assigned,
         inMaintenance,
         retired,
         lost,
+        donated,
       },
     };
   }
@@ -1698,7 +1709,7 @@ export class AssetsService {
     const skip = (page - 1) * limit;
 
     const where: any = {
-      status: 'AVAILABLE', // Only available assets
+      status: 'NON_ASSIGNED', // Only non-assigned assets
     };
 
     if (search) {
@@ -1713,8 +1724,7 @@ export class AssetsService {
     if (brandId) where.brandId = brandId;
     if (modelId) where.modelId = modelId;
     if (condition) where.condition = condition;
-    if (location)
-      where.location = { contains: location, mode: 'insensitive' as const };
+    if (location) where.location = location;
 
     const orderBy = { [sortBy]: sortOrder } as any;
 
@@ -1743,7 +1753,7 @@ export class AssetsService {
     const totalPages = Math.ceil(totalCount / limit);
 
     return {
-      message: 'Available assets retrieved successfully',
+      message: 'Non-assigned assets retrieved successfully',
       data: {
         assets,
         pagination: {
@@ -1776,8 +1786,8 @@ export class AssetsService {
     const skip = (page - 1) * limit;
 
     const where: any = {
-      // Only AVAILABLE assets
-      status: 'AVAILABLE',
+      // Only NON_ASSIGNED assets
+      status: 'NON_ASSIGNED',
       // No assignment history
       assetIssues: {
         none: {},
@@ -1801,8 +1811,7 @@ export class AssetsService {
     if (modelId) where.modelId = modelId;
     if (vendorId) where.vendorId = vendorId;
     if (condition) where.condition = condition;
-    if (location)
-      where.location = { contains: location, mode: 'insensitive' as const };
+    if (location) where.location = location;
 
     // Date range filter (createdAt)
     if (fromDate || toDate) {
@@ -1880,18 +1889,27 @@ export class AssetsService {
       throw new BadRequestException('Search query (q) is required');
     }
 
-    const where: any = {
-      OR: [
-        { assetId: { contains: q, mode: 'insensitive' as const } },
-        { serialNumber: { contains: q, mode: 'insensitive' as const } },
-        { notes: { contains: q, mode: 'insensitive' as const } },
-        { location: { contains: q, mode: 'insensitive' as const } },
-        { assetType: { name: { contains: q, mode: 'insensitive' as const } } },
-        { brand: { name: { contains: q, mode: 'insensitive' as const } } },
-        { model: { name: { contains: q, mode: 'insensitive' as const } } },
-        { vendor: { name: { contains: q, mode: 'insensitive' as const } } },
-      ],
-    };
+    const orConditions: any[] = [
+      { assetId: { contains: q, mode: 'insensitive' as const } },
+      { serialNumber: { contains: q, mode: 'insensitive' as const } },
+      { notes: { contains: q, mode: 'insensitive' as const } },
+      { assetType: { name: { contains: q, mode: 'insensitive' as const } } },
+      { brand: { name: { contains: q, mode: 'insensitive' as const } } },
+      { model: { name: { contains: q, mode: 'insensitive' as const } } },
+      { vendor: { name: { contains: q, mode: 'insensitive' as const } } },
+    ];
+
+    // location is now an enum: only match exact enum values (case-insensitive)
+    const upperQ = q.toUpperCase().replace(/\s+/g, '_');
+    const validLocations = ['PUNE_INVENTORY_CENTER', 'THANE_INVENTORY_CENTER'];
+    const matchedLocations = validLocations.filter((loc) =>
+      loc.includes(upperQ),
+    );
+    if (matchedLocations.length > 0) {
+      orConditions.push({ location: { in: matchedLocations } });
+    }
+
+    const where: any = { OR: orConditions };
 
     // Apply additional filters
     if (assetTypeId) where.assetTypeId = Number.parseInt(assetTypeId);
@@ -1941,16 +1959,16 @@ export class AssetsService {
   }
 
   async getAssetsForDropdowns(query: any) {
-    const { status = 'AVAILABLE', assetTypeId, brandId, modelId } = query;
+    const { status = 'NON_ASSIGNED', assetTypeId, brandId, modelId } = query;
 
     // Build where clause
     const where: any = {};
 
-    // Default to AVAILABLE if no status specified
+    // Default to NON_ASSIGNED if no status specified
     if (status) {
       where.status = status;
     } else {
-      where.status = 'AVAILABLE';
+      where.status = 'NON_ASSIGNED';
     }
 
     // Apply additional filters
@@ -2695,14 +2713,15 @@ export class AssetsService {
         vendorMap,
       } = await this.loadValidationData();
 
-      // Valid enum values - Only AVAILABLE status allowed for bulk uploads
-      const validStatuses = ['AVAILABLE'];
+      // Valid enum values - Only NON_ASSIGNED status allowed for bulk uploads
+      const validStatuses = ['NON_ASSIGNED'];
       const validConditions = [
         'NEW',
-        'GOOD',
-        'FAIR',
-        'POOR',
-        'DAMAGED',
+        'WORKING_CONDITION',
+        'SOFTWARE_ISSUE',
+        'HARDWARE_ISSUE',
+        'NEEDS_REPAIR',
+        'TRASH',
         'REFURBISHED',
       ];
 
@@ -2963,13 +2982,22 @@ export class AssetsService {
     rowNumber: number,
   ): Promise<any[]> {
     const validStatuses = [
-      'AVAILABLE',
+      'NON_ASSIGNED',
       'ASSIGNED',
       'IN_MAINTENANCE',
       'RETIRED',
       'LOST',
+      'DONATED',
     ];
-    const validConditions = ['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED'];
+    const validConditions = [
+      'NEW',
+      'WORKING_CONDITION',
+      'SOFTWARE_ISSUE',
+      'HARDWARE_ISSUE',
+      'NEEDS_REPAIR',
+      'TRASH',
+      'REFURBISHED',
+    ];
 
     const errors: any[] = [
       ...this.validateRequiredFields(assetData, rowNumber),
@@ -3104,7 +3132,7 @@ export class AssetsService {
           }
 
           if (!assetData.status) {
-            assetData.status = 'AVAILABLE';
+            assetData.status = 'NON_ASSIGNED';
           }
 
           validAssets.push({
@@ -3432,10 +3460,7 @@ export class AssetsService {
       }
 
       if (location) {
-        where.location = {
-          contains: location,
-          mode: 'insensitive',
-        };
+        where.location = location;
       }
 
       if (search) {

@@ -7,6 +7,14 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  ASSET_CONDITION_VALUES,
+  ASSET_LOCATION_VALUES,
+  ASSET_STATUS_VALUES,
+  type AssetConditionValue,
+  type AssetLocationValue,
+  type AssetStatusValue,
+} from './create-asset.dto';
 
 export class AssetQueryDto {
   @ApiPropertyOptional({
@@ -78,16 +86,16 @@ export class AssetQueryDto {
 
   @ApiPropertyOptional({
     description: 'Filter by asset status',
-    example: 'AVAILABLE',
-    enum: ['AVAILABLE', 'ASSIGNED', 'IN_MAINTENANCE', 'RETIRED', 'LOST'],
+    example: 'NON_ASSIGNED',
+    enum: ASSET_STATUS_VALUES,
   })
   @IsOptional()
-  @IsEnum(['AVAILABLE', 'ASSIGNED', 'IN_MAINTENANCE', 'RETIRED', 'LOST'])
-  status?: 'AVAILABLE' | 'ASSIGNED' | 'IN_MAINTENANCE' | 'RETIRED' | 'LOST';
+  @IsEnum(ASSET_STATUS_VALUES)
+  status?: AssetStatusValue;
 
   @ApiPropertyOptional({
     description: 'Filter by asset status (for custom reports)',
-    example: 'AVAILABLE',
+    example: 'NON_ASSIGNED',
   })
   @IsOptional()
   @IsString()
@@ -95,20 +103,21 @@ export class AssetQueryDto {
 
   @ApiPropertyOptional({
     description: 'Filter by asset condition',
-    example: 'GOOD',
-    enum: ['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED', 'REFURBISHED'],
+    example: 'WORKING_CONDITION',
+    enum: ASSET_CONDITION_VALUES,
   })
   @IsOptional()
-  @IsEnum(['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED', 'REFURBISHED'])
-  condition?: 'NEW' | 'GOOD' | 'FAIR' | 'POOR' | 'DAMAGED' | 'REFURBISHED';
+  @IsEnum(ASSET_CONDITION_VALUES)
+  condition?: AssetConditionValue;
 
   @ApiPropertyOptional({
     description: 'Filter by location',
-    example: 'Office Floor 3',
+    example: 'PUNE_INVENTORY_CENTER',
+    enum: ASSET_LOCATION_VALUES,
   })
   @IsOptional()
-  @IsString()
-  location?: string;
+  @IsEnum(ASSET_LOCATION_VALUES)
+  location?: AssetLocationValue;
 
   @ApiPropertyOptional({
     description: 'Specification filters JSON object (e.g. {"ram":"16GB"})',

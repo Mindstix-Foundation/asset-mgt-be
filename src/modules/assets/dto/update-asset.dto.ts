@@ -1,6 +1,12 @@
 import { PartialType, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsDateString, IsString, IsEnum } from 'class-validator';
-import { CreateAssetDto } from './create-asset.dto';
+import {
+  ASSET_CONDITION_VALUES,
+  ASSET_STATUS_VALUES,
+  CreateAssetDto,
+  type AssetConditionValue,
+  type AssetStatusValue,
+} from './create-asset.dto';
 
 export class UpdateAssetDto extends PartialType(CreateAssetDto) {
   @ApiPropertyOptional({
@@ -57,19 +63,19 @@ export class UpdateAssetDto extends PartialType(CreateAssetDto) {
   // Override defaults from CreateAssetDto to avoid applying create-time defaults during updates
   @ApiPropertyOptional({
     description: 'Condition of the asset',
-    example: 'GOOD',
-    enum: ['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED'],
+    example: 'WORKING_CONDITION',
+    enum: ASSET_CONDITION_VALUES,
   })
   @IsOptional()
-  @IsEnum(['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED'])
-  condition?: 'NEW' | 'GOOD' | 'FAIR' | 'POOR' | 'DAMAGED';
+  @IsEnum(ASSET_CONDITION_VALUES)
+  condition?: AssetConditionValue;
 
   @ApiPropertyOptional({
     description: 'Status of the asset',
     example: 'IN_MAINTENANCE',
-    enum: ['AVAILABLE', 'ASSIGNED', 'IN_MAINTENANCE', 'RETIRED', 'LOST'],
+    enum: ASSET_STATUS_VALUES,
   })
   @IsOptional()
-  @IsEnum(['AVAILABLE', 'ASSIGNED', 'IN_MAINTENANCE', 'RETIRED', 'LOST'])
-  status?: 'AVAILABLE' | 'ASSIGNED' | 'IN_MAINTENANCE' | 'RETIRED' | 'LOST';
+  @IsEnum(ASSET_STATUS_VALUES)
+  status?: AssetStatusValue;
 }
