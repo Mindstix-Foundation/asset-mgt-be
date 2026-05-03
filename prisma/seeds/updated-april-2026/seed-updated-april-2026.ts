@@ -17,6 +17,7 @@
 
 import {
   PrismaClient,
+  Prisma,
   EmployeeStatus,
   AssetStatus,
   AssetCondition,
@@ -120,9 +121,114 @@ const categories: Record<string, string> = {
   Electronics: 'Electronic devices including laptops, desktops, tablets, and mobile phones',
 };
 
-const assetTypesData = [
-  { category: 'Electronics', name: 'Laptop', description: 'Laptop computers' },
-  { category: 'Electronics', name: 'Mobile', description: 'Mobile phones and smartphones' },
+// Specification dropdown option lists shared by Laptop and Mobile templates.
+// Picked up by the AssetForm "Specification Builder" UI so when a user selects
+// Laptop/Mobile while adding an asset, RAM / Processor / MAC Address fields
+// appear automatically with the dropdown values below.
+const RAM_OPTIONS_LAPTOP = ['4 GB', '8 GB', '12 GB', '16 GB', '24 GB', '32 GB', '64 GB'];
+const RAM_OPTIONS_MOBILE = ['2 GB', '3 GB', '4 GB', '6 GB', '8 GB', '12 GB', '16 GB'];
+const PROCESSOR_OPTIONS_LAPTOP = [
+  // Apple Silicon
+  'Apple M1', 'Apple M1 Pro', 'Apple M1 Max',
+  'Apple M2', 'Apple M2 Pro', 'Apple M2 Max',
+  'Apple M3', 'Apple M3 Pro', 'Apple M3 Max',
+  'Apple M4', 'Apple M4 Pro', 'Apple M4 Max',
+  // Intel
+  'Intel Core i3', 'Intel Core i5', 'Intel Core i7', 'Intel Core i9',
+  'Intel Core Ultra 5', 'Intel Core Ultra 7', 'Intel Core Ultra 9',
+  // AMD
+  'AMD Ryzen 3', 'AMD Ryzen 5', 'AMD Ryzen 7', 'AMD Ryzen 9',
+];
+const PROCESSOR_OPTIONS_MOBILE = [
+  // Apple
+  'Apple A14 Bionic', 'Apple A15 Bionic', 'Apple A16 Bionic',
+  'Apple A17 Pro', 'Apple A18', 'Apple A18 Pro',
+  // Qualcomm Snapdragon
+  'Snapdragon 7 Gen 3', 'Snapdragon 8 Gen 2', 'Snapdragon 8 Gen 3', 'Snapdragon 8 Elite',
+  // MediaTek
+  'MediaTek Dimensity 7300', 'MediaTek Dimensity 8300', 'MediaTek Dimensity 9300',
+  // Samsung Exynos
+  'Exynos 1380', 'Exynos 2400',
+  // Google Tensor
+  'Google Tensor G3', 'Google Tensor G4',
+];
+
+type SpecOption = { value: string; deprecated?: boolean };
+type SpecField = {
+  key?: string;
+  label: string;
+  required?: boolean;
+  type?: string;
+  options?: SpecOption[];
+};
+type SpecTemplate = { version: number; fields: SpecField[] };
+
+const toOptions = (values: string[]): SpecOption[] => values.map((value) => ({ value }));
+
+const LAPTOP_SPEC_TEMPLATE: SpecTemplate = {
+  version: 1,
+  fields: [
+    {
+      key: 'ram',
+      label: 'RAM',
+      required: true,
+      type: 'dropdown',
+      options: toOptions(RAM_OPTIONS_LAPTOP),
+    },
+    {
+      key: 'processor',
+      label: 'Processor',
+      required: true,
+      type: 'dropdown',
+      options: toOptions(PROCESSOR_OPTIONS_LAPTOP),
+    },
+    {
+      key: 'macAddress',
+      label: 'MAC Address',
+      required: false,
+      type: 'text',
+    },
+  ],
+};
+
+const MOBILE_SPEC_TEMPLATE: SpecTemplate = {
+  version: 1,
+  fields: [
+    {
+      key: 'ram',
+      label: 'RAM',
+      required: true,
+      type: 'dropdown',
+      options: toOptions(RAM_OPTIONS_MOBILE),
+    },
+    {
+      key: 'processor',
+      label: 'Processor',
+      required: true,
+      type: 'dropdown',
+      options: toOptions(PROCESSOR_OPTIONS_MOBILE),
+    },
+  ],
+};
+
+const assetTypesData: Array<{
+  category: string;
+  name: string;
+  description: string;
+  specificationTemplate?: SpecTemplate;
+}> = [
+  {
+    category: 'Electronics',
+    name: 'Laptop',
+    description: 'Laptop computers',
+    specificationTemplate: LAPTOP_SPEC_TEMPLATE,
+  },
+  {
+    category: 'Electronics',
+    name: 'Mobile',
+    description: 'Mobile phones and smartphones',
+    specificationTemplate: MOBILE_SPEC_TEMPLATE,
+  },
   { category: 'Electronics', name: 'Tablet', description: 'Tablet devices' },
   { category: 'Electronics', name: 'Monitor', description: 'Display monitors and screens' },
 ];
@@ -195,12 +301,21 @@ async function seedAssetStructure(adminUserId: number) {
     if (!cat) continue;
     await prisma.assetType.upsert({
       where: { name_categoryId: { name: at.name, categoryId: cat.id } },
-      update: {},
+      update: {
+        description: at.description,
+        specificationTemplate: at.specificationTemplate
+          ? (at.specificationTemplate as unknown as Prisma.InputJsonValue)
+          : Prisma.JsonNull,
+        updatedBy: adminUserId,
+      },
       create: {
         name: at.name,
         description: at.description,
         categoryId: cat.id,
         isActive: true,
+        specificationTemplate: at.specificationTemplate
+          ? (at.specificationTemplate as unknown as Prisma.InputJsonValue)
+          : undefined,
         createdBy: adminUserId,
         updatedBy: adminUserId,
       },
@@ -1080,8 +1195,22 @@ async function seedAssetsAndAssignments(adminUserId: number) {
     try {
       let assetType = await prisma.assetType.findFirst({ where: { name: entry.assetType } });
       if (!assetType) {
+        const fallbackTemplate =
+          entry.assetType === 'Laptop'
+            ? LAPTOP_SPEC_TEMPLATE
+            : entry.assetType === 'Mobile'
+              ? MOBILE_SPEC_TEMPLATE
+              : undefined;
         assetType = await prisma.assetType.create({
-          data: { name: entry.assetType, categoryId: electronicsCategory.id, createdBy: adminUserId, updatedBy: adminUserId },
+          data: {
+            name: entry.assetType,
+            categoryId: electronicsCategory.id,
+            specificationTemplate: fallbackTemplate
+              ? (fallbackTemplate as unknown as Prisma.InputJsonValue)
+              : undefined,
+            createdBy: adminUserId,
+            updatedBy: adminUserId,
+          },
         });
       }
 
