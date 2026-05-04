@@ -365,6 +365,130 @@ export class ReportsService {
   }
 
   /**
+   * Returns a paginated, time-sorted feed of all admin/system activities
+   * across assets, asset issues, employees, maintenance, and vendors.
+   *
+   * Implementation note: each source row can emit multiple activity events
+   * (e.g. created + updated). We pull a capped pool of recent rows per
+   * domain, expand to activity events, sort once, then paginate from the
+   * resulting array. The pool cap protects the API from doing unbounded
+   * work on very large tables.
+   */
+  async getAllActivitiesPaginated(
+    page: number,
+    limit: number,
+  ): Promise<{
+    data: RecentActivityData[];
+    pagination: {
+      page: number;
+      limit: number;
+      totalCount: number;
+      totalPages: number;
+    };
+  }> {
+    const safePage = Math.max(1, Math.floor(page) || 1);
+    const safeLimit = Math.min(100, Math.max(1, Math.floor(limit) || 20));
+
+    // Cap how many source rows we read per domain. Each row may produce 1-4
+    // activity events, so the total event pool is at most ~5x this number.
+    const SOURCE_ROW_CAP = 1000;
+    const all = await this.buildActivityPool(SOURCE_ROW_CAP);
+
+    const sorted = all.toSorted(
+      (a, b) => b.timestamp.getTime() - a.timestamp.getTime(),
+    );
+
+    const totalCount = sorted.length;
+    const totalPages = Math.max(1, Math.ceil(totalCount / safeLimit));
+    const start = (safePage - 1) * safeLimit;
+    const end = start + safeLimit;
+    const data = sorted.slice(start, end);
+
+    return {
+      data,
+      pagination: {
+        page: safePage,
+        limit: safeLimit,
+        totalCount,
+        totalPages,
+      },
+    };
+  }
+
+  /**
+   * Reads the most recent rows per domain (capped) and expands them into
+   * activity events. Returns the unsorted union of all events.
+   */
+  private async buildActivityPool(
+    sourceRowCap: number,
+  ): Promise<RecentActivityData[]> {
+    const activities: RecentActivityData[] = [];
+    const since = new Date(0);
+
+    const recentAssets = await this.prisma.asset.findMany({
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      include: {
+        assetType: true,
+        brand: true,
+        model: true,
+        createdByUser: { include: { employee: true } },
+        updatedByUser: { include: { employee: true } },
+      },
+      take: sourceRowCap,
+    });
+    for (const asset of recentAssets)
+      activities.push(...this.activitiesFromAsset(asset, since));
+
+    const recentAssetIssues = await this.prisma.assetIssue.findMany({
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      include: {
+        asset: { include: { assetType: true, brand: true, model: true } },
+        employee: true,
+        issuedByUser: { include: { employee: true } },
+      },
+      take: sourceRowCap,
+    });
+    for (const issue of recentAssetIssues)
+      activities.push(...this.activitiesFromIssue(issue, since));
+
+    const recentEmployees = await this.prisma.employee.findMany({
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      include: {
+        createdByUser: { include: { employee: true } },
+        updatedByUser: { include: { employee: true } },
+      },
+      take: sourceRowCap,
+    });
+    for (const employee of recentEmployees)
+      activities.push(...this.activitiesFromEmployee(employee, since));
+
+    const recentMaintenance = await this.prisma.maintenanceSchedule.findMany({
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      include: {
+        asset: { include: { assetType: true, brand: true, model: true } },
+        createdByUser: { include: { employee: true } },
+        updatedByUser: { include: { employee: true } },
+      },
+      take: sourceRowCap,
+    });
+    for (const maintenance of recentMaintenance)
+      activities.push(...this.activitiesFromMaintenance(maintenance, since));
+
+    const recentVendors = await this.prisma.vendor.findMany({
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      include: {
+        createdByUser: { include: { employee: true } },
+        updatedByUser: { include: { employee: true } },
+      },
+      take: sourceRowCap,
+    });
+    for (const vendor of recentVendors)
+      activities.push(...this.activitiesFromVendor(vendor, since));
+
+    return activities;
+  }
+
+  /**
    * Returns the latest `limit` activities across supported domains.
    * This method does not restrict by time window; instead it fetches
    * the most recent records from each table and merges them.

@@ -29,6 +29,43 @@ export class ReportsController {
     };
   }
 
+  @Get('activities')
+  @ApiOperation({
+    summary: 'Get paginated admin audit activity feed',
+    description:
+      'Returns all admin/system activities (assets, asset issues, employees, maintenance, vendors) in reverse chronological order, paginated.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Activities retrieved successfully',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: '1-based page number (default 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Items per page (default 20, max 100)',
+  })
+  async getActivities(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = page ? Number(page) : 1;
+    const limitNum = limit ? Number(limit) : 20;
+    const result = await this.reportsService.getAllActivitiesPaginated(
+      pageNum,
+      limitNum,
+    );
+    return {
+      message: 'Activities retrieved successfully',
+      data: result.data,
+      pagination: result.pagination,
+    };
+  }
+
   @Get('asset-inventory')
   @ApiOperation({ summary: 'Get asset inventory report data' })
   @ApiResponse({
