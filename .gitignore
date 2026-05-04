@@ -26,6 +26,9 @@ pids/
 *.seed
 *.pid.lock
 
+# SonarQube scanner
+.scannerwork/
+
 # Coverage directory used by tools like istanbul
 coverage/
 *.lcov

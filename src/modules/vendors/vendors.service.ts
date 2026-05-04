@@ -14,6 +14,7 @@ import {
 } from './dto';
 import { Vendor, Prisma, VendorStatus, VendorType } from '@prisma/client';
 import * as XLSX from 'xlsx';
+import { isEmail } from 'class-validator';
 
 @Injectable()
 export class VendorsService {
@@ -575,7 +576,7 @@ export class VendorsService {
       return true; // Email is optional
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(vendor.email)) {
+    if (!isEmail(vendor.email)) {
       errors.push({
         row: rowNumber,
         field: 'email',

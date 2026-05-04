@@ -178,9 +178,10 @@ export class MaintenanceService {
     }
   }
 
-  private buildWhereConditions(
-    query: MaintenanceQueryDto,
-  ): { conditions: string[]; params: any[] } {
+  private buildWhereConditions(query: MaintenanceQueryDto): {
+    conditions: string[];
+    params: any[];
+  } {
     const conditions: string[] = ['m.is_active = true'];
     const params: any[] = [];
 
@@ -230,7 +231,7 @@ export class MaintenanceService {
 
   private buildOrderByClause(sortBy: string, sortOrder: string): string {
     const order = sortOrder.toUpperCase();
-    
+
     switch (sortBy) {
       case 'scheduledDate':
         return `ORDER BY m.scheduled_date ${order}`;
@@ -249,17 +250,20 @@ export class MaintenanceService {
     }
   }
 
-  private determineRelevantDate(status: string, row: any): { date: any; type: string } {
+  private determineRelevantDate(
+    status: string,
+    row: any,
+  ): { date: any; type: string } {
     const upperStatus = status?.toUpperCase();
-    
+
     if (upperStatus === 'CANCELLED') {
       return { date: row.cancellation_date, type: 'cancellation' };
     }
-    
+
     if (upperStatus === 'COMPLETED') {
       return { date: row.actual_completion_date, type: 'completion' };
     }
-    
+
     return { date: row.scheduled_date, type: 'scheduled' };
   }
 
@@ -433,7 +437,10 @@ export class MaintenanceService {
       return maintenanceRow;
     });
 
-    await this.enrichMaintenancesWithSpecs(maintenances, maintenancesNeedingSpecs);
+    await this.enrichMaintenancesWithSpecs(
+      maintenances,
+      maintenancesNeedingSpecs,
+    );
 
     return {
       message: 'Latest maintenance records retrieved successfully',
@@ -515,8 +522,8 @@ export class MaintenanceService {
               assetId: true,
               specifications: true,
               assetType: {
-              select: { name: true, specificationTemplate: true },
-            },
+                select: { name: true, specificationTemplate: true },
+              },
               brand: { select: { name: true } },
               model: { select: { name: true, specifications: true } },
             },
@@ -803,8 +810,8 @@ export class MaintenanceService {
               specifications: true,
               status: true,
               assetType: {
-              select: { name: true, specificationTemplate: true },
-            },
+                select: { name: true, specificationTemplate: true },
+              },
               brand: { select: { name: true } },
               model: { select: { name: true, specifications: true } },
             },
@@ -909,8 +916,8 @@ export class MaintenanceService {
               specifications: true,
               status: true,
               assetType: {
-              select: { name: true, specificationTemplate: true },
-            },
+                select: { name: true, specificationTemplate: true },
+              },
               brand: { select: { name: true } },
               model: { select: { name: true, specifications: true } },
             },
@@ -1056,10 +1063,10 @@ export class MaintenanceService {
               select: {
                 id: true,
                 assetId: true,
-            specifications: true,
+                specifications: true,
                 assetType: {
-              select: { name: true, specificationTemplate: true },
-            },
+                  select: { name: true, specificationTemplate: true },
+                },
                 brand: { select: { name: true } },
                 model: { select: { name: true, specifications: true } },
               },
@@ -1625,8 +1632,8 @@ export class MaintenanceService {
             asset: {
               include: {
                 assetType: {
-              select: { name: true, specificationTemplate: true },
-            },
+                  select: { name: true, specificationTemplate: true },
+                },
                 brand: { select: { name: true } },
                 model: { select: { name: true, specifications: true } },
               },

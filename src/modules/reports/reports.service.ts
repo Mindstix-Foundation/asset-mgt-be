@@ -955,14 +955,14 @@ export class ReportsService {
 
   private humanizeKey(key: string): string {
     return key
-      .replace(/[_-]+/g, ' ')
-      .replace(/\b\w/g, (c) => c.toUpperCase())
-      .replace(/\bRam\b/g, 'RAM')
-      .replace(/\bOs\b/g, 'OS')
-      .replace(/\bCpu\b/g, 'CPU')
-      .replace(/\bGb\b/g, 'GB')
-      .replace(/\bHdd\b/g, 'HDD')
-      .replace(/\bSsd\b/g, 'SSD');
+      .replaceAll(/[_-]+/g, ' ')
+      .replaceAll(/\b\w/g, (c) => c.toUpperCase())
+      .replaceAll(/\bRam\b/g, 'RAM')
+      .replaceAll(/\bOs\b/g, 'OS')
+      .replaceAll(/\bCpu\b/g, 'CPU')
+      .replaceAll(/\bGb\b/g, 'GB')
+      .replaceAll(/\bHdd\b/g, 'HDD')
+      .replaceAll(/\bSsd\b/g, 'SSD');
   }
 
   async getMaintenanceReport(filters?: ReportFilters) {
@@ -1159,7 +1159,7 @@ export class ReportsService {
     }
 
     // Set response headers
-    const filename = `${reportType.replace(' ', '_').toLowerCase()}_report_${new Date().toISOString().split('T')[0]}.xlsx`;
+    const filename = `${reportType.replaceAll(' ', '_').toLowerCase()}_report_${new Date().toISOString().split('T')[0]}.xlsx`;
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

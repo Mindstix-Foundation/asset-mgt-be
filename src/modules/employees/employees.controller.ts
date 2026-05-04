@@ -109,9 +109,21 @@ export class EmployeesController {
 
   @Get('check-employee-id')
   @ApiOperation({ summary: 'Check if an employee ID is available' })
-  @ApiQuery({ name: 'employeeId', required: true, description: '4-digit employee ID (0001-9999)' })
-  @ApiQuery({ name: 'excludeId', required: false, description: 'Employee DB id to exclude (for edit mode)' })
-  @ApiResponse({ status: 200, description: 'Returns availability boolean', schema: { example: { available: true } } })
+  @ApiQuery({
+    name: 'employeeId',
+    required: true,
+    description: '4-digit employee ID (0001-9999)',
+  })
+  @ApiQuery({
+    name: 'excludeId',
+    required: false,
+    description: 'Employee DB id to exclude (for edit mode)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns availability boolean',
+    schema: { example: { available: true } },
+  })
   async checkEmployeeId(
     @Query('employeeId') employeeId: string,
     @Query('excludeId') excludeId?: string,
@@ -119,21 +131,25 @@ export class EmployeesController {
     if (!employeeId || !/^\d{4}$/.test(employeeId)) {
       throw new BadRequestException('employeeId must be exactly 4 digits');
     }
-    const available = await this.employeesService.isEmployeeIdAvailable(employeeId, excludeId);
+    const available = await this.employeesService.isEmployeeIdAvailable(
+      employeeId,
+      excludeId,
+    );
     return { message: 'Employee ID availability', data: { available } };
   }
 
   @Get('next-available-id')
   @ApiOperation({ summary: 'Get the next employee ID (last added + 1)' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Returns the next employee ID based on the last added employee (increments by 1, wraps to 0001 after 9999)', 
-    schema: { 
-      example: { 
-        message: 'Next available employee ID', 
-        data: { employeeId: '0900' } 
-      } 
-    } 
+  @ApiResponse({
+    status: 200,
+    description:
+      'Returns the next employee ID based on the last added employee (increments by 1, wraps to 0001 after 9999)',
+    schema: {
+      example: {
+        message: 'Next available employee ID',
+        data: { employeeId: '0900' },
+      },
+    },
   })
   async getNextAvailableEmployeeId() {
     const employeeId = await this.employeesService.getNextAvailableEmployeeId();

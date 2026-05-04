@@ -37,6 +37,21 @@ type StoredSpecificationTemplate = {
 export class AssetTypesService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private trimUnderscores(value: string): string {
+    let start = 0;
+    let end = value.length;
+
+    while (start < end && value[start] === '_') {
+      start++;
+    }
+
+    while (end > start && value[end - 1] === '_') {
+      end--;
+    }
+
+    return value.slice(start, end);
+  }
+
   async create(createAssetTypeDto: CreateAssetTypeDto, userId: number) {
     try {
       // Verify category exists
@@ -384,7 +399,8 @@ export class AssetTypesService {
         );
       }
 
-      const key = incomingKey ?? this.generateUniqueFieldKey(trimmedLabel, usedKeys);
+      const key =
+        incomingKey ?? this.generateUniqueFieldKey(trimmedLabel, usedKeys);
       usedKeys.add(key);
 
       const fieldType = field.type ?? existingField?.type ?? 'dropdown';
@@ -570,8 +586,8 @@ export class AssetTypesService {
       .trim()
       .toLowerCase()
       .replaceAll(/[^a-z0-9]+/g, '_')
-      .replaceAll(/(^_+|_+$)/g, '')
       .replaceAll(/_+/g, '_');
+    baseKey = this.trimUnderscores(baseKey);
 
     if (!baseKey) {
       baseKey = 'field';

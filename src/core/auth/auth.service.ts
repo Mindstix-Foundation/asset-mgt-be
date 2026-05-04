@@ -13,6 +13,7 @@ import { PrismaService } from '../database/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import * as nodemailer from 'nodemailer';
 import * as crypto from 'node:crypto';
+import { isEmail } from 'class-validator';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto, ResetPasswordDto } from './dto/password.dto';
 
@@ -630,8 +631,7 @@ export class AuthService implements OnModuleInit {
 
     try {
       // Check if email format is valid
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(forgotPasswordDto.email)) {
+      if (!isEmail(forgotPasswordDto.email)) {
         throw new UnauthorizedException('Invalid email format');
       }
 
@@ -729,7 +729,8 @@ export class AuthService implements OnModuleInit {
           this.configService.get('SMTP_FROM') ||
           '"Pebble Asset Tracker Support" <pebble-asset-tracker.noreply@gmail.com>',
         to: user.employee.email,
-        subject: 'Password Reset Request - Pebble Asset Tracker Asset Management',
+        subject:
+          'Password Reset Request - Pebble Asset Tracker Asset Management',
         html: `
           <!DOCTYPE html>
           <html>

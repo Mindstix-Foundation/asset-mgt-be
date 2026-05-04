@@ -419,7 +419,7 @@ export class AssetsService {
     toDate: string | undefined,
   ): any {
     if (!fromDate && !toDate) return {};
-    
+
     const dateFilter: any = {};
     if (fromDate) {
       dateFilter.gte = new Date(fromDate);
@@ -432,15 +432,17 @@ export class AssetsService {
     return { createdAt: dateFilter };
   }
 
-  private buildSpecificationFilters(specificationFilters: string | undefined): any {
+  private buildSpecificationFilters(
+    specificationFilters: string | undefined,
+  ): any {
     if (!specificationFilters) return {};
-    
+
     try {
       const parsedFilters = JSON.parse(specificationFilters);
       if (!parsedFilters || typeof parsedFilters !== 'object') {
         return {};
       }
-      
+
       const andConditions: any[] = [];
       for (const [key, value] of Object.entries(parsedFilters)) {
         if (value !== undefined && value !== null && value !== '') {
@@ -452,7 +454,7 @@ export class AssetsService {
           });
         }
       }
-      
+
       return andConditions.length > 0 ? { AND: andConditions } : {};
     } catch (error) {
       console.error('Invalid specificationFilters payload:', error);
@@ -484,14 +486,24 @@ export class AssetsService {
 
     const where: any = {
       ...this.buildSearchFilter(search),
-      ...this.buildSimpleFilters(assetTypeId, brandId, modelId, vendorId, status, condition, location),
+      ...this.buildSimpleFilters(
+        assetTypeId,
+        brandId,
+        modelId,
+        vendorId,
+        status,
+        condition,
+        location,
+      ),
       ...this.buildStringBasedFilters(assetType, assetStatus),
       ...this.buildDateRangeFilter(fromDate, toDate),
     };
 
     const specFilters = this.buildSpecificationFilters(specificationFilters);
     if (specFilters.AND) {
-      where.AND = where.AND ? [...where.AND, ...specFilters.AND] : specFilters.AND;
+      where.AND = where.AND
+        ? [...where.AND, ...specFilters.AND]
+        : specFilters.AND;
     }
 
     const orderBy = { [sortBy]: sortOrder } as any;
@@ -920,7 +932,10 @@ export class AssetsService {
 
       // Validate serial number uniqueness if being updated
       if (updateAssetDto.serialNumber !== undefined) {
-        await this.validateSerialNumberForUpdate(updateAssetDto.serialNumber, id);
+        await this.validateSerialNumberForUpdate(
+          updateAssetDto.serialNumber,
+          id,
+        );
       }
 
       // Validate foreign key references
@@ -1572,7 +1587,9 @@ export class AssetsService {
     };
   }
 
-  private extractSpecificationsFromAssets(assets: any[]): Record<string, string>[] {
+  private extractSpecificationsFromAssets(
+    assets: any[],
+  ): Record<string, string>[] {
     const allSpecs: Record<string, string>[] = [];
     for (const asset of assets) {
       if (
@@ -1586,7 +1603,9 @@ export class AssetsService {
     return allSpecs;
   }
 
-  private countSpecKeyFrequency(allSpecs: Record<string, string>[]): Map<string, number> {
+  private countSpecKeyFrequency(
+    allSpecs: Record<string, string>[],
+  ): Map<string, number> {
     const specKeyFrequency = new Map<string, number>();
     for (const spec of allSpecs) {
       for (const key of Object.keys(spec)) {
@@ -1596,7 +1615,10 @@ export class AssetsService {
     return specKeyFrequency;
   }
 
-  private getTopRequiredSpecs(specKeyFrequency: Map<string, number>, topN: number = 2): string[] {
+  private getTopRequiredSpecs(
+    specKeyFrequency: Map<string, number>,
+    topN: number = 2,
+  ): string[] {
     return Array.from(specKeyFrequency.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, topN)
@@ -1608,7 +1630,7 @@ export class AssetsService {
     requiredSpecs: string[],
   ): Map<string, Record<string, string>> {
     const uniqueCombinations = new Map<string, Record<string, string>>();
-    
+
     for (const spec of allSpecs) {
       const combination = this.buildCombination(spec, requiredSpecs);
       if (combination) {
@@ -1618,7 +1640,7 @@ export class AssetsService {
         }
       }
     }
-    
+
     return uniqueCombinations;
   }
 
@@ -1627,7 +1649,7 @@ export class AssetsService {
     requiredSpecs: string[],
   ): Record<string, string> | null {
     const combination: Record<string, string> = {};
-    
+
     for (const key of requiredSpecs) {
       if (spec[key]) {
         combination[key] = spec[key];
@@ -1635,7 +1657,7 @@ export class AssetsService {
         return null;
       }
     }
-    
+
     return combination;
   }
 
@@ -1670,19 +1692,24 @@ export class AssetsService {
     });
 
     const allSpecs = this.extractSpecificationsFromAssets(assets);
-    
+
     if (allSpecs.length === 0) {
       return this.createEmptyResult('No specifications found');
     }
 
     const specKeyFrequency = this.countSpecKeyFrequency(allSpecs);
     const requiredSpecs = this.getTopRequiredSpecs(specKeyFrequency);
-    
+
     if (requiredSpecs.length === 0) {
-      return this.createEmptyResult('Unique specifications retrieved successfully');
+      return this.createEmptyResult(
+        'Unique specifications retrieved successfully',
+      );
     }
 
-    const uniqueCombinations = this.buildUniqueCombinations(allSpecs, requiredSpecs);
+    const uniqueCombinations = this.buildUniqueCombinations(
+      allSpecs,
+      requiredSpecs,
+    );
 
     return {
       message: 'Unique specifications retrieved successfully',
@@ -1900,7 +1927,7 @@ export class AssetsService {
     ];
 
     // location is now an enum: only match exact enum values (case-insensitive)
-    const upperQ = q.toUpperCase().replace(/\s+/g, '_');
+    const upperQ = q.toUpperCase().replaceAll(/\s+/g, '_');
     const validLocations = ['PUNE_INVENTORY_CENTER', 'THANE_INVENTORY_CENTER'];
     const matchedLocations = validLocations.filter((loc) =>
       loc.includes(upperQ),
@@ -2175,7 +2202,7 @@ export class AssetsService {
       if (value) {
         // Check if header is a specification field (starts with 'spec_')
         if (header.startsWith('spec_')) {
-          const specKey = header.replace('spec_', '');
+          const specKey = header.replaceAll('spec_', '');
           specifications[specKey] = value;
           continue;
         }
@@ -2809,7 +2836,7 @@ export class AssetsService {
       if (value) {
         // Check if header is a specification field (starts with 'spec_')
         if (header.startsWith('spec_')) {
-          const specKey = header.replace('spec_', '');
+          const specKey = header.replaceAll('spec_', '');
           specifications[specKey] = value;
           continue;
         }
@@ -2870,10 +2897,7 @@ export class AssetsService {
     return assetData;
   }
 
-  private validateRequiredFields(
-    assetData: any,
-    rowNumber: number,
-  ): any[] {
+  private validateRequiredFields(assetData: any, rowNumber: number): any[] {
     const errors: any[] = [];
     if (
       !assetData.assetId ||
@@ -2891,10 +2915,7 @@ export class AssetsService {
     return errors;
   }
 
-  private validateIdFields(
-    assetData: any,
-    rowNumber: number,
-  ): any[] {
+  private validateIdFields(assetData: any, rowNumber: number): any[] {
     const errors: any[] = [];
     if (
       Number.isNaN(assetData.assetTypeId) ||
@@ -2932,7 +2953,7 @@ export class AssetsService {
     rowNumber: number,
   ): Promise<any[]> {
     const errors: any[] = [];
-    
+
     if (!assetData.assetTypeId || Number.isNaN(assetData.assetTypeId)) {
       return errors;
     }
@@ -3002,9 +3023,22 @@ export class AssetsService {
     const errors: any[] = [
       ...this.validateRequiredFields(assetData, rowNumber),
       ...this.validateIdFields(assetData, rowNumber),
-      ...this.validateEnumValue(assetData.status, validStatuses, 'status', rowNumber),
-      ...this.validateEnumValue(assetData.condition, validConditions, 'condition', rowNumber),
-      ...await this.validateSpecificationsAgainstTemplate(assetData, rowNumber),
+      ...this.validateEnumValue(
+        assetData.status,
+        validStatuses,
+        'status',
+        rowNumber,
+      ),
+      ...this.validateEnumValue(
+        assetData.condition,
+        validConditions,
+        'condition',
+        rowNumber,
+      ),
+      ...(await this.validateSpecificationsAgainstTemplate(
+        assetData,
+        rowNumber,
+      )),
     ];
 
     return errors;

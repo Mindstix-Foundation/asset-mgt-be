@@ -135,7 +135,8 @@ export class CreateAssetDto {
   warrantyEndDate?: string;
 
   @ApiProperty({
-    description: 'Physical location of the asset (must be one of allowed centers)',
+    description:
+      'Physical location of the asset (must be one of allowed centers)',
     example: 'PUNE_INVENTORY_CENTER',
     enum: ASSET_LOCATION_VALUES,
   })

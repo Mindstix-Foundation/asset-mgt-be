@@ -56,7 +56,7 @@ export class EmployeesService {
     }
 
     // Use provided 4-digit employee ID (left as-is). Ensure uniqueness.
-    let employeeId = createEmployeeDto.employeeId;
+    const employeeId = createEmployeeDto.employeeId;
     if (!/^\d{4}$/.test(employeeId)) {
       throw new BadRequestException('Employee ID must be exactly 4 digits');
     }
@@ -65,7 +65,9 @@ export class EmployeesService {
       select: { id: true },
     });
     if (existingId) {
-      throw new ConflictException('Employee with this employee ID already exists');
+      throw new ConflictException(
+        'Employee with this employee ID already exists',
+      );
     }
 
     // Convert dateOfBirth string to Date if provided
@@ -95,7 +97,9 @@ export class EmployeesService {
         async () => {
           // On employeeId conflict retry is not applicable now because user provides ID.
           // Re-throw to surface conflict clearly.
-          throw new ConflictException('Employee with this employee ID already exists');
+          throw new ConflictException(
+            'Employee with this employee ID already exists',
+          );
         },
       );
       if (maybeHandled) {
@@ -135,7 +139,10 @@ export class EmployeesService {
     const where: Prisma.EmployeeWhereUniqueInput = { employeeId };
     const existing = await this.prisma.employee.findUnique({ where });
     if (!existing) return true;
-    if (excludeEmployeeDbId && String(existing.id) === String(excludeEmployeeDbId)) {
+    if (
+      excludeEmployeeDbId &&
+      String(existing.id) === String(excludeEmployeeDbId)
+    ) {
       return true;
     }
     return false;
@@ -154,11 +161,11 @@ export class EmployeesService {
     if (lastEmployee) {
       // Trim the employee ID since it's stored as CHAR(8) and may have trailing spaces
       const trimmedId = lastEmployee.employeeId.trim();
-      
+
       // Only process if it's a valid 4-digit numeric employee ID
       if (trimmedId.length === 4 && /^\d{4}$/.test(trimmedId)) {
         const lastIdNum = Number.parseInt(trimmedId, 10);
-        
+
         // Increment the last ID by 1
         // If last ID is 9999, wrap around to 0001
         // Examples: 0899 -> 0900, 9999 -> 0001
@@ -203,7 +210,9 @@ export class EmployeesService {
     const isPostFilterByCount = Boolean(query.assetCountRange);
 
     // Get total count based on effective filters (includes hasAssets if provided)
-    const baseTotalCount = await this.prisma.employee.count({ where: effectiveWhere });
+    const baseTotalCount = await this.prisma.employee.count({
+      where: effectiveWhere,
+    });
 
     // Fetch page candidates
     const baseEmployees = await this.prisma.employee.findMany({
@@ -239,7 +248,9 @@ export class EmployeesService {
     );
 
     // Compute totalCount consistent with filters
-    const totalCount = isPostFilterByCount ? filteredEmployees.length : baseTotalCount;
+    const totalCount = isPostFilterByCount
+      ? filteredEmployees.length
+      : baseTotalCount;
 
     // Apply pagination if we post-filtered
     const pagedEmployees = isPostFilterByCount
@@ -252,8 +263,9 @@ export class EmployeesService {
       responseDto.assignedAssets = employee.assetIssues.map((issue: any) => {
         const { specifications, specificationLabelMap } =
           this.extractAssetSpecifications(issue.asset);
-        const specificationDescription =
-          this.getAssetNotesDescription(issue.asset);
+        const specificationDescription = this.getAssetNotesDescription(
+          issue.asset,
+        );
 
         return {
           assetId: issue.asset.assetId,
@@ -588,10 +600,8 @@ export class EmployeesService {
     normalizedEmployeeId?: string;
     emailLower?: string;
   } {
-    const { errors: idErrors, normalizedEmployeeId } = this.validateAndNormalizeEmployeeId(
-      r,
-      rowNum,
-    );
+    const { errors: idErrors, normalizedEmployeeId } =
+      this.validateAndNormalizeEmployeeId(r, rowNum);
 
     const { errors: requiredErrors, emailLower } = this.validateRequiredStrings(
       r,
@@ -600,12 +610,12 @@ export class EmployeesService {
 
     const phoneErrors = this.validatePhoneNumber(r, rowNum);
 
-    const { isValidFormat, errors: dobFormatErrors } = this.validateDateOfBirthFormat(
-      r,
-      rowNum,
-    );
+    const { isValidFormat, errors: dobFormatErrors } =
+      this.validateDateOfBirthFormat(r, rowNum);
 
-    const ageErrors = isValidFormat ? this.validateAgeConstraints(r, rowNum) : [];
+    const ageErrors = isValidFormat
+      ? this.validateAgeConstraints(r, rowNum)
+      : [];
 
     const errors: Array<{ row: number; field: string; message: string }> = [
       ...idErrors,
@@ -621,16 +631,27 @@ export class EmployeesService {
   private validateAndNormalizeEmployeeId(
     r: any,
     rowNum: number,
-  ): { errors: Array<{ row: number; field: string; message: string }>; normalizedEmployeeId?: string } {
+  ): {
+    errors: Array<{ row: number; field: string; message: string }>;
+    normalizedEmployeeId?: string;
+  } {
     const errors: Array<{ row: number; field: string; message: string }> = [];
     const empId = (r.employeeId ?? '').toString().trim();
     if (!empId) {
-      errors.push({ row: rowNum, field: 'employeeId', message: 'Employee ID is required' });
+      errors.push({
+        row: rowNum,
+        field: 'employeeId',
+        message: 'Employee ID is required',
+      });
       return { errors };
     }
     const isValid = /^\d{4}$/.test(empId) && empId !== '0000';
     if (!isValid) {
-      errors.push({ row: rowNum, field: 'employeeId', message: 'Employee ID must be 4 digits (0001-9999)' });
+      errors.push({
+        row: rowNum,
+        field: 'employeeId',
+        message: 'Employee ID must be 4 digits (0001-9999)',
+      });
       return { errors };
     }
     return { errors, normalizedEmployeeId: empId };
@@ -639,17 +660,34 @@ export class EmployeesService {
   private validateRequiredStrings(
     r: any,
     rowNum: number,
-  ): { errors: Array<{ row: number; field: string; message: string }>; emailLower?: string } {
+  ): {
+    errors: Array<{ row: number; field: string; message: string }>;
+    emailLower?: string;
+  } {
     const errors: Array<{ row: number; field: string; message: string }> = [
-      ...(r.firstName === undefined || r.firstName === null || r.firstName === ''
-        ? [{ row: rowNum, field: 'firstName', message: 'First Name is required' }]
+      ...(r.firstName === undefined ||
+      r.firstName === null ||
+      r.firstName === ''
+        ? [
+            {
+              row: rowNum,
+              field: 'firstName',
+              message: 'First Name is required',
+            },
+          ]
         : []),
       ...(r.lastName === undefined || r.lastName === null || r.lastName === ''
         ? [{ row: rowNum, field: 'lastName', message: 'Last Name is required' }]
         : []),
     ];
     if (r.email === undefined || r.email === null || r.email === '') {
-      return { errors: errors.concat({ row: rowNum, field: 'email', message: 'Email is required' }) };
+      return {
+        errors: errors.concat({
+          row: rowNum,
+          field: 'email',
+          message: 'Email is required',
+        }),
+      };
     }
     return { errors, emailLower: String(r.email).toLowerCase() };
   }
@@ -660,7 +698,11 @@ export class EmployeesService {
   ): Array<{ row: number; field: string; message: string }> {
     if (r.phone && !/^\+91\s\d{10}$/.test(r.phone)) {
       return [
-        { row: rowNum, field: 'phone', message: "Phone must be '+91 ' followed by 10 digits" },
+        {
+          row: rowNum,
+          field: 'phone',
+          message: "Phone must be '+91 ' followed by 10 digits",
+        },
       ];
     }
     return [];
@@ -669,13 +711,22 @@ export class EmployeesService {
   private validateDateOfBirthFormat(
     r: any,
     rowNum: number,
-  ): { isValidFormat: boolean; errors: Array<{ row: number; field: string; message: string }> } {
+  ): {
+    isValidFormat: boolean;
+    errors: Array<{ row: number; field: string; message: string }>;
+  } {
     if (!r.dateOfBirth) return { isValidFormat: false, errors: [] };
     const valid = /^\d{4}-\d{2}-\d{2}$/.test(r.dateOfBirth);
     if (!valid) {
       return {
         isValidFormat: false,
-        errors: [{ row: rowNum, field: 'dateOfBirth', message: 'Date of Birth must be YYYY-MM-DD' }],
+        errors: [
+          {
+            row: rowNum,
+            field: 'dateOfBirth',
+            message: 'Date of Birth must be YYYY-MM-DD',
+          },
+        ],
       };
     }
     return { isValidFormat: true, errors: [] };
@@ -691,10 +742,22 @@ export class EmployeesService {
       const minAgeDate = new Date();
       minAgeDate.setFullYear(today.getFullYear() - 16);
       if (birthDate > today) {
-        return [{ row: rowNum, field: 'dateOfBirth', message: 'Date of Birth cannot be in the future' }];
+        return [
+          {
+            row: rowNum,
+            field: 'dateOfBirth',
+            message: 'Date of Birth cannot be in the future',
+          },
+        ];
       }
       if (birthDate > minAgeDate) {
-        return [{ row: rowNum, field: 'dateOfBirth', message: 'Employee must be at least 16 years old' }];
+        return [
+          {
+            row: rowNum,
+            field: 'dateOfBirth',
+            message: 'Employee must be at least 16 years old',
+          },
+        ];
       }
       return [];
     } catch {
@@ -702,26 +765,38 @@ export class EmployeesService {
     }
   }
 
-  private validateDuplicateEmailsInFile(emails: string[]): Array<{ row: number; field: string; message: string }> {
+  private validateDuplicateEmailsInFile(
+    emails: string[],
+  ): Array<{ row: number; field: string; message: string }> {
     const errors: Array<{ row: number; field: string; message: string }> = [];
     const seen = new Set<string>();
     for (let i = 0; i < emails.length; i++) {
       const e = emails[i];
       if (seen.has(e)) {
-        errors.push({ row: i + 2, field: 'email', message: 'Duplicate email in file' });
+        errors.push({
+          row: i + 2,
+          field: 'email',
+          message: 'Duplicate email in file',
+        });
       }
       seen.add(e);
     }
     return errors;
   }
 
-  private validateDuplicateEmployeeIdsInFile(employeeIds: string[]): Array<{ row: number; field: string; message: string }> {
+  private validateDuplicateEmployeeIdsInFile(
+    employeeIds: string[],
+  ): Array<{ row: number; field: string; message: string }> {
     const errors: Array<{ row: number; field: string; message: string }> = [];
     const seen = new Map<string, number>();
     for (let i = 0; i < employeeIds.length; i++) {
       const id = employeeIds[i];
       if (seen.has(id)) {
-        errors.push({ row: i + 2, field: 'employeeId', message: 'Duplicate Employee ID in file' });
+        errors.push({
+          row: i + 2,
+          field: 'employeeId',
+          message: 'Duplicate Employee ID in file',
+        });
       } else {
         seen.set(id, i);
       }
@@ -743,7 +818,11 @@ export class EmployeesService {
     for (let idx = 0; idx < rows.length; idx++) {
       const r = rows[idx];
       if (r.employeeId && existingSet.has(String(r.employeeId))) {
-        errors.push({ row: idx + 2, field: 'employeeId', message: 'Employee ID already exists in database' });
+        errors.push({
+          row: idx + 2,
+          field: 'employeeId',
+          message: 'Employee ID already exists in database',
+        });
       }
     }
     return errors;
@@ -763,13 +842,20 @@ export class EmployeesService {
     for (let idx = 0; idx < rows.length; idx++) {
       const r = rows[idx];
       if (r.email && existingEmails.has(String(r.email).toLowerCase())) {
-        errors.push({ row: idx + 2, field: 'email', message: 'Email already exists in database' });
+        errors.push({
+          row: idx + 2,
+          field: 'email',
+          message: 'Email already exists in database',
+        });
       }
     }
     return errors;
   }
 
-  private async insertEmployeesTransaction(rows: any[], userId: number): Promise<void> {
+  private async insertEmployeesTransaction(
+    rows: any[],
+    userId: number,
+  ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       for (const r of rows) {
         const employeeId = r.employeeId as string;
@@ -823,7 +909,7 @@ export class EmployeesService {
       ...this.validateDuplicateEmailsInFile(emails),
       ...(await this.validateDuplicateEmailsInDb(emails, rows)),
       ...this.validateDuplicateEmployeeIdsInFile(employeeIds),
-      ...(await this.validateDuplicateEmployeeIdsInDb(employeeIds, rows))
+      ...(await this.validateDuplicateEmployeeIdsInDb(employeeIds, rows)),
     );
 
     if (validateOnly) {
@@ -940,8 +1026,9 @@ export class EmployeesService {
         .map((issue: any) => {
           const { specifications, specificationLabelMap } =
             this.extractAssetSpecifications(issue.asset);
-          const specificationDescription =
-            this.getAssetNotesDescription(issue.asset);
+          const specificationDescription = this.getAssetNotesDescription(
+            issue.asset,
+          );
 
           return {
             assetId: issue.asset.assetId,
@@ -996,10 +1083,20 @@ export class EmployeesService {
 
     // Check if employee is an admin and assert constraints
     const isAdmin = this.isEmployeeAdmin(existingEmployee);
-    this.assertAdminUpdateConstraints(existingEmployee, updateEmployeeDto, isAdmin);
+    this.assertAdminUpdateConstraints(
+      existingEmployee,
+      updateEmployeeDto,
+      isAdmin,
+    );
 
     // Check if email is being updated and already exists (only for non-admin employees)
-    if (this.shouldCheckEmailUniqueness(isAdmin, updateEmployeeDto, existingEmployee)) {
+    if (
+      this.shouldCheckEmailUniqueness(
+        isAdmin,
+        updateEmployeeDto,
+        existingEmployee,
+      )
+    ) {
       const emailExists = await this.prisma.employee.findUnique({
         where: { email: updateEmployeeDto.email },
       });
@@ -1008,7 +1105,11 @@ export class EmployeesService {
         throw new ConflictException('Employee with this email already exists');
       }
     }
-    const updateData = this.buildUpdateEmployeeData(updateEmployeeDto, userId, isAdmin);
+    const updateData = this.buildUpdateEmployeeData(
+      updateEmployeeDto,
+      userId,
+      isAdmin,
+    );
 
     const employee = await this.prisma.employee.update({
       where: whereClause,
@@ -1031,7 +1132,9 @@ export class EmployeesService {
     };
   }
 
-  private resolveEmployeeWhereClause(id: string): Prisma.EmployeeWhereUniqueInput {
+  private resolveEmployeeWhereClause(
+    id: string,
+  ): Prisma.EmployeeWhereUniqueInput {
     if (/^\d{4}$/.test(id)) return { employeeId: id };
     if (/^\d+$/.test(id)) return { id: Number.parseInt(id, 10) };
     return { employeeId: id };
@@ -1040,7 +1143,8 @@ export class EmployeesService {
   private isEmployeeAdmin(existingEmployee: any): boolean {
     return (
       existingEmployee.user?.userRoles?.some(
-        (userRole: any) => userRole.role.roleName === 'ADMIN' && userRole.isActive,
+        (userRole: any) =>
+          userRole.role.roleName === 'ADMIN' && userRole.isActive,
       ) || false
     );
   }
@@ -1128,7 +1232,9 @@ export class EmployeesService {
     if (!isAdmin) return;
     console.log(`✅ Admin employee updated successfully (email excluded):`, {
       employeeId: employee.employeeId,
-      updatedFields: Object.keys(updateData).filter((key) => key !== 'updatedBy'),
+      updatedFields: Object.keys(updateData).filter(
+        (key) => key !== 'updatedBy',
+      ),
       emailExcluded: true,
     });
   }
@@ -1391,18 +1497,18 @@ export class EmployeesService {
             assetId: true,
             serialNumber: true,
             specifications: true,
-            assetType: { 
-              select: { 
+            assetType: {
+              select: {
                 name: true,
-                specificationTemplate: true
-              } 
+                specificationTemplate: true,
+              },
             },
             brand: { select: { name: true } },
-            model: { 
-              select: { 
+            model: {
+              select: {
                 name: true,
-                specifications: true
-              } 
+                specifications: true,
+              },
             },
           },
         },
@@ -1429,7 +1535,9 @@ export class EmployeesService {
         const row = this.transformAssetEvent(event);
         return row ? { row, event } : null;
       })
-      .filter((item): item is { row: AssetEventRow; event: any } => item !== null);
+      .filter(
+        (item): item is { row: AssetEventRow; event: any } => item !== null,
+      );
 
     const transformed: AssetEventRow[] = eventsWithRows.map((item) => item.row);
     const filtered = this.applyAssetEventFilters(transformed, query);
@@ -1446,7 +1554,9 @@ export class EmployeesService {
     const end = start + limit;
     const pageItems = filtered.slice(start, end).map((e) => {
       // Find the original event for this row to extract specifications
-      const originalEvent = eventsWithRows.find((item) => item.row.id === e.id)?.event;
+      const originalEvent = eventsWithRows.find(
+        (item) => item.row.id === e.id,
+      )?.event;
       const { specifications, specificationLabelMap } = originalEvent
         ? this.extractAssetSpecifications(originalEvent.asset)
         : { specifications: null, specificationLabelMap: null };
@@ -1680,10 +1790,9 @@ export class EmployeesService {
     }
   }
 
-  private filterEmployeesByAssetCountRange<T extends { _count: { assetIssues: number } }>(
-    employees: T[],
-    assetCountRange?: string,
-  ): T[] {
+  private filterEmployeesByAssetCountRange<
+    T extends { _count: { assetIssues: number } },
+  >(employees: T[], assetCountRange?: string): T[] {
     if (!assetCountRange) return employees;
     return employees.filter((emp) => {
       const assetCount = emp._count.assetIssues;
@@ -1710,12 +1819,16 @@ export class EmployeesService {
       asset.model?.specifications,
     );
     const specifications = assetSpecs || modelSpecs || null;
-    const specificationLabelMap = this.buildSpecificationLabelMap(asset.assetType);
+    const specificationLabelMap = this.buildSpecificationLabelMap(
+      asset.assetType,
+    );
 
     return { specifications, specificationLabelMap };
   }
 
-  private parseSpecificationsPayload(input: unknown): Record<string, any> | null {
+  private parseSpecificationsPayload(
+    input: unknown,
+  ): Record<string, any> | null {
     if (input === null || input === undefined) {
       return null;
     }
@@ -1744,7 +1857,9 @@ export class EmployeesService {
     return null;
   }
 
-  private stripDescriptionField(payload: Record<string, any>): Record<string, any> | null {
+  private stripDescriptionField(
+    payload: Record<string, any>,
+  ): Record<string, any> | null {
     const specs: Record<string, any> = { ...payload };
     for (const key of Object.keys(specs)) {
       if (key.toLowerCase() === 'description') {
@@ -1760,7 +1875,9 @@ export class EmployeesService {
     return trimmed.length > 0 ? trimmed : null;
   }
 
-  private buildSpecificationLabelMap(assetType: any): Record<string, string> | null {
+  private buildSpecificationLabelMap(
+    assetType: any,
+  ): Record<string, string> | null {
     if (!assetType?.specificationTemplate) {
       return null;
     }
@@ -1921,8 +2038,20 @@ export class EmployeesService {
       let employees = await this.prisma.employee.findMany({
         where,
         include: {
-          createdByUser: { select: { id: true, username: true, employee: { select: { firstName: true, lastName: true } } } },
-          updatedByUser: { select: { id: true, username: true, employee: { select: { firstName: true, lastName: true } } } },
+          createdByUser: {
+            select: {
+              id: true,
+              username: true,
+              employee: { select: { firstName: true, lastName: true } },
+            },
+          },
+          updatedByUser: {
+            select: {
+              id: true,
+              username: true,
+              employee: { select: { firstName: true, lastName: true } },
+            },
+          },
           assetIssues: {
             where: { returnDate: null }, // Only active assignments
             include: {
@@ -2218,7 +2347,8 @@ export class EmployeesService {
     };
 
     return {
-      message: 'Deletable employees retrieved successfully (includes both active and inactive employees without asset history)',
+      message:
+        'Deletable employees retrieved successfully (includes both active and inactive employees without asset history)',
       data: {
         employees: responseEmployees,
         pagination,
@@ -2226,4 +2356,3 @@ export class EmployeesService {
     };
   }
 }
-
