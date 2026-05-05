@@ -1720,6 +1720,61 @@ export class AssetsService {
     };
   }
 
+  async getSpecificationValues(
+    assetTypeId: number,
+    key: string,
+    search?: string,
+  ) {
+    if (!assetTypeId || !key) {
+      return {
+        message: 'Specification values retrieved successfully',
+        data: { values: [] },
+      };
+    }
+
+    const sanitizedKey = key.replace(/[^a-zA-Z0-9_]/g, '');
+
+    let query: string;
+    let params: any[];
+
+    if (search && search.trim()) {
+      query = `
+        SELECT DISTINCT specifications->>'${sanitizedKey}' AS val
+        FROM assets
+        WHERE asset_type_id = $1
+          AND specifications->>'${sanitizedKey}' IS NOT NULL
+          AND specifications->>'${sanitizedKey}' != ''
+          AND specifications->>'${sanitizedKey}' ILIKE $2
+        ORDER BY val
+        LIMIT 20
+      `;
+      params = [assetTypeId, `%${search.trim()}%`];
+    } else {
+      query = `
+        SELECT DISTINCT specifications->>'${sanitizedKey}' AS val
+        FROM assets
+        WHERE asset_type_id = $1
+          AND specifications->>'${sanitizedKey}' IS NOT NULL
+          AND specifications->>'${sanitizedKey}' != ''
+        ORDER BY val
+        LIMIT 20
+      `;
+      params = [assetTypeId];
+    }
+
+    const results = await this.prisma.$queryRawUnsafe<{ val: string }[]>(
+      query,
+      ...params,
+    );
+
+    return {
+      message: 'Specification values retrieved successfully',
+      data: {
+        values: results.map((r) => r.val),
+      },
+    };
+  }
+
   async findAvailableAssets(queryDto: AssetQueryDto) {
     const {
       page = 1,

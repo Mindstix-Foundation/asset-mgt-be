@@ -258,6 +258,49 @@ export class AssetsController {
     );
   }
 
+  @Get('specification-values')
+  @ApiOperation({
+    summary: 'Get distinct specification values for autocomplete filtering',
+  })
+  @ApiQuery({
+    name: 'assetTypeId',
+    required: true,
+    description: 'Asset Type ID to scope the search',
+  })
+  @ApiQuery({
+    name: 'key',
+    required: true,
+    description: 'Specification field key (e.g. "macAddress")',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Partial text to match against specification values',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Distinct specification values retrieved successfully',
+    schema: {
+      example: {
+        message: 'Specification values retrieved successfully',
+        data: {
+          values: ['54:E1:AD:61:BC:90', '54:E1:AD:62:AA:11'],
+        },
+      },
+    },
+  })
+  async getSpecificationValues(
+    @Query('assetTypeId') assetTypeId: string,
+    @Query('key') key: string,
+    @Query('search') search?: string,
+  ) {
+    return this.assetsService.getSpecificationValues(
+      Number.parseInt(assetTypeId),
+      key,
+      search,
+    );
+  }
+
   @Get('export')
   @ApiOperation({
     summary: 'Export assets to Excel file with filtering support',
