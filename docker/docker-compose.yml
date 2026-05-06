@@ -1,20 +1,19 @@
 # ==============================================================================
-# Asset Management - Docker Compose stack
+# Asset Management - Docker Compose stack (local dev)
 # ------------------------------------------------------------------------------
 # Services:
 #   - db        : PostgreSQL 16 (with persistent volume)
 #   - backend   : NestJS API (built from ../ i.e. asset-mgt-be root)
-#   - frontend  : Vue 3 + Vite SPA served by nginx (built from
-#                 ../../asset-mgt-fe/frontend), reverse-proxies /api -> backend
+#   - frontend  : Static Vue 3 + Vite SPA served by a tiny nginx (built from
+#                 ../../asset-mgt-fe/frontend). NOT exposed to the host.
+#   - nginx     : Reverse proxy. Routes "/api/*" -> backend, "/*" -> frontend.
+#                 The ONLY service published on the host (port 8080 -> 80).
 #
 # Usage:
 #   cp .env.example .env       # then edit secrets
 #   docker compose up -d --build
 #
 # Then open: http://localhost:8080
-#
-# Compose project name defaults to the folder name ("docker"); override with:
-#   docker compose -p asset-management up -d --build
 # ==============================================================================
 
 version: "3.9"
@@ -61,6 +60,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
       MAX_FILE_SIZE: ${MAX_FILE_SIZE:-10485760}
       UPLOAD_DEST: /app/uploads
       SMTP_HOST: ${SMTP_HOST:-}
@@ -70,8 +70,8 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
     volumes:
       - backend_uploads:/app/uploads
-    ports:
-      - "${BACKEND_PORT:-3000}:3000"
+    expose:
+      - "3000"
     networks:
       - asset-net
 
@@ -84,8 +84,21 @@ services:
     image: asset-mgt-frontend:latest
     container_name: asset-mgt-frontend
     restart: unless-stopped
+    expose:
+      - "80"
+    networks:
+      - asset-net
+
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    image: asset-mgt-nginx:latest
+    container_name: asset-mgt-nginx
+    restart: unless-stopped
     depends_on:
       - backend
+      - frontend
     ports:
       - "${FRONTEND_PORT:-8080}:80"
     networks:

@@ -1,0 +1,5 @@
+# Tiny build context — only Dockerfile + nginx.conf are needed.
+# This keeps copies of the rest of the repo out of the build context.
+*
+!Dockerfile
+!nginx.conf

@@ -33,8 +33,11 @@ the AWS CLI (copy-paste). Pick whichever you prefer.
 Browser ──HTTP──▶ ALB (public)  ──HTTP:8080──▶ EC2 (public subnet)
                                                   │
                                                   │ Docker Compose:
-                                                  │   ├── frontend (nginx :80 → mapped to host :8080)
-                                                  │   └── backend  (NestJS :3000, internal-only)
+                                                  │   ├── nginx     (reverse proxy, host:8080 → :80)
+                                                  │   │     ├── /api/* → backend
+                                                  │   │     └── /*     → frontend
+                                                  │   ├── frontend  (static Vue SPA, internal :80)
+                                                  │   └── backend   (NestJS :3000, internal-only)
                                                   │
                                                   └─── psql 5432 (TLS) ───▶ RDS PostgreSQL 16
 ```
@@ -485,6 +488,11 @@ VITE_API_BASE_URL=/api
 ENABLE_SWAGGER=true                 # leave on for testing; turn off for prod
 LOG_LEVEL=info
 FRONTEND_PORT=8080
+
+# CRITICAL for plain-HTTP testing without TLS: tells the backend to set the
+# auth cookies WITHOUT the `Secure` flag, otherwise the browser silently drops
+# them and login appears to succeed but immediately bounces back to /login.
+COOKIE_SECURE=false
 ```
 
 > Tip: special chars (`!`, `&`, `?`, `@`) in `DATABASE_URL` are fine inside the
@@ -581,10 +589,10 @@ Admin Login: username=admin, password=Admin@123
 - VPC: `asset-mgt-test-vpc`
 - Protocol version: HTTP1
 - **Health checks** → expand "Advanced":
-  - Path: `/`
+  - Path: `/healthz`  (the nginx reverse-proxy exposes this lightweight endpoint)
   - Healthy threshold: 2
   - Interval: 15s
-  - Success codes: `200,301,302`
+  - Success codes: `200`
 - **Next**.
 - On the "Register targets" page, tick the EC2 instance, set port `8080`, click **Include as pending below**, then **Create target group**.
 
@@ -596,9 +604,9 @@ TG_ARN=$(aws elbv2 create-target-group \
   --protocol HTTP --port 8080 \
   --vpc-id $VPC_ID \
   --target-type instance \
-  --health-check-path / --health-check-interval-seconds 15 \
+  --health-check-path /healthz --health-check-interval-seconds 15 \
   --healthy-threshold-count 2 \
-  --matcher 'HttpCode=200,301,302' \
+  --matcher 'HttpCode=200' \
   --query 'TargetGroups[0].TargetGroupArn' --output text)
 
 aws elbv2 register-targets --target-group-arn $TG_ARN \

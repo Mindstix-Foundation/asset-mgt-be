@@ -121,19 +121,25 @@ export class AuthController {
 
     // Set HTTP-only cookies
     const isProduction = process.env.NODE_ENV === 'production';
+    // Allow opting out of secure/strict cookies in production (e.g. HTTP-only
+    // test deployments behind an ALB without TLS). Default: secure in prod.
+    const cookieSecure = process.env.COOKIE_SECURE
+      ? process.env.COOKIE_SECURE === 'true'
+      : isProduction;
+    const cookieSameSite: 'strict' | 'lax' = cookieSecure ? 'strict' : 'lax';
 
     res.cookie('access_token', result.access_token, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
+      secure: cookieSecure,
+      sameSite: cookieSameSite,
       maxAge: 15 * 60 * 1000, // 15 minutes
       path: '/',
     });
 
     res.cookie('refresh_token', result.refresh_token, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
+      secure: cookieSecure,
+      sameSite: cookieSameSite,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: '/',
     });
@@ -240,19 +246,23 @@ export class AuthController {
 
     // Set new cookies
     const isProduction = process.env.NODE_ENV === 'production';
+    const cookieSecure = process.env.COOKIE_SECURE
+      ? process.env.COOKIE_SECURE === 'true'
+      : isProduction;
+    const cookieSameSite: 'strict' | 'lax' = cookieSecure ? 'strict' : 'lax';
 
     res.cookie('access_token', result.access_token, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
+      secure: cookieSecure,
+      sameSite: cookieSameSite,
       maxAge: 15 * 60 * 1000,
       path: '/',
     });
 
     res.cookie('refresh_token', result.refresh_token, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
+      secure: cookieSecure,
+      sameSite: cookieSameSite,
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/',
     });

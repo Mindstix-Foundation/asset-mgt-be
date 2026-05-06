@@ -2,8 +2,12 @@
 # Asset Management - AWS production stack
 # ------------------------------------------------------------------------------
 # Designed to run on a single EC2 instance (Amazon Linux 2023) behind an
-# Application Load Balancer that terminates TLS. Postgres lives in RDS, NOT
-# inside Docker; the bundled `db` service from docker-compose.yml is omitted.
+# Application Load Balancer. Postgres lives in RDS (the bundled `db` service
+# from docker-compose.yml is omitted).
+#
+# Architecture:
+#   ALB :80/:443  ->  nginx (host:8080)  ->  frontend:80   (static Vue)
+#                                        \-> backend:3000  (NestJS) on /api/*
 #
 # Usage on the EC2 instance:
 #   cd /opt/asset-mgt/asset-mgt-be/docker
@@ -11,7 +15,7 @@
 #   vi .env                                            # set RDS + secrets
 #   docker compose -f docker-compose.aws.yml up -d --build
 #
-# Health: hit http://<EC2-private-IP>:8080/  (the ALB target)
+# Health: hit http://<EC2-private-IP>:8080/healthz  (the ALB target)
 # ==============================================================================
 
 version: "3.9"
@@ -34,6 +38,10 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       CORS_ORIGIN: ${CORS_ORIGIN:?CORS_ORIGIN is required}
       FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
+      # Set COOKIE_SECURE=false for plain-HTTP test deployments behind an ALB
+      # without TLS. For HTTPS deployments leave unset (defaults to secure=true
+      # in production).
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
       MAX_FILE_SIZE: ${MAX_FILE_SIZE:-10485760}
       UPLOAD_DEST: /app/uploads
       SMTP_HOST: ${SMTP_HOST:-}
@@ -62,9 +70,28 @@ services:
     image: asset-mgt-frontend:latest
     container_name: asset-mgt-frontend
     restart: unless-stopped
+    expose:
+      - "80"
+    networks:
+      - asset-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    image: asset-mgt-nginx:latest
+    container_name: asset-mgt-nginx
+    restart: unless-stopped
     depends_on:
       - backend
+      - frontend
     ports:
+      # The ALB target group points at this port on the EC2 host.
       - "${FRONTEND_PORT:-8080}:80"
     networks:
       - asset-net

@@ -1,11 +1,13 @@
 # syntax=docker/dockerfile:1.6
 
 # ==============================================================================
-# Asset Management Frontend (Vue 3 + Vite)
+# Asset Management Frontend (Vue 3 + Vite) - static asset image
 # ------------------------------------------------------------------------------
 # Multi-stage build:
 #   1. builder - install deps and run `vite build` to produce static assets
-#   2. runner  - tiny nginx image serving the built assets and proxying /api
+#   2. runner  - tiny nginx image that ONLY serves the built /dist directory
+#                (with HTML5 history fallback). API proxying is the job of the
+#                separate "nginx" reverse-proxy container in front of this one.
 #
 # Build context: this Dockerfile expects asset-mgt-fe/frontend as its build
 # context (see ../docker-compose.yml).
@@ -37,32 +39,19 @@ COPY . .
 RUN npm run build
 
 # ------------------------------------------------------------------------------
-# 2. Serve the static assets via nginx
+# 2. Serve the static assets via a minimal nginx (no API proxying here)
 # ------------------------------------------------------------------------------
 FROM nginx:${NGINX_VERSION} AS runner
 
-# nginx config is written inline so it doesn't need to be in the Vite build
-# context. Mirrors Docker/frontend/nginx.conf (kept in source for reference).
+# Replace default site config: SPA fallback only, no /api routing.
 RUN rm /etc/nginx/conf.d/default.conf && \
     printf '%s\n' \
-    'upstream backend_upstream {' \
-    '    server backend:3000;' \
-    '}' \
-    '' \
     'server {' \
     '    listen 80;' \
     '    server_name _;' \
     '' \
     '    root /usr/share/nginx/html;' \
     '    index index.html;' \
-    '' \
-    '    add_header X-Content-Type-Options "nosniff" always;' \
-    '    add_header X-Frame-Options "DENY" always;' \
-    '    add_header X-XSS-Protection "1; mode=block" always;' \
-    '    add_header Referrer-Policy "strict-origin-when-cross-origin" always;' \
-    '    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;' \
-    '' \
-    '    client_max_body_size 25M;' \
     '' \
     '    gzip on;' \
     '    gzip_vary on;' \
@@ -73,19 +62,6 @@ RUN rm /etc/nginx/conf.d/default.conf && \
     '        try_files $uri =404;' \
     '        expires 1y;' \
     '        add_header Cache-Control "public, immutable";' \
-    '    }' \
-    '' \
-    '    location /api/ {' \
-    '        proxy_pass         http://backend_upstream;' \
-    '        proxy_http_version 1.1;' \
-    '        proxy_set_header   Host              $host;' \
-    '        proxy_set_header   X-Real-IP         $remote_addr;' \
-    '        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;' \
-    '        proxy_set_header   X-Forwarded-Proto $scheme;' \
-    '        proxy_set_header   Upgrade           $http_upgrade;' \
-    '        proxy_set_header   Connection        "upgrade";' \
-    '        proxy_read_timeout 120s;' \
-    '        proxy_send_timeout 120s;' \
     '    }' \
     '' \
     '    location / {' \
