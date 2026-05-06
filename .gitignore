@@ -99,8 +99,8 @@ temp/
 ehthumbs.db
 Thumbs.db
 
-# Prisma
-prisma/migrations/
+# Prisma (migrations MUST be committed — they are applied by `prisma migrate deploy` in production)
+# prisma/migrations/
 
 # Uploads
 uploads/

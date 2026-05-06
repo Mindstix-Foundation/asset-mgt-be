@@ -1,0 +1,102 @@
+# ==============================================================================
+# Asset Management - Docker Compose stack
+# ------------------------------------------------------------------------------
+# Services:
+#   - db        : PostgreSQL 16 (with persistent volume)
+#   - backend   : NestJS API (built from ../ i.e. asset-mgt-be root)
+#   - frontend  : Vue 3 + Vite SPA served by nginx (built from
+#                 ../../asset-mgt-fe/frontend), reverse-proxies /api -> backend
+#
+# Usage:
+#   cp .env.example .env       # then edit secrets
+#   docker compose up -d --build
+#
+# Then open: http://localhost:8080
+#
+# Compose project name defaults to the folder name ("docker"); override with:
+#   docker compose -p asset-management up -d --build
+# ==============================================================================
+
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: asset-mgt-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-asset_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-asset_password}
+      POSTGRES_DB: ${POSTGRES_DB:-asset_management_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-asset_user} -d ${POSTGRES_DB:-asset_management_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - asset-net
+
+  backend:
+    build:
+      context: ../
+      dockerfile: docker/backend/Dockerfile
+    image: asset-mgt-backend:latest
+    container_name: asset-mgt-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-asset_user}:${POSTGRES_PASSWORD:-asset_password}@db:5432/${POSTGRES_DB:-asset_management_db}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-string}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      ENABLE_SWAGGER: ${ENABLE_SWAGGER:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-10485760}
+      UPLOAD_DEST: /app/uploads
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+    volumes:
+      - backend_uploads:/app/uploads
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+    networks:
+      - asset-net
+
+  frontend:
+    build:
+      context: ../../asset-mgt-fe/frontend
+      dockerfile: ../../asset-mgt-be/docker/frontend/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+    image: asset-mgt-frontend:latest
+    container_name: asset-mgt-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    networks:
+      - asset-net
+
+volumes:
+  postgres_data:
+    driver: local
+  backend_uploads:
+    driver: local
+
+networks:
+  asset-net:
+    driver: bridge

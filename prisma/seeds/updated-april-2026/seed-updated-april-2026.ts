@@ -43,10 +43,11 @@ async function cleanAndCreateAdmin(): Promise<number> {
   console.log('Cleaning database...');
   await prisma.$executeRawUnsafe(`
     TRUNCATE TABLE
-      notifications,
       refresh_sessions,
       blacklisted_tokens,
       password_resets,
+      asset_condition_history,
+      asset_status_history,
       asset_events,
       maintenance_schedules,
       asset_issues,

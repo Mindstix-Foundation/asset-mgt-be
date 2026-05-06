@@ -1,0 +1,51 @@
+# Build artifacts
+node_modules
+dist
+build
+coverage
+.nyc_output
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Environment files (use compose env_file / environment instead)
+.env
+.env.local
+.env.*.local
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+*.swp
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Tests / scanners
+.scannerwork
+sonar-project.properties
+test
+e2e
+*.spec.ts
+*.test.ts
+
+# Docker (don't recursively copy itself)
+Dockerfile
+.dockerignore
+
+# Project docs / data not needed in the image
+README.md
+DEPLOYMENT.md
+*.md
+*.csv
+*.xlsx
+backups
+uploads
+
+# TS build info
+*.tsbuildinfo

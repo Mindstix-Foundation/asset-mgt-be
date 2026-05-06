@@ -1,0 +1,83 @@
+# ==============================================================================
+# Asset Management - AWS production stack
+# ------------------------------------------------------------------------------
+# Designed to run on a single EC2 instance (Amazon Linux 2023) behind an
+# Application Load Balancer that terminates TLS. Postgres lives in RDS, NOT
+# inside Docker; the bundled `db` service from docker-compose.yml is omitted.
+#
+# Usage on the EC2 instance:
+#   cd /opt/asset-mgt/asset-mgt-be/docker
+#   cp .env.aws.example .env
+#   vi .env                                            # set RDS + secrets
+#   docker compose -f docker-compose.aws.yml up -d --build
+#
+# Health: hit http://<EC2-private-IP>:8080/  (the ALB target)
+# ==============================================================================
+
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ../
+      dockerfile: docker/backend/Dockerfile
+    image: asset-mgt-backend:latest
+    container_name: asset-mgt-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      ENABLE_SWAGGER: ${ENABLE_SWAGGER:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      CORS_ORIGIN: ${CORS_ORIGIN:?CORS_ORIGIN is required}
+      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-10485760}
+      UPLOAD_DEST: /app/uploads
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+    volumes:
+      - backend_uploads:/app/uploads
+    expose:
+      - "3000"
+    networks:
+      - asset-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  frontend:
+    build:
+      context: ../../asset-mgt-fe/frontend
+      dockerfile: ../../asset-mgt-be/docker/frontend/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+    image: asset-mgt-frontend:latest
+    container_name: asset-mgt-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    networks:
+      - asset-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  backend_uploads:
+    driver: local
+
+networks:
+  asset-net:
+    driver: bridge
