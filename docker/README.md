@@ -25,10 +25,6 @@ asset-mgt-be/                          # NestJS backend (build context for backe
 │   ├── frontend/
 │   │   ├── Dockerfile                  # multi-stage Vite -> tiny static-serving nginx
 │   │   └── Dockerfile.dockerignore
-│   ├── nginx/
-│   │   ├── Dockerfile                  # reverse-proxy image
-│   │   ├── nginx.conf                  # /api -> backend, /* -> frontend
-│   │   └── Dockerfile.dockerignore
 │   ├── docker-compose.yml              # local stack: db + backend + frontend + nginx
 │   ├── docker-compose.aws.yml          # AWS stack: backend + frontend + nginx (RDS provides db)
 │   ├── .env.example                    # template for the local stack
@@ -39,12 +35,29 @@ asset-mgt-be/                          # NestJS backend (build context for backe
 └── ...
 asset-mgt-fe/
 └── frontend/                            # Vue 3 + Vite app (build context for frontend image)
+sre-nginx/                                # SRE-owned shared nginx reverse-proxy image
+├── Dockerfile                            # builds nginx:1.27-alpine + all routing configs
+├── nginx.conf                            # base config (workers, gzip, security headers)
+└── conf.d/
+    └── asset-mgt.conf                    # /api -> backend, /* -> frontend, /healthz -> 200
 ```
 
-The Dockerfiles live alongside the compose files inside the backend repo so
-everything needed for deployment can be pushed and cloned from a single repo.
-The frontend repo (`asset-mgt-fe`) is a sibling of `asset-mgt-be` and is
-referenced via relative paths (`../../asset-mgt-fe/frontend`).
+The backend / frontend Dockerfiles live alongside the compose files inside
+this repo. The frontend source (`asset-mgt-fe`) and the SRE nginx image
+(`sre-nginx`, GitHub: `Mindstix-Foundation/sre-nginx`) are sibling
+repositories — clone them into the same parent folder and the relative
+`build:` paths in the compose files will resolve.
+
+The `sre-nginx` repo is **owned by the SRE team** and shared by every
+Mindstix application that runs on a multi-project EC2 host. To change the
+proxy/routing behaviour for Asset Management, edit
+`sre-nginx/conf.d/asset-mgt.conf` (in the sre-nginx repo) and rebuild the
+nginx service:
+
+```bash
+cd /opt/asset-mgt/asset-mgt-be/docker
+docker compose -f docker-compose.aws.yml up -d --build nginx
+```
 
 ## AWS deployment
 
@@ -83,7 +96,7 @@ docker compose logs -f
 # Restart only the backend after code changes
 docker compose up -d --build backend
 
-# Restart nginx after editing nginx.conf
+# Restart nginx after editing the routing config in the sre-nginx repo
 docker compose up -d --build nginx
 
 # Run Prisma migrations manually (the backend container also runs `migrate deploy` on startup)

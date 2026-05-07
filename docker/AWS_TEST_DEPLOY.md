@@ -33,13 +33,17 @@ the AWS CLI (copy-paste). Pick whichever you prefer.
 Browser ──HTTP──▶ ALB (public)  ──HTTP:8080──▶ EC2 (public subnet)
                                                   │
                                                   │ Docker Compose:
-                                                  │   ├── nginx     (reverse proxy, host:8080 → :80)
+                                                  │   ├── nginx     (sre-nginx image, reverse proxy, host:8080 → :80)
                                                   │   │     ├── /api/* → backend
                                                   │   │     └── /*     → frontend
                                                   │   ├── frontend  (static Vue SPA, internal :80)
                                                   │   └── backend   (NestJS :3000, internal-only)
                                                   │
                                                   └─── psql 5432 (TLS) ───▶ RDS PostgreSQL 16
+
+The nginx image is built from a sibling repo (Mindstix-Foundation/sre-nginx)
+that holds the reverse-proxy Dockerfile + routing configs for every Mindstix
+project. See sre-nginx/README.md for details.
 ```
 
 **Decisions made for this test**:
@@ -65,7 +69,7 @@ You need:
 | AWS CLI installed (only if using CLI path) | `sudo dnf install -y awscli` (Linux) / `brew install awscli` (macOS) |
 | AWS CLI configured | `aws configure` → paste access key, secret, region `ap-south-1` |
 | EC2 key pair (`.pem`) | Console: EC2 → Key Pairs → Create → download `.pem` |
-| Source code in GitHub | Both repos (`asset-mgt-be`, `asset-mgt-fe`) must be reachable from EC2 (public, or with a deploy key) |
+| Source code in GitHub | All three repos (`asset-mgt-be`, `asset-mgt-fe`, `sre-nginx`) must be reachable from EC2 (public, or with a deploy key) |
 
 Verify the CLI works:
 
@@ -394,7 +398,9 @@ psql --version
 
 ### 3.5 Clone the source
 
-Only **two** repos are needed. The Docker setup lives inside `asset-mgt-be`.
+**Three** repos must be cloned side-by-side. The compose files inside
+`asset-mgt-be/docker/` reference the other two via relative paths
+(`../../asset-mgt-fe/frontend` and `../../sre-nginx`).
 
 ```bash
 sudo mkdir -p /opt/asset-mgt
@@ -403,6 +409,7 @@ cd /opt/asset-mgt
 
 git clone https://github.com/<your-org>/asset-mgt-be.git
 git clone https://github.com/<your-org>/asset-mgt-fe.git
+git clone https://github.com/Mindstix-Foundation/sre-nginx.git
 ```
 
 If they're private, generate a deploy key on the EC2:
@@ -423,8 +430,12 @@ After cloning, you should have:
 │   ├── prisma/
 │   ├── src/
 │   └── ...
-└── asset-mgt-fe/
-    └── frontend/
+├── asset-mgt-fe/
+│   └── frontend/
+└── sre-nginx/           # SRE-owned shared nginx reverse-proxy image
+    ├── Dockerfile
+    ├── nginx.conf
+    └── conf.d/asset-mgt.conf
 ```
 
 ---
@@ -939,9 +950,10 @@ hyphen), which doesn't have this bug. Always use `docker compose -f ...`.
 # SSH in
 ssh -i ~/Downloads/${KEY_NAME}.pem ec2-user@${EC2_PUBLIC_IP}
 
-# Update the app
+# Update the app (and the shared nginx image, if SRE pushed changes)
 cd /opt/asset-mgt/asset-mgt-be && git pull
 cd /opt/asset-mgt/asset-mgt-fe && git pull
+cd /opt/asset-mgt/sre-nginx    && git pull
 cd /opt/asset-mgt/asset-mgt-be/docker && docker compose -f docker-compose.aws.yml up -d --build
 
 # Tail logs

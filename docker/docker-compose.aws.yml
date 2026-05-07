@@ -80,11 +80,21 @@ services:
         max-size: "10m"
         max-file: "5"
 
+  # The nginx reverse-proxy image is owned by the SRE team and lives in a
+  # separate repo (Mindstix-Foundation/sre-nginx), checked out alongside this
+  # repo on disk:
+  #
+  #   /opt/asset-mgt/
+  #   ├── asset-mgt-be/   <- this repo
+  #   ├── asset-mgt-fe/
+  #   └── sre-nginx/      <- referenced below via the relative build context
+  #
+  # See ../README.md and the sre-nginx repo's README for details.
   nginx:
     build:
-      context: ./nginx
+      context: ../../sre-nginx
       dockerfile: Dockerfile
-    image: asset-mgt-nginx:latest
+    image: sre-nginx:latest
     container_name: asset-mgt-nginx
     restart: unless-stopped
     depends_on:
