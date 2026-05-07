@@ -75,7 +75,7 @@ async function cleanAndCreateAdmin(): Promise<number> {
 
     await tx.$executeRawUnsafe(`
       INSERT INTO employees (employee_id, first_name, last_name, email, phone, date_of_birth, address, status)
-      VALUES ('9999', 'System', 'Administrator', 'admin@pebble-asset-tracker.com', '+91 9999999999', '1990-01-01', 'System', 'ACTIVE')
+      VALUES ('9999', 'Mindstix', 'Admin', 'admin@mindstix.com', '+91 9175024873', '1990-01-01', 'System', 'ACTIVE')
     `);
     const adminEmployee = await tx.employee.findUnique({ where: { employeeId: '9999' } });
     if (!adminEmployee) throw new Error('Failed to create admin employee');

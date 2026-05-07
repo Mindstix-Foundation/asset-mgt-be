@@ -11,9 +11,11 @@
 #
 # Usage on the EC2 instance:
 #   cd /opt/asset-mgt/asset-mgt-be/docker
-#   cp .env.aws.example .env
-#   vi .env                                            # set RDS + secrets
+#   source ./load-ssm-secrets.sh                       # exports ASST_TRACKER_* vars
 #   docker compose -f docker-compose.aws.yml up -d --build
+#
+# All sensitive configuration is sourced from AWS SSM Parameter Store and
+# exposed via ASST_TRACKER_* environment variables (see load-ssm-secrets.sh).
 #
 # Health: hit http://<EC2-private-IP>:8080/healthz  (the ALB target)
 # ==============================================================================
@@ -29,26 +31,33 @@ services:
     container_name: asset-mgt-backend
     restart: unless-stopped
     environment:
-      NODE_ENV: production
+      NODE_ENV: ${ASST_TRACKER_BACKEND_NODE_ENV:-production}
       PORT: 3000
-      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      DATABASE_URL: ${ASST_TRACKER_BACKEND_DATABASE_URL:?ASST_TRACKER_BACKEND_DATABASE_URL is required}
+      JWT_SECRET: ${ASST_TRACKER_BACKEND_JWT_SECRET:?ASST_TRACKER_BACKEND_JWT_SECRET is required}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       ENABLE_SWAGGER: ${ENABLE_SWAGGER:-false}
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      CORS_ORIGIN: ${CORS_ORIGIN:?CORS_ORIGIN is required}
-      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
+      CORS_ORIGIN: ${ASST_TRACKER_BACKEND_CORS_ORIGIN:?ASST_TRACKER_BACKEND_CORS_ORIGIN is required}
+      FRONTEND_URL: ${ASST_TRACKER_BACKEND_FRONTEND_URL:?ASST_TRACKER_BACKEND_FRONTEND_URL is required}
       # Set COOKIE_SECURE=false for plain-HTTP test deployments behind an ALB
       # without TLS. For HTTPS deployments leave unset (defaults to secure=true
       # in production).
-      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      COOKIE_SECURE: ${ASST_TRACKER_BACKEND_COOKIE_SECURE:-true}
       MAX_FILE_SIZE: ${MAX_FILE_SIZE:-10485760}
       UPLOAD_DEST: /app/uploads
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASS: ${SMTP_PASS:-}
-      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_HOST: ${ASST_TRACKER_BACKEND_SMTP_HOST:-}
+      SMTP_PORT: ${ASST_TRACKER_BACKEND_SMTP_PORT:-587}
+      SMTP_USER: ${ASST_TRACKER_BACKEND_SMTP_USER:-}
+      SMTP_PASS: ${ASST_TRACKER_BACKEND_SMTP_PASS:-}
+      SMTP_FROM: ${ASST_TRACKER_BACKEND_SMTP_FROM:-}
+      # Postgres connection details (mirrored from SSM for tooling/debug; the
+      # backend itself uses DATABASE_URL above).
+      POSTGRES_HOST: ${ASST_TRACKER_POSTGRES_HOST:-}
+      POSTGRES_PORT: ${ASST_TRACKER_POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${ASST_TRACKER_POSTGRES_DB:-}
+      POSTGRES_USER: ${ASST_TRACKER_POSTGRES_USER:-}
+      POSTGRES_PASSWORD: ${ASST_TRACKER_POSTGRES_PASSWORD:-}
     volumes:
       - backend_uploads:/app/uploads
     expose:
@@ -66,7 +75,7 @@ services:
       context: ../../asset-mgt-fe/frontend
       dockerfile: ../../asset-mgt-be/docker/frontend/Dockerfile
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+        VITE_API_BASE_URL: ${ASST_TRACKER_FRONTEND_VITE_API_BASE_URL:-/api}
     image: asset-mgt-frontend:latest
     container_name: asset-mgt-frontend
     restart: unless-stopped
