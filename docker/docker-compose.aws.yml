@@ -12,7 +12,11 @@
 # Usage on the EC2 instance:
 #   cd /opt/asset-mgt/asset-mgt-be/docker
 #   source ./load-ssm-secrets.sh                       # exports ASST_TRACKER_* vars
-#   docker compose -f docker-compose.aws.yml up -d --build
+#   docker-compose -f docker-compose.aws.yml up -d --build
+#
+# Note: the EC2 has the standalone `docker-compose` v2 binary (with hyphen)
+# rather than the `docker compose` plugin (no hyphen). Both run the same
+# Compose v2 engine; only the invocation differs. HRIS uses the same binary.
 #
 # All sensitive configuration is sourced from AWS SSM Parameter Store and
 # exposed via ASST_TRACKER_* environment variables (see load-ssm-secrets.sh).
@@ -126,4 +130,5 @@ volumes:
 
 networks:
   asset-net:
+    name: mindstix-edge-net
     driver: bridge

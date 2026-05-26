@@ -115,4 +115,5 @@ volumes:
 
 networks:
   asset-net:
+    name: mindstix-edge-net
     driver: bridge
