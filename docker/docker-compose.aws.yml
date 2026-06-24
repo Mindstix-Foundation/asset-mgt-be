@@ -26,6 +26,8 @@
 # Image tags use :latest for EC2 deploy simplicity. Rebuild on each release.
 # ==============================================================================
 
+name: asset-mgt
+
 version: "3.9"
 
 services:
