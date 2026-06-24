@@ -23,7 +23,7 @@
 #
 # Health: hit http://<EC2-private-IP>:8080/healthz  (the ALB target)
 #
-# Image tags are semver in this file (currently 1.0.0). Bump on each release — do not use latest.
+# Image tags use :latest for EC2 deploy simplicity. Rebuild on each release.
 # ==============================================================================
 
 version: "3.9"
@@ -33,7 +33,7 @@ services:
     build:
       context: ../
       dockerfile: docker/backend/Dockerfile
-    image: asset-mgt-backend:1.0.0
+    image: asset-mgt-backend:latest
     container_name: asset-mgt-backend
     restart: unless-stopped
     environment:
@@ -82,7 +82,7 @@ services:
       dockerfile: ../../asset-mgt-be/docker/frontend/Dockerfile
       args:
         VITE_API_BASE_URL: ${ASST_TRACKER_FRONTEND_VITE_API_BASE_URL:-/api}
-    image: asset-mgt-frontend:1.0.0
+    image: asset-mgt-frontend:latest
     container_name: asset-mgt-frontend
     restart: unless-stopped
     expose:
@@ -109,7 +109,7 @@ services:
     build:
       context: ../../sre-nginx
       dockerfile: Dockerfile
-    image: sre-nginx:1.0.0
+    image: sre-nginx:latest
     container_name: asset-mgt-nginx
     restart: unless-stopped
     depends_on:
