@@ -13,7 +13,7 @@
 #   cp .env.example .env       # then edit secrets
 #   docker compose up -d --build
 #
-# Then open: http://localhost:8080
+# Image tags are semver in this file (currently 1.0.0). Bump on each release — do not use latest.
 # ==============================================================================
 
 version: "3.9"
@@ -44,7 +44,7 @@ services:
     build:
       context: ../
       dockerfile: docker/backend/Dockerfile
-    image: asset-mgt-backend:latest
+    image: asset-mgt-backend:1.0.0
     container_name: asset-mgt-backend
     restart: unless-stopped
     depends_on:
@@ -81,7 +81,7 @@ services:
       dockerfile: ../../asset-mgt-be/docker/frontend/Dockerfile
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
-    image: asset-mgt-frontend:latest
+    image: asset-mgt-frontend:1.0.0
     container_name: asset-mgt-frontend
     restart: unless-stopped
     expose:
@@ -96,7 +96,7 @@ services:
     build:
       context: ../../sre-nginx
       dockerfile: Dockerfile
-    image: sre-nginx:latest
+    image: sre-nginx:1.0.0
     container_name: asset-mgt-nginx
     restart: unless-stopped
     depends_on:

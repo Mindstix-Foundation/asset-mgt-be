@@ -7,11 +7,12 @@ frontend + nginx reverse proxy) with a single `docker compose` command.
 ## Architecture
 
 ```
-Browser → host:8080 → [nginx]  ───────► /api/*  → [backend] (NestJS :3000)
-                                  └──► /*       → [frontend] (static Vue, nginx :80)
+Browser → host:8080 → [nginx]  ───────► assets.mindstix.com /api/*  → [backend]
+                                  └──► assets.mindstix.com /*      → [frontend]
+                                  └──► attendance.mindstix.com/*   → [attendance stack]
                        │
-                       └─ The single public-facing container.
-                          Frontend + backend stay on the internal compose network.
+                       └─ Single public-facing nginx (sre-nginx). Host-based routing in edge.conf.
+                          Creates Docker network `mindstix-edge-net` (compose key: asset-net).
 ```
 
 ## Layout
@@ -73,18 +74,21 @@ docker compose -f docker-compose.aws.yml up -d --build nginx
 ```bash
 cd asset-mgt-be/docker
 cp .env.example .env
-# edit .env: at minimum set POSTGRES_PASSWORD and JWT_SECRET
+# edit .env: POSTGRES_PASSWORD, JWT_SECRET
+# add to /etc/hosts: 127.0.0.1 assets.mindstix.com attendance.mindstix.com
 
 docker compose up -d --build
 ```
 
 Then open:
 
-- Frontend (via nginx): http://localhost:8080
-- Swagger (if `ENABLE_SWAGGER=true`): http://localhost:8080/api/docs
+- Frontend (via nginx): http://assets.mindstix.com:8080
+- Swagger (if `ENABLE_SWAGGER=true`): http://assets.mindstix.com:8080/api/docs
 
-The browser only ever talks to the nginx container on port 8080. nginx proxies
-`/api/*` to the backend and serves everything else from the frontend container.
+Image tags are semver in `docker-compose.yml` (currently `1.0.0`). Bump there on each release — do not use `latest`.
+
+The browser only ever talks to the nginx container on port 8080. nginx routes by
+`Host` header (`assets.mindstix.com`, `attendance.mindstix.com`) per `sre-nginx/conf.d/edge.conf`.
 Neither the frontend nor backend exposes ports to the host.
 
 ## Useful commands
