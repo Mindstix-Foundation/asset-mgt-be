@@ -97,7 +97,7 @@ services:
       context: ../../sre-nginx
       dockerfile: Dockerfile
     image: sre-nginx:latest
-    container_name: asset-mgt-nginx
+    container_name: sre-nginx
     restart: unless-stopped
     depends_on:
       - backend
