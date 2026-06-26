@@ -1,0 +1,111 @@
+# ==============================================================================
+# Asset Management - AWS bug-bash stack (separate AWS account)
+# ------------------------------------------------------------------------------
+# Same as docker-compose.aws.yml except nginx uses path-based edge-bugbash.conf.
+# Prod AWS account uses docker-compose.aws.yml (host-based edge.conf).
+#
+#   ALB :8080  ->  nginx  ->  / + /api/*           (Asset)
+#                         \->  /attendance/ + /attendance/api/*  (Attendance)
+#
+# Usage:
+#   cd /opt/asset-mgt/asset-mgt-be/docker
+#   source ./load-ssm-secrets.sh
+#   docker compose -f docker-compose.awsbugbash.yml up -d --build
+# ==============================================================================
+
+name: asset-mgt
+
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ../
+      dockerfile: docker/backend/Dockerfile
+    image: asset-mgt-backend:latest
+    container_name: asset-mgt-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${ASST_TRACKER_BACKEND_NODE_ENV:-production}
+      PORT: 3000
+      DATABASE_URL: ${ASST_TRACKER_BACKEND_DATABASE_URL:?ASST_TRACKER_BACKEND_DATABASE_URL is required}
+      JWT_SECRET: ${ASST_TRACKER_BACKEND_JWT_SECRET:?ASST_TRACKER_BACKEND_JWT_SECRET is required}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      ENABLE_SWAGGER: ${ENABLE_SWAGGER:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      CORS_ORIGIN: ${ASST_TRACKER_BACKEND_CORS_ORIGIN:?ASST_TRACKER_BACKEND_CORS_ORIGIN is required}
+      FRONTEND_URL: ${ASST_TRACKER_BACKEND_FRONTEND_URL:?ASST_TRACKER_BACKEND_FRONTEND_URL is required}
+      COOKIE_SECURE: ${ASST_TRACKER_BACKEND_COOKIE_SECURE:-true}
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-10485760}
+      UPLOAD_DEST: /app/uploads
+      SMTP_HOST: ${ASST_TRACKER_BACKEND_SMTP_HOST:-}
+      SMTP_PORT: ${ASST_TRACKER_BACKEND_SMTP_PORT:-587}
+      SMTP_USER: ${ASST_TRACKER_BACKEND_SMTP_USER:-}
+      SMTP_PASS: ${ASST_TRACKER_BACKEND_SMTP_PASS:-}
+      SMTP_FROM: ${ASST_TRACKER_BACKEND_SMTP_FROM:-}
+      POSTGRES_HOST: ${ASST_TRACKER_POSTGRES_HOST:-}
+      POSTGRES_PORT: ${ASST_TRACKER_POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${ASST_TRACKER_POSTGRES_DB:-}
+      POSTGRES_USER: ${ASST_TRACKER_POSTGRES_USER:-}
+      POSTGRES_PASSWORD: ${ASST_TRACKER_POSTGRES_PASSWORD:-}
+    volumes:
+      - backend_uploads:/app/uploads
+    expose:
+      - "3000"
+    networks:
+      - asset-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  frontend:
+    build:
+      context: ../../asset-mgt-fe/frontend
+      dockerfile: ../../asset-mgt-be/docker/frontend/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${ASST_TRACKER_FRONTEND_VITE_API_BASE_URL:-/api}
+    image: asset-mgt-frontend:latest
+    container_name: asset-mgt-frontend
+    restart: unless-stopped
+    expose:
+      - "80"
+    networks:
+      - asset-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  nginx:
+    build:
+      context: ../../sre-nginx
+      dockerfile: Dockerfile
+      args:
+        EDGE_CONF: edge-bugbash.conf
+    image: sre-nginx:latest
+    container_name: sre-nginx
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - frontend
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    networks:
+      - asset-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  backend_uploads:
+    driver: local
+
+networks:
+  asset-net:
+    name: mindstix-edge-net
+    driver: bridge
