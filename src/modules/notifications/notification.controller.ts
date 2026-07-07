@@ -1,15 +1,19 @@
-import { Controller, Get, Post, Body, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Request, Query } from '@nestjs/common';
 import { NotificationService } from './notification.service';
 import { MarkAsReadDto } from './dto/mark-as-read.dto';
+import { QueryNotificationDto } from './dto/query-notification.dto';
 
 @Controller('notifications')
 export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
   @Get()
-  async getUserNotifications(@Request() req) {
+  async getUserNotifications(
+    @Request() req,
+    @Query() query: QueryNotificationDto,
+  ) {
     const userId = req.user.id;
-    return await this.notificationService.getUserNotifications(userId);
+    return await this.notificationService.getUserNotifications(userId, query);
   }
 
   @Get('unread-count')
@@ -25,6 +29,18 @@ export class NotificationController {
     const { notificationId } = markAsReadDto;
 
     const success = await this.notificationService.markAsRead(
+      notificationId,
+      userId,
+    );
+    return { success };
+  }
+
+  @Post('mark-as-unread')
+  async markAsUnread(@Request() req, @Body() markAsReadDto: MarkAsReadDto) {
+    const userId = req.user.id;
+    const { notificationId } = markAsReadDto;
+
+    const success = await this.notificationService.markAsUnread(
       notificationId,
       userId,
     );

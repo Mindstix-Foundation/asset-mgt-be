@@ -19,6 +19,8 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "db:seed": "ts-node prisma/seeds/updated-april-2026/seed-updated-april-2026.ts",
+    "seed:notifications": "ts-node scripts/seed-notifications.ts",
+    "test:maintenance-reminders": "ts-node scripts/test-maintenance-reminders.ts",
     "sonar": "sonar-scanner",
     "sonar:coverage": "npm run test:cov && sonar-scanner"
   },

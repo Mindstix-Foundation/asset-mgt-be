@@ -3,6 +3,7 @@ import { PrismaService } from '../../core/database/prisma.service';
 import { NotificationType } from '@prisma/client';
 import * as nodemailer from 'nodemailer';
 import { ConfigService } from '@nestjs/config';
+import { QueryNotificationDto } from './dto/query-notification.dto';
 
 @Injectable()
 export class NotificationService {
@@ -27,11 +28,11 @@ export class NotificationService {
           type,
           title,
           message,
-          data: data ? JSON.stringify(data) : undefined,
+          data: data ?? undefined,
         },
       });
 
-      // Clean up old notifications to keep only last 10
+      // Clean up old notifications to keep only the most recent 100
       await this.cleanupOldNotifications(userId);
 
       return notification;
@@ -41,20 +42,45 @@ export class NotificationService {
     }
   }
 
-  async getUserNotifications(userId: number, limit = 50) {
+  async getUserNotifications(userId: number, query: QueryNotificationDto = {}) {
     try {
-      const notifications = await this.prisma.notification.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-      });
+      const page = Number(query.page) || 1;
+      const limit = Math.min(Number(query.limit) || 20, 100);
+      const skip = (page - 1) * limit;
 
-      return notifications.map((notification) => ({
-        ...notification,
-        data: notification.data
-          ? JSON.parse(notification.data as string)
-          : null,
-      }));
+      const where = {
+        userId,
+        type: NotificationType.MAINTENANCE_REMINDER,
+      };
+
+      const [totalCount, notifications] = await Promise.all([
+        this.prisma.notification.count({ where }),
+        this.prisma.notification.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit,
+        }),
+      ]);
+
+      const totalPages = Math.max(1, Math.ceil(totalCount / limit));
+
+      return {
+        message: 'Notifications retrieved successfully',
+        data: {
+          notifications: notifications.map((notification) => ({
+            ...notification,
+            data: this.parseNotificationData(notification.data),
+          })),
+          pagination: {
+            totalCount,
+            currentPage: page,
+            totalPages,
+            hasNext: page < totalPages,
+            hasPrevious: page > 1,
+          },
+        },
+      };
     } catch (error) {
       this.logger.error(
         'Failed to fetch user notifications',
@@ -64,6 +90,18 @@ export class NotificationService {
     }
   }
 
+  private parseNotificationData(data: unknown) {
+    if (!data) return null;
+    if (typeof data === 'string') {
+      try {
+        return JSON.parse(data);
+      } catch {
+        return null;
+      }
+    }
+    return data;
+  }
+
   async markAsRead(notificationId: number, userId: number) {
     try {
       const notification = await this.prisma.notification.updateMany({
@@ -71,6 +109,7 @@ export class NotificationService {
           id: notificationId,
           userId,
           isRead: false,
+          type: NotificationType.MAINTENANCE_REMINDER,
         },
         data: {
           isRead: true,
@@ -88,12 +127,38 @@ export class NotificationService {
     }
   }
 
+  async markAsUnread(notificationId: number, userId: number) {
+    try {
+      const notification = await this.prisma.notification.updateMany({
+        where: {
+          id: notificationId,
+          userId,
+          isRead: true,
+          type: NotificationType.MAINTENANCE_REMINDER,
+        },
+        data: {
+          isRead: false,
+          readAt: null,
+        },
+      });
+
+      return notification.count > 0;
+    } catch (error) {
+      this.logger.error(
+        'Failed to mark notification as unread',
+        error?.stack || error,
+      );
+      throw error;
+    }
+  }
+
   async markAllAsRead(userId: number) {
     try {
       const result = await this.prisma.notification.updateMany({
         where: {
           userId,
           isRead: false,
+          type: NotificationType.MAINTENANCE_REMINDER,
         },
         data: {
           isRead: true,
@@ -117,6 +182,7 @@ export class NotificationService {
         where: {
           userId,
           isRead: false,
+          type: NotificationType.MAINTENANCE_REMINDER,
         },
       });
 
@@ -356,7 +422,7 @@ export class NotificationService {
   }
 
   /**
-   * Clean up old notifications for a user, keeping only the last 10 notifications
+   * Clean up old notifications for a user, keeping only the last 100 notifications
    * @param userId - The user ID to clean up notifications for
    */
   async cleanupOldNotifications(userId: number) {
@@ -366,9 +432,9 @@ export class NotificationService {
         where: { userId },
       });
 
-      // If user has more than 10 notifications, delete the oldest ones
-      if (totalCount > 10) {
-        const notificationsToDelete = totalCount - 10;
+      // If user has more than 100 notifications, delete the oldest ones
+      if (totalCount > 100) {
+        const notificationsToDelete = totalCount - 100;
 
         // Get the IDs of the oldest notifications to delete
         const oldestNotifications = await this.prisma.notification.findMany({
