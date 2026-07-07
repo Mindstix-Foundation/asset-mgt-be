@@ -21,6 +21,7 @@
     "db:seed": "ts-node prisma/seeds/updated-april-2026/seed-updated-april-2026.ts",
     "seed:notifications": "ts-node scripts/seed-notifications.ts",
     "test:maintenance-reminders": "ts-node scripts/test-maintenance-reminders.ts",
+    "db:reconcile-migrations": "bash scripts/reconcile-migrations.sh",
     "sonar": "sonar-scanner",
     "sonar:coverage": "npm run test:cov && sonar-scanner"
   },
