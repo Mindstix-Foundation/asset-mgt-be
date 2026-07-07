@@ -783,8 +783,8 @@ export class AssetsController {
     description:
       'Cannot delete asset with active assignments or maintenance schedules',
   })
-  async remove(@Param('id', ParseIntPipe) id: number) {
-    return this.assetsService.remove(id);
+  async remove(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+    return this.assetsService.remove(id, req.user?.id ?? req.user?.userId);
   }
 
   @Post('bulk-delete')

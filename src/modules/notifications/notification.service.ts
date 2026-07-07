@@ -34,7 +34,6 @@ export class NotificationService {
       // Clean up old notifications to keep only last 10
       await this.cleanupOldNotifications(userId);
 
-      this.logger.log(`Notification created for user ${userId}: ${title}`);
       return notification;
     } catch (error) {
       this.logger.error('Failed to create notification', error?.stack || error);
@@ -102,9 +101,6 @@ export class NotificationService {
         },
       });
 
-      this.logger.log(
-        `Marked ${result.count} notifications as read for user ${userId}`,
-      );
       return result.count;
     } catch (error) {
       this.logger.error(
@@ -259,7 +255,6 @@ export class NotificationService {
         `,
       });
 
-      this.logger.log(`Maintenance reminder email sent to ${userEmail}`);
       return true;
     } catch (error) {
       this.logger.error(
@@ -314,10 +309,6 @@ export class NotificationService {
           },
         });
 
-      this.logger.log(
-        `Found ${scheduledMaintenances.length} scheduled maintenances for today`,
-      );
-
       for (const maintenance of scheduledMaintenances) {
         const user = maintenance.createdByUser;
         const asset = maintenance.asset;
@@ -356,9 +347,6 @@ export class NotificationService {
         }
       }
 
-      this.logger.log(
-        `Created ${scheduledMaintenances.length} maintenance reminder notifications`,
-      );
     } catch (error) {
       this.logger.error(
         'Failed to create maintenance reminder notifications',
@@ -400,9 +388,6 @@ export class NotificationService {
             },
           });
 
-          this.logger.log(
-            `Cleaned up ${deleteResult.count} old notifications for user ${userId}. Kept last 10 notifications.`,
-          );
         }
       }
     } catch (error) {
@@ -420,8 +405,6 @@ export class NotificationService {
    */
   async cleanupAllOldNotifications() {
     try {
-      this.logger.log('Starting cleanup of old notifications for all users...');
-
       // Get all unique user IDs that have notifications
       const usersWithNotifications = await this.prisma.notification.findMany({
         select: { userId: true },
@@ -445,9 +428,6 @@ export class NotificationService {
         totalCleanedUp += cleanedForUser;
       }
 
-      this.logger.log(
-        `Cleanup completed. Removed ${totalCleanedUp} old notifications across all users.`,
-      );
       return totalCleanedUp;
     } catch (error) {
       this.logger.error(

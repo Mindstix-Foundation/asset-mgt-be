@@ -14,8 +14,23 @@ import {
   MaintenanceTypeEnum,
   Prisma,
   AssetEventType,
+  AuditAction,
 } from '@prisma/client';
 import * as XLSX from 'xlsx';
+import { AuditService } from '../audit/audit.service';
+import { pickFields } from '../audit/audit.util';
+
+const MAINTENANCE_AUDIT_FIELDS = [
+  'maintenanceType',
+  'description',
+  'scheduledDate',
+  'status',
+  'estimatedCost',
+  'actualCost',
+  'completionNotes',
+  'cancellationNotes',
+  'frequencyDays',
+];
 
 type MaintenanceEventRow = {
   id: number;
@@ -36,7 +51,36 @@ type MaintenanceEventRow = {
 
 @Injectable()
 export class MaintenanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
+
+  private maintenanceEntityLabel(maintenance: {
+    description: string;
+    asset?: { assetId?: string };
+  }) {
+    const assetId = maintenance.asset?.assetId;
+    return assetId
+      ? `${assetId} - ${maintenance.description}`
+      : maintenance.description;
+  }
+
+  private pickMaintenanceSnapshot(maintenance: Record<string, unknown>) {
+    const snapshot = pickFields(maintenance, MAINTENANCE_AUDIT_FIELDS);
+    for (const key of ['scheduledDate', 'actualCompletionDate', 'cancellationDate']) {
+      if (maintenance[key] instanceof Date) {
+        snapshot[key] = (maintenance[key] as Date).toISOString().split('T')[0];
+      }
+    }
+    if (maintenance.estimatedCost != null) {
+      snapshot.estimatedCost = String(maintenance.estimatedCost);
+    }
+    if (maintenance.actualCost != null) {
+      snapshot.actualCost = String(maintenance.actualCost);
+    }
+    return snapshot;
+  }
 
   async create(createMaintenanceDto: CreateMaintenanceDto, userId: number) {
     try {
@@ -160,6 +204,17 @@ export class MaintenanceService {
         });
 
         return created;
+      });
+
+      await this.auditService.log({
+        tableName: 'maintenance_schedules',
+        recordId: maintenance.id,
+        action: AuditAction.INSERT,
+        userId,
+        entityLabel: this.maintenanceEntityLabel(maintenance),
+        summary: `Scheduled maintenance for ${maintenance.asset.assetId}`,
+        after: this.pickMaintenanceSnapshot(maintenance),
+        metadata: { assetId: maintenance.asset.assetId },
       });
 
       return {
@@ -603,6 +658,17 @@ export class MaintenanceService {
       return updated;
     });
 
+    await this.auditService.log({
+      tableName: 'maintenance_schedules',
+      recordId: maintenance.id,
+      action: AuditAction.UPDATE,
+      userId,
+      entityLabel: this.maintenanceEntityLabel(maintenance),
+      summary: `Updated maintenance for ${maintenance.asset.assetId}`,
+      before: this.pickMaintenanceSnapshot(existingMaintenance),
+      after: this.pickMaintenanceSnapshot(maintenance),
+    });
+
     return {
       message: 'Maintenance updated successfully',
       data: { maintenance: this.formatMaintenanceResponse(maintenance) },
@@ -699,6 +765,8 @@ export class MaintenanceService {
       throw new NotFoundException('Maintenance not found');
     }
 
+    const assetDbId = maintenance.asset.id;
+
     // Soft delete by updating status within transaction
     await this.prisma.$transaction(async (tx) => {
       const updated = await tx.maintenanceSchedule.update({
@@ -715,7 +783,7 @@ export class MaintenanceService {
       const stillActive = await tx.maintenanceSchedule.count({
         where: {
           isActive: true,
-          assetId: maintenance.assetId,
+          assetId: assetDbId,
           status: {
             in: [MaintenanceStatus.SCHEDULED, MaintenanceStatus.IN_PROGRESS],
           },
@@ -725,7 +793,7 @@ export class MaintenanceService {
       let newAssetStatus = maintenance.asset.status;
       if (stillActive === 0) {
         await tx.asset.update({
-          where: { id: maintenance.assetId },
+          where: { id: assetDbId },
           data: { status: 'NON_ASSIGNED' },
         });
         newAssetStatus = 'NON_ASSIGNED';
@@ -734,7 +802,7 @@ export class MaintenanceService {
       // Log MAINTENANCE_CANCELLED event to asset history
       await tx.assetEvent.create({
         data: {
-          assetId: maintenance.assetId,
+          assetId: assetDbId,
           eventType: AssetEventType.MAINTENANCE_CANCELLED,
           eventDate: new Date(),
           performedBy: userId,
@@ -762,6 +830,16 @@ export class MaintenanceService {
       });
 
       return updated;
+    });
+
+    await this.auditService.log({
+      tableName: 'maintenance_schedules',
+      recordId: id,
+      action: AuditAction.DELETE,
+      userId,
+      entityLabel: this.maintenanceEntityLabel(maintenance),
+      summary: `Deleted maintenance for ${maintenance.asset.assetId}`,
+      before: this.pickMaintenanceSnapshot(maintenance),
     });
 
     return {
@@ -869,6 +947,30 @@ export class MaintenanceService {
       return updated;
     });
 
+    await this.auditService.log({
+      tableName: 'maintenance_schedules',
+      recordId: updated.id,
+      action: AuditAction.UPDATE,
+      userId: userId || maintenance.updatedBy,
+      entityLabel: this.maintenanceEntityLabel(updated),
+      summary: `Completed maintenance for ${updated.asset.assetId}`,
+      changes: [
+        {
+          field: 'status',
+          label: 'Status',
+          oldValue: maintenance.status,
+          newValue: MaintenanceStatus.COMPLETED,
+        },
+        {
+          field: 'actualCost',
+          label: 'Actual Cost',
+          oldValue: maintenance.actualCost ? String(maintenance.actualCost) : null,
+          newValue: String(actualCost),
+        },
+      ],
+      metadata: { completionNotes },
+    });
+
     return {
       message: 'Maintenance completed successfully',
       data: { maintenance: this.formatMaintenanceResponse(updated) },
@@ -972,6 +1074,29 @@ export class MaintenanceService {
       });
 
       return updated;
+    });
+
+    await this.auditService.log({
+      tableName: 'maintenance_schedules',
+      recordId: updated.id,
+      action: AuditAction.UPDATE,
+      userId: userId || maintenance.updatedBy,
+      entityLabel: this.maintenanceEntityLabel(updated),
+      summary: `Cancelled maintenance for ${updated.asset.assetId}`,
+      changes: [
+        {
+          field: 'status',
+          label: 'Status',
+          oldValue: maintenance.status,
+          newValue: MaintenanceStatus.CANCELLED,
+        },
+        {
+          field: 'cancellationNotes',
+          label: 'Cancellation Notes',
+          oldValue: maintenance.cancellationNotes,
+          newValue: cancelNotes,
+        },
+      ],
     });
 
     return {

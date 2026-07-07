@@ -92,7 +92,7 @@ export class AssetTypesController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete asset type by ID' })
   @ApiParam({ name: 'id', description: 'Asset Type ID' })
-  async remove(@Param('id', ParseIntPipe) id: number) {
-    return this.assetTypesService.remove(id);
+  async remove(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+    return this.assetTypesService.remove(id, req.user?.id ?? req.user?.userId);
   }
 }

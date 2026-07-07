@@ -155,4 +155,4 @@ async function bootstrap() {
   }
 }
 
-void bootstrap();
+void bootstrap(); // NOSONAR: top-level await requires ESM; project entrypoint is CommonJS.

@@ -38,11 +38,6 @@ export class MaintenanceScheduler {
         },
       });
 
-      if (result.count > 0) {
-        this.logger.log(
-          `Activated ${result.count} maintenance schedule(s) to IN_PROGRESS`,
-        );
-      }
     } catch (error) {
       this.logger.error(
         'Failed to activate scheduled maintenances',
@@ -55,9 +50,7 @@ export class MaintenanceScheduler {
   @Cron('0 13 * * *')
   async sendMaintenanceReminders() {
     try {
-      this.logger.log('Starting maintenance reminder notification process...');
       await this.notificationService.createMaintenanceReminderNotifications();
-      this.logger.log('Maintenance reminder notification process completed');
     } catch (error) {
       this.logger.error(
         'Failed to send maintenance reminders',

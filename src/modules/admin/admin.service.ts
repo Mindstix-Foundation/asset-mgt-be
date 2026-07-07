@@ -8,12 +8,17 @@ import {
 import { PrismaService } from '../../core/database/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import { CreateAdminDto, UpdateAdminStatusDto } from './dto/admin.dto';
+import { AuditService } from '../audit/audit.service';
+import { AuditAction } from '@prisma/client';
 
 @Injectable()
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async getAdminUsers() {
     try {
@@ -158,9 +163,19 @@ export class AdminService {
         },
       });
 
-      this.logger.log(
-        `Admin user created: ${adminUser.username} for employee ${employee.firstName} ${employee.lastName}`,
-      );
+      await this.auditService.log({
+        tableName: 'users',
+        recordId: adminUser.id,
+        action: AuditAction.INSERT,
+        userId: currentUserId,
+        entityLabel: adminUser.username,
+        summary: `Created admin user ${adminUser.username}`,
+        after: {
+          username: adminUser.username,
+          employeeId: adminUser.employee?.employeeId,
+          isActive: adminUser.isActive,
+        },
+      });
 
       return {
         success: true,
@@ -255,9 +270,22 @@ export class AdminService {
         return user;
       });
 
-      this.logger.log(
-        `Admin user ${adminUser.username} ${isActive ? 'activated' : 'deactivated'}`,
-      );
+      await this.auditService.log({
+        tableName: 'users',
+        recordId: updatedUser.id,
+        action: AuditAction.UPDATE,
+        userId: currentUserId,
+        entityLabel: updatedUser.username,
+        summary: `${isActive ? 'Activated' : 'Deactivated'} admin user ${updatedUser.username}`,
+        changes: [
+          {
+            field: 'isActive',
+            label: 'Active',
+            oldValue: adminUser.isActive,
+            newValue: isActive,
+          },
+        ],
+      });
 
       return {
         success: true,
@@ -338,9 +366,15 @@ export class AdminService {
         where: { id },
       });
 
-      this.logger.log(
-        `Admin user ${user.username} completely removed from system`,
-      );
+      await this.auditService.log({
+        tableName: 'users',
+        recordId: id,
+        action: AuditAction.DELETE,
+        userId: currentUserId,
+        entityLabel: user.username,
+        summary: `Removed admin user ${user.username}`,
+        before: { username: user.username, isActive: user.isActive },
+      });
 
       return {
         success: true,

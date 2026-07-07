@@ -10,11 +10,15 @@ import {
   ReturnAssignmentDto,
   AssignmentQueryDto,
 } from './dto';
-import { AssetEventType } from '@prisma/client';
+import { AssetEventType, AuditAction } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class AssignmentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async create(createAssignmentDto: CreateAssignmentDto, userId: number) {
     try {
@@ -139,6 +143,22 @@ export class AssignmentsService {
         });
 
         return assignment;
+      });
+
+      await this.auditService.log({
+        tableName: 'asset_issues',
+        recordId: result.id,
+        action: AuditAction.INSERT,
+        userId,
+        entityLabel: `${result.asset.assetId} → ${result.employee.firstName} ${result.employee.lastName}`,
+        summary: `Issued asset ${result.asset.assetId} to ${result.employee.firstName} ${result.employee.lastName}`,
+        after: {
+          assetId: result.asset.assetId,
+          employeeId: result.employee.employeeId,
+          employeeName: `${result.employee.firstName} ${result.employee.lastName}`,
+          issueCondition: result.issueCondition,
+          issueReason: result.issueReason,
+        },
       });
 
       return {
@@ -616,6 +636,29 @@ export class AssignmentsService {
         });
 
         return updatedAssignment;
+      });
+
+      await this.auditService.log({
+        tableName: 'asset_issues',
+        recordId: result.id,
+        action: AuditAction.UPDATE,
+        userId,
+        entityLabel: `${result.asset.assetId} ← ${result.employee.firstName} ${result.employee.lastName}`,
+        summary: `Collected asset ${result.asset.assetId} from ${result.employee.firstName} ${result.employee.lastName}`,
+        changes: [
+          {
+            field: 'returnCondition',
+            label: 'Return Condition',
+            oldValue: assignment.issueCondition,
+            newValue: returnAssignmentDto.returnCondition,
+          },
+          {
+            field: 'returnReason',
+            label: 'Return Reason',
+            oldValue: null,
+            newValue: returnAssignmentDto.returnReason,
+          },
+        ],
       });
 
       return {

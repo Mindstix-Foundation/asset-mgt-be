@@ -18,8 +18,32 @@ import {
   EmployeeDetailResponseDto,
   PaginationDto,
 } from './dto/employee-response.dto';
-import { EmployeeStatus, Prisma } from '@prisma/client';
+import { EmployeeStatus, Prisma, AuditAction } from '@prisma/client';
 import * as XLSX from 'xlsx';
+import { AuditService } from '../audit/audit.service';
+import { pickFields } from '../audit/audit.util';
+
+const EMPLOYEE_AUDIT_FIELDS = [
+  'employeeId',
+  'firstName',
+  'lastName',
+  'email',
+  'phone',
+  'dateOfBirth',
+  'address',
+  'status',
+];
+
+const EMPLOYEE_FIELD_LABELS: Record<string, string> = {
+  employeeId: 'Employee ID',
+  firstName: 'First Name',
+  lastName: 'Last Name',
+  email: 'Email',
+  phone: 'Phone',
+  dateOfBirth: 'Date of Birth',
+  address: 'Address',
+  status: 'Status',
+};
 
 type AssetEventRow = {
   id: number;
@@ -40,7 +64,26 @@ type AssetEventRow = {
 
 @Injectable()
 export class EmployeesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
+
+  private pickEmployeeAuditSnapshot(employee: Record<string, unknown>) {
+    const snapshot = pickFields(employee, EMPLOYEE_AUDIT_FIELDS);
+    if (employee.dateOfBirth instanceof Date) {
+      snapshot.dateOfBirth = employee.dateOfBirth.toISOString().split('T')[0];
+    }
+    return snapshot;
+  }
+
+  private employeeEntityLabel(employee: {
+    firstName: string;
+    lastName: string;
+    employeeId: string;
+  }) {
+    return `${employee.firstName} ${employee.lastName} (${employee.employeeId})`;
+  }
 
   async create(
     createEmployeeDto: CreateEmployeeDto,
@@ -83,6 +126,18 @@ export class EmployeesService {
           employeeId,
           dateOfBirth,
         ),
+      });
+
+      await this.auditService.log({
+        tableName: 'employees',
+        recordId: employee.id,
+        action: AuditAction.INSERT,
+        userId,
+        entityLabel: this.employeeEntityLabel(employee),
+        summary: `Created employee ${employee.firstName} ${employee.lastName}`,
+        after: this.pickEmployeeAuditSnapshot(employee),
+        trackedFields: EMPLOYEE_AUDIT_FIELDS,
+        fieldLabels: EMPLOYEE_FIELD_LABELS,
       });
 
       const responseEmployee = this.mapToResponseDto(employee);
@@ -1116,13 +1171,23 @@ export class EmployeesService {
       data: updateData,
     });
 
+    await this.auditService.log({
+      tableName: 'employees',
+      recordId: employee.id,
+      action: AuditAction.UPDATE,
+      userId,
+      entityLabel: this.employeeEntityLabel(employee),
+      summary: `Updated employee ${employee.firstName} ${employee.lastName}`,
+      before: this.pickEmployeeAuditSnapshot(existingEmployee),
+      after: this.pickEmployeeAuditSnapshot(employee),
+      trackedFields: EMPLOYEE_AUDIT_FIELDS,
+      fieldLabels: EMPLOYEE_FIELD_LABELS,
+    });
+
     const responseEmployee = this.mapToResponseDto(employee);
 
     // Add admin status to response
     responseEmployee.isAdmin = isAdmin;
-
-    // Log successful update
-    this.logAdminUpdateIfApplicable(isAdmin, employee, updateData);
 
     return {
       message: 'Employee updated successfully',
@@ -1155,29 +1220,11 @@ export class EmployeesService {
     isAdmin: boolean,
   ): void {
     if (isAdmin && updateEmployeeDto.email !== undefined) {
-      console.log(
-        `🚫 Admin email update blocked for employee ${existingEmployee.employeeId}:`,
-        {
-          employeeId: existingEmployee.employeeId,
-          isAdmin,
-          attemptedEmail: updateEmployeeDto.email,
-          currentEmail: existingEmployee.email,
-        },
-      );
       throw new BadRequestException(
         'Cannot update email address for admin employees. Email field is read-only for admin users.',
       );
     }
     if (isAdmin && updateEmployeeDto.status === 'INACTIVE') {
-      console.log(
-        `🚫 Admin deactivation blocked for employee ${existingEmployee.employeeId}:`,
-        {
-          employeeId: existingEmployee.employeeId,
-          isAdmin,
-          currentStatus: existingEmployee.status,
-          attemptedStatus: updateEmployeeDto.status,
-        },
-      );
       throw new BadRequestException(
         'Cannot deactivate admin employees. Admin users must remain active.',
       );
@@ -1222,21 +1269,6 @@ export class EmployeesService {
       updateData.lastName = this.formatName(updateEmployeeDto.lastName);
     }
     return updateData;
-  }
-
-  private logAdminUpdateIfApplicable(
-    isAdmin: boolean,
-    employee: any,
-    updateData: any,
-  ): void {
-    if (!isAdmin) return;
-    console.log(`✅ Admin employee updated successfully (email excluded):`, {
-      employeeId: employee.employeeId,
-      updatedFields: Object.keys(updateData).filter(
-        (key) => key !== 'updatedBy',
-      ),
-      emailExcluded: true,
-    });
   }
 
   async remove(
@@ -1297,9 +1329,23 @@ export class EmployeesService {
       );
     }
 
+    const beforeSnapshot = this.pickEmployeeAuditSnapshot(employee);
+
     // Hard delete - permanently remove from database
     const deletedEmployee = await this.prisma.employee.delete({
       where: whereClause,
+    });
+
+    await this.auditService.log({
+      tableName: 'employees',
+      recordId: deletedEmployee.id,
+      action: AuditAction.DELETE,
+      userId,
+      entityLabel: this.employeeEntityLabel(deletedEmployee),
+      summary: `Deleted employee ${deletedEmployee.firstName} ${deletedEmployee.lastName}`,
+      before: beforeSnapshot,
+      trackedFields: EMPLOYEE_AUDIT_FIELDS,
+      fieldLabels: EMPLOYEE_FIELD_LABELS,
     });
 
     const responseEmployee = this.mapToResponseDto(deletedEmployee);
@@ -1724,17 +1770,53 @@ export class EmployeesService {
   }
 
   // --- Small helpers to reduce cognitive complexity in findAll ---
+  private buildEmployeeSearchConditions(
+    search: string,
+  ): Prisma.EmployeeWhereInput[] {
+    const normalized = search.trim().replace(/\s+/g, ' ');
+    if (!normalized) return [];
+
+    const conditions: Prisma.EmployeeWhereInput[] = [
+      { firstName: { contains: normalized, mode: 'insensitive' } },
+      { lastName: { contains: normalized, mode: 'insensitive' } },
+      { employeeId: { contains: normalized, mode: 'insensitive' } },
+      { email: { contains: normalized, mode: 'insensitive' } },
+    ];
+
+    const parts = normalized.split(' ').filter((part) => part.length > 0);
+    if (parts.length >= 2) {
+      const first = parts[0];
+      const last = parts.slice(1).join(' ');
+
+      conditions.push({
+        AND: [
+          { firstName: { contains: first, mode: 'insensitive' } },
+          { lastName: { contains: last, mode: 'insensitive' } },
+        ],
+      });
+
+      if (parts.length === 2) {
+        conditions.push({
+          AND: [
+            { firstName: { contains: last, mode: 'insensitive' } },
+            { lastName: { contains: first, mode: 'insensitive' } },
+          ],
+        });
+      }
+    }
+
+    return conditions;
+  }
+
   private applySearchFilters(
     where: Prisma.EmployeeWhereInput,
     query: QueryEmployeeDto,
   ): void {
-    if (!query.search) return;
-    where.OR = [
-      { firstName: { contains: query.search, mode: 'insensitive' } },
-      { lastName: { contains: query.search, mode: 'insensitive' } },
-      { employeeId: { contains: query.search, mode: 'insensitive' } },
-      { email: { contains: query.search, mode: 'insensitive' } },
-    ];
+    if (!query.search?.trim()) return;
+    const conditions = this.buildEmployeeSearchConditions(query.search);
+    if (conditions.length > 0) {
+      where.OR = conditions;
+    }
   }
 
   private applyStatusFilter(
@@ -1988,12 +2070,10 @@ export class EmployeesService {
       const where: Prisma.EmployeeWhereInput = {};
 
       if (search) {
-        where.OR = [
-          { firstName: { contains: search, mode: 'insensitive' } },
-          { lastName: { contains: search, mode: 'insensitive' } },
-          { employeeId: { contains: search, mode: 'insensitive' } },
-          { email: { contains: search, mode: 'insensitive' } },
-        ];
+        const conditions = this.buildEmployeeSearchConditions(search);
+        if (conditions.length > 0) {
+          where.OR = conditions;
+        }
       }
 
       if (status) {
@@ -2283,12 +2363,10 @@ export class EmployeesService {
     }
 
     if (query.search) {
-      where.OR = [
-        { firstName: { contains: query.search, mode: 'insensitive' } },
-        { lastName: { contains: query.search, mode: 'insensitive' } },
-        { employeeId: { contains: query.search, mode: 'insensitive' } },
-        { email: { contains: query.search, mode: 'insensitive' } },
-      ];
+      const conditions = this.buildEmployeeSearchConditions(query.search);
+      if (conditions.length > 0) {
+        where.OR = conditions;
+      }
     }
 
     // Build orderBy clause

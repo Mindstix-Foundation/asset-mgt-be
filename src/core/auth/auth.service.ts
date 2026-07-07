@@ -35,7 +35,6 @@ export class AuthService implements OnModuleInit {
   async onModuleInit() {
     // Start periodic token cleanup
     this.startTokenCleanup();
-    this.logger.log('Auth service initialized with token cleanup');
   }
 
   /**
@@ -68,9 +67,6 @@ export class AuthService implements OnModuleInit {
       });
 
       if (result.count > 0) {
-        this.logger.log(
-          `Cleaned up ${result.count} expired blacklisted tokens`,
-        );
         // Clear in-memory cache periodically
         this.tokenBlacklist.clear();
       }
@@ -588,9 +584,6 @@ export class AuthService implements OnModuleInit {
       // Also add to in-memory blacklist
       this.tokenBlacklist.add(userInvalidationToken);
 
-      this.logger.log(
-        `Invalidated all tokens and sessions for user ID: ${userId}`,
-      );
     } catch (error) {
       this.logger.error('Failed to invalidate user tokens:', error);
       throw error;
@@ -610,11 +603,6 @@ export class AuthService implements OnModuleInit {
         },
       });
 
-      if (result.count > 0) {
-        this.logger.log(
-          `Cleaned up ${result.count} expired user invalidation tokens`,
-        );
-      }
     } catch (error) {
       this.logger.error(
         'Failed to cleanup expired user invalidation tokens:',
@@ -823,8 +811,6 @@ export class AuthService implements OnModuleInit {
           </html>
         `,
       });
-
-      this.logger.log(`Password reset email sent to: ${user.employee.email}`);
 
       // Ensure constant timing
       const elapsed = Date.now() - startTime;

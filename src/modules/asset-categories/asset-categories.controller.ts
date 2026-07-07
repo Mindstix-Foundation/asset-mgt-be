@@ -208,7 +208,7 @@ export class AssetCategoriesController {
     status: 400,
     description: 'Cannot delete category with associated asset types',
   })
-  async remove(@Param('id', ParseIntPipe) id: number) {
-    return this.assetCategoriesService.remove(id);
+  async remove(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+    return this.assetCategoriesService.remove(id, req.user?.id ?? req.user?.userId);
   }
 }

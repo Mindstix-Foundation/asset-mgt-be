@@ -225,11 +225,12 @@ export class MaintenanceController {
     @Body() body: { actualCost: number; completionNotes?: string },
     @Req() req: any,
   ) {
+    const userId = req.user?.id || req.user?.userId || req.user?.sub;
     return this.maintenanceService.completeMaintenance(
       id,
       body.actualCost,
       body.completionNotes,
-      req.user.userId,
+      userId,
     );
   }
 
@@ -249,11 +250,12 @@ export class MaintenanceController {
     @Body() body: { cancelNotes: string },
     @Req() req: any,
   ) {
+    const userId = req.user?.id || req.user?.userId || req.user?.sub;
     return this.maintenanceService.cancelMaintenance(
       id,
       undefined, // cancelDate - not used anymore
       body.cancelNotes,
-      req.user.userId,
+      userId,
     );
   }
 
@@ -262,7 +264,8 @@ export class MaintenanceController {
   @ApiResponse({ status: 200, description: 'Maintenance deleted successfully' })
   @ApiResponse({ status: 404, description: 'Maintenance not found' })
   remove(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    return this.maintenanceService.remove(id, req.user.userId);
+    const userId = req.user?.id || req.user?.userId || req.user?.sub;
+    return this.maintenanceService.remove(id, userId);
   }
 }
 

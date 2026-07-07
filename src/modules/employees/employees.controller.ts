@@ -650,23 +650,6 @@ export class EmployeesController {
     @UploadedFile() file: Express.Multer.File,
     @Request() req: any,
   ) {
-    console.log(
-      'EmployeesController.validateBulkUpload: Received validation request',
-    );
-    console.log('EmployeesController.validateBulkUpload: File details:', {
-      fieldname: file?.fieldname,
-      originalname: file?.originalname,
-      mimetype: file?.mimetype,
-      size: file?.size,
-      buffer: file?.buffer
-        ? `Buffer(${file.buffer.length} bytes)`
-        : 'undefined',
-    });
-    console.log(
-      'EmployeesController.validateBulkUpload: User ID:',
-      req.user?.id || 1,
-    );
-
     if (!file) {
       console.error('EmployeesController.validateBulkUpload: No file received');
       throw new BadRequestException('File is required');

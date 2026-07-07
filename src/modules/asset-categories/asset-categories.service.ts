@@ -6,10 +6,15 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../core/database/prisma.service';
 import { CreateAssetCategoryDto, AssetCategoryQueryDto } from './dto';
+import { AuditService } from '../audit/audit.service';
+import { AuditAction } from '@prisma/client';
 
 @Injectable()
 export class AssetCategoriesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async create(createAssetCategoryDto: CreateAssetCategoryDto, userId: number) {
     try {
@@ -27,6 +32,16 @@ export class AssetCategoriesService {
             select: { assetTypes: true },
           },
         },
+      });
+
+      await this.auditService.log({
+        tableName: 'asset_categories',
+        recordId: assetCategory.id,
+        action: AuditAction.INSERT,
+        userId,
+        entityLabel: assetCategory.name,
+        summary: `Created asset category ${assetCategory.name}`,
+        after: { name: assetCategory.name, description: assetCategory.description },
       });
 
       return {
@@ -133,7 +148,7 @@ export class AssetCategoriesService {
     };
   }
 
-  async remove(id: number) {
+  async remove(id: number, userId: number) {
     try {
       // Check if category has associated asset types
       const categoryWithTypes = await this.prisma.assetCategory.findUnique({
@@ -157,6 +172,16 @@ export class AssetCategoriesService {
 
       await this.prisma.assetCategory.delete({
         where: { id },
+      });
+
+      await this.auditService.log({
+        tableName: 'asset_categories',
+        recordId: id,
+        action: AuditAction.DELETE,
+        userId,
+        entityLabel: categoryWithTypes.name,
+        summary: `Deleted asset category ${categoryWithTypes.name}`,
+        before: { name: categoryWithTypes.name },
       });
 
       return {

@@ -11,6 +11,9 @@ import {
   SpecificationTemplateInputDto,
   UpdateAssetTypeDto,
 } from './dto';
+import { AuditService } from '../audit/audit.service';
+import { AuditAction } from '@prisma/client';
+import { pickFields } from '../audit/audit.util';
 type StoredSpecificationOption = {
   value: string;
   deprecated?: boolean;
@@ -35,7 +38,10 @@ type StoredSpecificationTemplate = {
 
 @Injectable()
 export class AssetTypesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   private trimUnderscores(value: string): string {
     let start = 0;
@@ -86,6 +92,16 @@ export class AssetTypesService {
             select: { assets: true, models: true },
           },
         },
+      });
+
+      await this.auditService.log({
+        tableName: 'asset_types',
+        recordId: assetType.id,
+        action: AuditAction.INSERT,
+        userId,
+        entityLabel: assetType.name,
+        summary: `Created asset type ${assetType.name}`,
+        after: { name: assetType.name, categoryId: assetType.categoryId },
       });
 
       return {
@@ -162,6 +178,17 @@ export class AssetTypesService {
           select: { assets: true, models: true },
         },
       },
+    });
+
+    await this.auditService.log({
+      tableName: 'asset_types',
+      recordId: assetType.id,
+      action: AuditAction.UPDATE,
+      userId,
+      entityLabel: assetType.name,
+      summary: `Updated asset type ${assetType.name}`,
+      before: pickFields(existingAssetType as any, ['description', 'isActive']),
+      after: pickFields(assetType as any, ['description', 'isActive']),
     });
 
     return {
@@ -327,7 +354,7 @@ export class AssetTypesService {
     };
   }
 
-  async remove(id: number) {
+  async remove(id: number, userId: number) {
     try {
       // Check if asset type has associated models or assets
       const assetTypeWithRelations = await this.prisma.assetType.findUnique({
@@ -354,6 +381,16 @@ export class AssetTypesService {
 
       await this.prisma.assetType.delete({
         where: { id },
+      });
+
+      await this.auditService.log({
+        tableName: 'asset_types',
+        recordId: id,
+        action: AuditAction.DELETE,
+        userId,
+        entityLabel: assetTypeWithRelations.name,
+        summary: `Deleted asset type ${assetTypeWithRelations.name}`,
+        before: { name: assetTypeWithRelations.name },
       });
 
       return {

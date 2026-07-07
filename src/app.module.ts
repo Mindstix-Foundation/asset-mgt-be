@@ -22,6 +22,7 @@ import { AssetReportsModule } from './modules/asset-reports/asset-reports.module
 import { AssetsModule } from './modules/assets/assets.module';
 import { AssetHistoryModule } from './modules/asset-history/asset-history.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { AuditModule } from './modules/audit/audit.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     AssetsModule,
     AssetHistoryModule,
     ReportsModule,
+    AuditModule,
     AdminModule,
     NotificationModule,
   ],

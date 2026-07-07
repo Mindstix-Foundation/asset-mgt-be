@@ -286,8 +286,13 @@ export class VendorsController {
     description:
       'Cannot delete vendor with associated assets or maintenance schedules',
   })
-  async remove(@Param('id', ParseIntPipe) id: number) {
-    return this.vendorsService.remove(id);
+  async remove(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+    if (!req.user?.id) {
+      throw new UnauthorizedException(
+        'User authentication required. Please login to perform this action.',
+      );
+    }
+    return this.vendorsService.remove(id, req.user.id);
   }
 
   @Patch(':id/status')

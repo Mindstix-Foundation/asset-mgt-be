@@ -128,7 +128,7 @@ export class ModelsController {
     status: 400,
     description: 'Cannot delete model with associated assets',
   })
-  async remove(@Param('id', ParseIntPipe) id: number) {
-    return this.modelsService.remove(id);
+  async remove(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+    return this.modelsService.remove(id, req.user?.id ?? req.user?.userId);
   }
 }

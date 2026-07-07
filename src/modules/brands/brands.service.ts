@@ -6,10 +6,15 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../core/database/prisma.service';
 import { CreateBrandDto, BrandQueryDto } from './dto';
+import { AuditService } from '../audit/audit.service';
+import { AuditAction } from '@prisma/client';
 
 @Injectable()
 export class BrandsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async create(createBrandDto: CreateBrandDto, userId: number) {
     try {
@@ -47,6 +52,16 @@ export class BrandsService {
             select: { models: true, assets: true },
           },
         },
+      });
+
+      await this.auditService.log({
+        tableName: 'brands',
+        recordId: brand.id,
+        action: AuditAction.INSERT,
+        userId,
+        entityLabel: brand.name,
+        summary: `Created brand ${brand.name}`,
+        after: { name: brand.name, description: brand.description },
       });
 
       return {
@@ -167,7 +182,7 @@ export class BrandsService {
     };
   }
 
-  async remove(id: number) {
+  async remove(id: number, userId: number) {
     // Check if brand has associated models or assets
     const brandWithRelations = await this.prisma.brand.findUnique({
       where: { id },
@@ -192,6 +207,16 @@ export class BrandsService {
     }
 
     await this.prisma.brand.delete({ where: { id } });
+
+    await this.auditService.log({
+      tableName: 'brands',
+      recordId: id,
+      action: AuditAction.DELETE,
+      userId,
+      entityLabel: brandWithRelations.name,
+      summary: `Deleted brand ${brandWithRelations.name}`,
+      before: { name: brandWithRelations.name },
+    });
 
     return {
       message: 'Brand deleted successfully',

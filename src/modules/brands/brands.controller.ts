@@ -215,7 +215,7 @@ export class BrandsController {
     status: 400,
     description: 'Cannot delete brand with associated models or assets',
   })
-  async remove(@Param('id', ParseIntPipe) id: number) {
-    return this.brandsService.remove(id);
+  async remove(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+    return this.brandsService.remove(id, req.user?.id ?? req.user?.userId);
   }
 }

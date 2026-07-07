@@ -6,10 +6,15 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../core/database/prisma.service';
 import { CreateModelDto, ModelQueryDto } from './dto';
+import { AuditService } from '../audit/audit.service';
+import { AuditAction } from '@prisma/client';
 
 @Injectable()
 export class ModelsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async create(createModelDto: CreateModelDto, userId: number) {
     try {
@@ -52,6 +57,16 @@ export class ModelsService {
             select: { assets: true },
           },
         },
+      });
+
+      await this.auditService.log({
+        tableName: 'models',
+        recordId: model.id,
+        action: AuditAction.INSERT,
+        userId,
+        entityLabel: model.name,
+        summary: `Created model ${model.name}`,
+        after: { name: model.name, brandId: model.brandId, assetTypeId: model.assetTypeId },
       });
 
       return {
@@ -235,7 +250,7 @@ export class ModelsService {
     };
   }
 
-  async remove(id: number) {
+  async remove(id: number, userId: number) {
     try {
       // Check if model has associated assets
       const modelWithAssets = await this.prisma.model.findUnique({
@@ -259,6 +274,16 @@ export class ModelsService {
 
       await this.prisma.model.delete({
         where: { id },
+      });
+
+      await this.auditService.log({
+        tableName: 'models',
+        recordId: id,
+        action: AuditAction.DELETE,
+        userId,
+        entityLabel: modelWithAssets.name,
+        summary: `Deleted model ${modelWithAssets.name}`,
+        before: { name: modelWithAssets.name },
       });
 
       return {

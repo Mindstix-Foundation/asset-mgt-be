@@ -54,6 +54,7 @@ model User {
   createdVendors              Vendor[]              @relation("VendorCreatedBy")
   updatedVendors              Vendor[]              @relation("VendorUpdatedBy")
   vendor                      Vendor?
+  auditLogs                   AuditLog[]            @relation("AuditLogPerformedBy")
 
   @@index([isActive, lastLogin])
   @@map("users")
@@ -425,6 +426,30 @@ model Notification {
   @@map("notifications")
 }
 
+model AuditLog {
+  id            Int         @id @default(autoincrement())
+  tableName     String      @map("table_name") @db.VarChar(50)
+  recordId      Int         @map("record_id")
+  action        AuditAction
+  entityLabel   String?     @map("entity_label") @db.VarChar(255)
+  summary       String?     @db.VarChar(500)
+  oldValues     Json?       @map("old_values")
+  newValues     Json?       @map("new_values")
+  changedFields String[]    @map("changed_fields")
+  metadata      Json?
+  userId        Int         @map("user_id")
+  ipAddress     String?     @map("ip_address") @db.VarChar(45)
+  userAgent     String?     @map("user_agent") @db.VarChar(500)
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  user          User        @relation("AuditLogPerformedBy", fields: [userId], references: [id])
+
+  @@index([tableName, recordId])
+  @@index([userId])
+  @@index([createdAt(sort: Desc)])
+  @@index([action])
+  @@map("audit_logs")
+}
+
 enum AssetCondition {
   NEW
   WORKING_CONDITION
@@ -512,4 +537,10 @@ enum NotificationType {
   ASSET_ASSIGNED
   ASSET_RETURNED
   SYSTEM_ALERT
+}
+
+enum AuditAction {
+  INSERT
+  UPDATE
+  DELETE
 }

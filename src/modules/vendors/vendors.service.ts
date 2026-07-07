@@ -12,13 +12,48 @@ import {
   VendorSearchDto,
   VendorStatusDto,
 } from './dto';
-import { Vendor, Prisma, VendorStatus, VendorType } from '@prisma/client';
+import { Vendor, Prisma, VendorStatus, VendorType, AuditAction } from '@prisma/client';
 import * as XLSX from 'xlsx';
 import { isEmail } from 'class-validator';
+import { AuditService } from '../audit/audit.service';
+import { pickFields } from '../audit/audit.util';
+
+const VENDOR_AUDIT_FIELDS = [
+  'name',
+  'contactPerson',
+  'email',
+  'phone',
+  'address',
+  'taxId',
+  'panNumber',
+  'notes',
+  'status',
+  'vendorType',
+];
+
+const VENDOR_FIELD_LABELS: Record<string, string> = {
+  name: 'Name',
+  contactPerson: 'Contact Person',
+  email: 'Email',
+  phone: 'Phone',
+  address: 'Address',
+  taxId: 'Tax ID',
+  panNumber: 'PAN Number',
+  notes: 'Notes',
+  status: 'Status',
+  vendorType: 'Vendor Type',
+};
 
 @Injectable()
 export class VendorsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
+
+  private pickVendorAuditSnapshot(vendor: Record<string, unknown>) {
+    return pickFields(vendor, VENDOR_AUDIT_FIELDS);
+  }
 
   async create(
     createVendorDto: CreateVendorDto,
@@ -51,6 +86,18 @@ export class VendorsService {
           createdBy: userId,
           updatedBy: userId,
         },
+      });
+
+      await this.auditService.log({
+        tableName: 'vendors',
+        recordId: vendor.id,
+        action: AuditAction.INSERT,
+        userId,
+        entityLabel: vendor.name,
+        summary: `Created vendor ${vendor.name}`,
+        after: this.pickVendorAuditSnapshot(vendor),
+        trackedFields: VENDOR_AUDIT_FIELDS,
+        fieldLabels: VENDOR_FIELD_LABELS,
       });
 
       return vendor;
@@ -263,6 +310,19 @@ export class VendorsService {
         },
       });
 
+      await this.auditService.log({
+        tableName: 'vendors',
+        recordId: vendor.id,
+        action: AuditAction.UPDATE,
+        userId,
+        entityLabel: vendor.name,
+        summary: `Updated vendor ${vendor.name}`,
+        before: this.pickVendorAuditSnapshot(existingVendor),
+        after: this.pickVendorAuditSnapshot(vendor),
+        trackedFields: VENDOR_AUDIT_FIELDS,
+        fieldLabels: VENDOR_FIELD_LABELS,
+      });
+
       return {
         message: 'Vendor updated successfully',
         data: { vendor },
@@ -273,7 +333,7 @@ export class VendorsService {
     }
   }
 
-  async remove(id: number): Promise<{ message: string }> {
+  async remove(id: number, userId: number): Promise<{ message: string }> {
     // Check if vendor exists
     const vendor = await this.prisma.vendor.findUnique({
       where: { id },
@@ -297,8 +357,22 @@ export class VendorsService {
       );
     }
 
+    const beforeSnapshot = this.pickVendorAuditSnapshot(vendor);
+
     await this.prisma.vendor.delete({
       where: { id },
+    });
+
+    await this.auditService.log({
+      tableName: 'vendors',
+      recordId: id,
+      action: AuditAction.DELETE,
+      userId,
+      entityLabel: vendor.name,
+      summary: `Deleted vendor ${vendor.name}`,
+      before: beforeSnapshot,
+      trackedFields: VENDOR_AUDIT_FIELDS,
+      fieldLabels: VENDOR_FIELD_LABELS,
     });
 
     return {
@@ -325,6 +399,19 @@ export class VendorsService {
         status: statusDto.status,
         updatedBy: userId,
       },
+    });
+
+    await this.auditService.log({
+      tableName: 'vendors',
+      recordId: updatedVendor.id,
+      action: AuditAction.UPDATE,
+      userId,
+      entityLabel: updatedVendor.name,
+      summary: `Updated vendor ${updatedVendor.name} status to ${updatedVendor.status}`,
+      before: this.pickVendorAuditSnapshot(vendor),
+      after: this.pickVendorAuditSnapshot(updatedVendor),
+      trackedFields: VENDOR_AUDIT_FIELDS,
+      fieldLabels: VENDOR_FIELD_LABELS,
     });
 
     return {

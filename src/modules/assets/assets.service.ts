@@ -13,7 +13,8 @@ import {
   RetireAssetDto,
   ReactivateAssetDto,
 } from './dto';
-import { AssetEventType, Prisma } from '@prisma/client';
+import { AssetEventType, Prisma, AuditAction } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
 
 /**
  * Validation context for bulk upload processing
@@ -36,7 +37,20 @@ export class AssetsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly assetIdService: AssetIdService,
+    private readonly auditService: AuditService,
   ) {}
+
+  private assetEntityLabel(asset: {
+    assetId: string;
+    assetType?: { name: string };
+    brand?: { name: string };
+    model?: { name: string };
+  }) {
+    const type = asset.assetType?.name ?? 'Asset';
+    const brand = asset.brand?.name ?? '';
+    const model = asset.model?.name ?? '';
+    return `${asset.assetId} ${brand} ${model}`.trim() || asset.assetId;
+  }
 
   async checkSerialNumberUnique(serialNumber: string, excludeAssetId?: string) {
     if (!serialNumber?.trim()) {
@@ -44,12 +58,6 @@ export class AssetsService {
     }
 
     const trimmedSerialNumber = serialNumber.trim();
-    console.log('🔍 Checking serial number uniqueness:', {
-      original: serialNumber,
-      trimmed: trimmedSerialNumber,
-      excludeAssetId,
-    });
-
     // Search for exact match, trimmed match, and also check for leading/trailing spaces
     const serialNumberConditions = [
       { serialNumber: { equals: trimmedSerialNumber, mode: 'insensitive' } },
@@ -85,11 +93,6 @@ export class AssetsService {
     const existingAsset = await this.prisma.asset.findFirst({
       where,
       select: { id: true, assetId: true, serialNumber: true },
-    });
-
-    console.log('🔍 Search result:', {
-      found: !!existingAsset,
-      existingAsset: existingAsset,
     });
 
     return {
@@ -250,6 +253,27 @@ export class AssetsService {
           vendor: vendor?.name || null,
           specifications: asset.specifications || null,
         },
+      },
+    });
+
+    await this.auditService.log({
+      tableName: 'assets',
+      recordId: asset.id,
+      action: AuditAction.INSERT,
+      userId,
+      entityLabel: this.assetEntityLabel(asset),
+      summary: `Created asset ${asset.assetId}`,
+      after: {
+        assetId: asset.assetId,
+        status: asset.status,
+        condition: asset.condition,
+        location: asset.location,
+        serialNumber: asset.serialNumber,
+      },
+      metadata: {
+        assetType: assetType.name,
+        brand: brand.name,
+        model: model.name,
       },
     });
 
@@ -1334,6 +1358,26 @@ export class AssetsService {
         },
       },
     });
+
+    await this.auditService.log({
+      tableName: 'assets',
+      recordId: assetId,
+      action: AuditAction.UPDATE,
+      userId,
+      entityLabel: asset ? this.assetEntityLabel(asset) : `Asset #${assetId}`,
+      summary: `Updated asset ${asset?.assetId ?? assetId}`,
+      changes: resolvedChanges.map((change: any) => ({
+        field: change.fieldName,
+        label: change.fieldName,
+        oldValue: change.oldValue,
+        newValue: change.newValue,
+      })),
+      metadata: {
+        assetType: asset?.assetType?.name,
+        brand: asset?.brand?.name,
+        model: asset?.model?.name,
+      },
+    });
   }
 
   /**
@@ -1382,7 +1426,7 @@ export class AssetsService {
     }
   }
 
-  async remove(id: number) {
+  async remove(id: number, userId: number) {
     try {
       // Check for asset deletion eligibility - only 3 criteria
       const assetWithChecks = await this.prisma.asset.findUnique({
@@ -1426,6 +1470,20 @@ export class AssetsService {
       // All 3 criteria passed - safe to delete
       await this.prisma.asset.delete({
         where: { id },
+      });
+
+      await this.auditService.log({
+        tableName: 'assets',
+        recordId: id,
+        action: AuditAction.DELETE,
+        userId,
+        entityLabel: assetWithChecks.assetId,
+        summary: `Deleted asset ${assetWithChecks.assetId}`,
+        before: {
+          assetId: assetWithChecks.assetId,
+          status: assetWithChecks.status,
+          condition: assetWithChecks.condition,
+        },
       });
 
       return {
@@ -1732,12 +1790,12 @@ export class AssetsService {
       };
     }
 
-    const sanitizedKey = key.replace(/[^a-zA-Z0-9_]/g, '');
+    const sanitizedKey = key.replaceAll(/\W/g, '');
 
     let query: string;
     let params: any[];
 
-    if (search && search.trim()) {
+    if (search?.trim()) {
       query = `
         SELECT DISTINCT specifications->>'${sanitizedKey}' AS val
         FROM assets
@@ -3366,6 +3424,33 @@ export class AssetsService {
         },
       });
 
+      await this.auditService.log({
+        tableName: 'assets',
+        recordId: assetId,
+        action: AuditAction.UPDATE,
+        userId,
+        entityLabel: this.assetEntityLabel(asset),
+        summary: `Retired asset ${asset.assetId}`,
+        changes: [
+          {
+            field: 'status',
+            label: 'Status',
+            oldValue: asset.status,
+            newValue: 'RETIRED',
+          },
+          {
+            field: 'retirementReason',
+            label: 'Retirement Reason',
+            oldValue: null,
+            newValue: retireAssetDto.retirementReason,
+          },
+        ],
+        metadata: {
+          retirementDate: retireAssetDto.retirementDate,
+          retirementNotes: retireAssetDto.retirementNotes,
+        },
+      });
+
       return {
         message: 'Asset retired successfully',
         data: {
@@ -3461,6 +3546,39 @@ export class AssetsService {
         },
       });
 
+      await this.auditService.log({
+        tableName: 'assets',
+        recordId: assetId,
+        action: AuditAction.UPDATE,
+        userId,
+        entityLabel: this.assetEntityLabel(asset),
+        summary: `Reactivated asset ${asset.assetId}`,
+        changes: [
+          {
+            field: 'status',
+            label: 'Status',
+            oldValue: asset.status,
+            newValue: reactivateAssetDto.status,
+          },
+          {
+            field: 'condition',
+            label: 'Condition',
+            oldValue: asset.condition,
+            newValue: reactivateAssetDto.condition,
+          },
+          {
+            field: 'location',
+            label: 'Location',
+            oldValue: asset.location,
+            newValue: reactivateAssetDto.location,
+          },
+        ],
+        metadata: {
+          reactivationDate: reactivateAssetDto.reactivationDate,
+          reactivationReason: reactivateAssetDto.reactivationReason,
+        },
+      });
+
       return {
         message: 'Asset reactivated successfully',
         data: {
@@ -3507,18 +3625,6 @@ export class AssetsService {
         sortBy = 'assetId',
         sortOrder = 'asc',
       } = queryDto;
-
-      console.log('Export query params:', {
-        status,
-        assetTypeId,
-        brandId,
-        modelId,
-        search,
-        condition,
-        location,
-        sortBy,
-        sortOrder,
-      });
 
       // Build where clause
       const where: any = {};
