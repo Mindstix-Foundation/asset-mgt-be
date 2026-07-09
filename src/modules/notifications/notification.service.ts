@@ -51,6 +51,7 @@ export class NotificationService {
       const where = {
         userId,
         type: NotificationType.MAINTENANCE_REMINDER,
+        ...(query.unreadOnly ? { isRead: false } : {}),
       };
 
       const [totalCount, notifications] = await Promise.all([
