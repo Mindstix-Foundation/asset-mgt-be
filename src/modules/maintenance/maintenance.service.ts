@@ -16,9 +16,13 @@ import {
   AssetEventType,
   AuditAction,
 } from '@prisma/client';
-import * as XLSX from 'xlsx';
 import { AuditService } from '../audit/audit.service';
 import { pickFields } from '../audit/audit.util';
+import type { Response } from 'express';
+import {
+  streamRowsInChunks,
+  type ColumnDef,
+} from '../../shared/export/safe-excel-export';
 
 const MAINTENANCE_AUDIT_FIELDS = [
   'maintenanceType',
@@ -1211,8 +1215,8 @@ export class MaintenanceService {
             assetId: asset.assetId,
             name: `${asset.assetType?.name} - ${asset.brand?.name} ${asset.model?.name}`,
           },
-          maintenanceHistory: maintenanceHistory.map(
-            this.formatMaintenanceResponse,
+          maintenanceHistory: maintenanceHistory.map((m) =>
+            this.formatMaintenanceResponse(m),
           ),
           totalRecords: maintenanceHistory.length,
         },
@@ -1649,248 +1653,213 @@ export class MaintenanceService {
     }
   }
 
-  // Export maintenance records to Excel
-  async exportMaintenanceToExcel(queryDto: MaintenanceExportQueryDto) {
-    try {
-      const {
-        search,
-        status,
-        assetId,
-        maintenanceType,
-        scheduledDateFrom,
-        scheduledDateTo,
-        fromDate,
-        toDate,
-        sortBy = 'id',
-        sortOrder = 'desc',
-      } = queryDto;
+  // Export completed maintenance records to Excel (streaming, capped)
+  async exportMaintenanceToExcel(
+    queryDto: MaintenanceExportQueryDto,
+    res: Response,
+  ) {
+    const {
+      search,
+      status,
+      assetId,
+      maintenanceType,
+      scheduledDateFrom,
+      scheduledDateTo,
+      fromDate,
+      toDate,
+      sortBy = 'id',
+      sortOrder = 'desc',
+    } = queryDto;
 
-      // Build where clause
-      const where: Prisma.MaintenanceScheduleWhereInput = {
-        isActive: true,
-      };
+    // Always export completed records only (push filter into DB query)
+    const where: Prisma.MaintenanceScheduleWhereInput = {
+      isActive: true,
+      status: status || MaintenanceStatus.COMPLETED,
+      actualCompletionDate: { not: null },
+      cancellationDate: null,
+    };
 
-      if (search) {
-        where.OR = [
-          { description: { contains: search, mode: 'insensitive' } },
-          { completionNotes: { contains: search, mode: 'insensitive' } },
-          { cancellationNotes: { contains: search, mode: 'insensitive' } },
-          { asset: { assetId: { contains: search, mode: 'insensitive' } } },
-        ];
-      }
+    if (search) {
+      where.OR = [
+        { description: { contains: search, mode: 'insensitive' } },
+        { completionNotes: { contains: search, mode: 'insensitive' } },
+        { cancellationNotes: { contains: search, mode: 'insensitive' } },
+        { asset: { assetId: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
 
-      if (status) {
-        where.status = status;
-      }
+    if (assetId) {
+      where.assetId = assetId;
+    }
 
-      if (assetId) {
-        where.assetId = assetId;
-      }
+    if (maintenanceType) {
+      where.maintenanceType = maintenanceType;
+    }
 
-      if (maintenanceType) {
-        where.maintenanceType = maintenanceType;
-      }
+    const dateFrom = scheduledDateFrom || fromDate;
+    const dateTo = scheduledDateTo || toDate;
+    if (dateFrom || dateTo) {
+      const start = dateFrom ? new Date(dateFrom) : undefined;
+      const end = dateTo ? new Date(dateTo) : undefined;
+      if (end) end.setHours(23, 59, 59, 999);
 
-      const dateFrom = scheduledDateFrom || fromDate;
-      const dateTo = scheduledDateTo || toDate;
-      if (dateFrom || dateTo) {
-        const start = dateFrom ? new Date(dateFrom) : undefined;
-        const end = dateTo ? new Date(dateTo) : undefined;
-        if (end) end.setHours(23, 59, 59, 999);
-
-        const buildRange = (
-          field:
-            | 'scheduledDate'
-            | 'actualStartDate'
-            | 'actualCompletionDate'
-            | 'cancellationDate',
-        ) => ({
-          [field]: {
-            ...(start ? { gte: start } : {}),
-            ...(end ? { lte: end } : {}),
-          },
-        });
-
-        // Include records whose scheduled OR lifecycle dates fall in range (covers CANCELLED as well)
-        (where as any).AND = [
-          {
-            OR: [
-              buildRange('scheduledDate'),
-              buildRange('actualStartDate'),
-              buildRange('actualCompletionDate'),
-              buildRange('cancellationDate'),
-            ],
-          },
-        ];
-      }
-
-      // Build orderBy clause
-      const orderBy: any = {};
-      switch (sortBy) {
-        case 'scheduledDate':
-          orderBy.scheduledDate = sortOrder;
-          break;
-        case 'createdAt':
-          orderBy.createdAt = sortOrder;
-          break;
-        case 'status':
-          orderBy.status = sortOrder;
-          break;
-        case 'maintenanceType':
-          orderBy.maintenanceType = sortOrder;
-          break;
-        case 'estimatedCost':
-          orderBy.estimatedCost = sortOrder;
-          break;
-        case 'id':
-          orderBy.id = sortOrder;
-          break;
-        default:
-          orderBy.id = 'desc'; // Default to maintenance ID descending (bigger to smaller)
-      }
-
-      // Get all maintenance records with related data
-      const maintenanceRecords = await this.prisma.maintenanceSchedule.findMany(
-        {
-          where,
-          include: {
-            asset: {
-              include: {
-                assetType: {
-                  select: { name: true, specificationTemplate: true },
-                },
-                brand: { select: { name: true } },
-                model: { select: { name: true, specifications: true } },
-              },
-            },
-            createdByUser: { select: { id: true, username: true } },
-            updatedByUser: { select: { id: true, username: true } },
-          },
-          orderBy,
+      const buildRange = (
+        field:
+          | 'scheduledDate'
+          | 'actualStartDate'
+          | 'actualCompletionDate'
+          | 'cancellationDate',
+      ) => ({
+        [field]: {
+          ...(start ? { gte: start } : {}),
+          ...(end ? { lte: end } : {}),
         },
-      );
-
-      // Filter to only include COMPLETED records (has completion date, no cancellation date, and status is COMPLETED)
-      const completedRecords = maintenanceRecords.filter((record) => {
-        const isCompleted = record.status === 'COMPLETED';
-        const hasCompletionDate = !!record.actualCompletionDate;
-        const hasNoCancellationDate = !record.cancellationDate;
-
-        return isCompleted && hasCompletionDate && hasNoCancellationDate;
       });
 
-      // Prepare data for Excel export
-      const exportData = completedRecords.map((record) => [
-        record.id.toString(),
-        record.asset.assetId,
-        record.asset.assetType.name,
-        record.asset.brand.name,
-        record.asset.model.name,
-        record.asset.serialNumber,
-        record.maintenanceType,
-        record.description,
-        record.scheduledDate.toISOString().replace('T', ' ').split('.')[0],
-        record.actualStartDate
-          ? record.actualStartDate.toISOString().replace('T', ' ').split('.')[0]
+      (where as any).AND = [
+        {
+          OR: [
+            buildRange('scheduledDate'),
+            buildRange('actualStartDate'),
+            buildRange('actualCompletionDate'),
+            buildRange('cancellationDate'),
+          ],
+        },
+      ];
+    }
+
+    const orderBy: any = {};
+    switch (sortBy) {
+      case 'scheduledDate':
+        orderBy.scheduledDate = sortOrder;
+        break;
+      case 'createdAt':
+        orderBy.createdAt = sortOrder;
+        break;
+      case 'status':
+        orderBy.status = sortOrder;
+        break;
+      case 'maintenanceType':
+        orderBy.maintenanceType = sortOrder;
+        break;
+      case 'estimatedCost':
+        orderBy.estimatedCost = sortOrder;
+        break;
+      case 'id':
+        orderBy.id = sortOrder;
+        break;
+      default:
+        orderBy.id = 'desc';
+    }
+
+    const include = {
+      asset: {
+        include: {
+          assetType: {
+            select: { name: true, specificationTemplate: true },
+          },
+          brand: { select: { name: true } },
+          model: { select: { name: true, specifications: true } },
+        },
+      },
+      createdByUser: { select: { id: true, username: true } },
+      updatedByUser: { select: { id: true, username: true } },
+    } as const;
+
+    const columns: ColumnDef[] = [
+      { header: 'Maintenance ID', key: 'id', width: 15 },
+      { header: 'Asset ID', key: 'assetId', width: 12 },
+      { header: 'Asset Type', key: 'assetType', width: 15 },
+      { header: 'Asset Brand', key: 'assetBrand', width: 15 },
+      { header: 'Asset Model', key: 'assetModel', width: 15 },
+      { header: 'Serial Number', key: 'serialNumber', width: 20 },
+      { header: 'Maintenance Type', key: 'maintenanceType', width: 15 },
+      { header: 'Description', key: 'description', width: 40 },
+      { header: 'Scheduled Date', key: 'scheduledDate', width: 12 },
+      { header: 'Actual Start Date', key: 'actualStartDate', width: 12 },
+      { header: 'Actual Completion Date', key: 'actualCompletionDate', width: 12 },
+      { header: 'Cancellation Date', key: 'cancellationDate', width: 12 },
+      { header: 'Status', key: 'status', width: 12 },
+      { header: 'Frequency (Days)', key: 'frequencyDays', width: 12 },
+      { header: 'Estimated Cost', key: 'estimatedCost', width: 12 },
+      { header: 'Actual Cost', key: 'actualCost', width: 12 },
+      { header: 'Completion Notes', key: 'completionNotes', width: 40 },
+      { header: 'Cancellation Notes', key: 'cancellationNotes', width: 40 },
+      { header: 'Created By', key: 'createdBy', width: 15 },
+      { header: 'Updated By', key: 'updatedBy', width: 15 },
+      { header: 'Created At', key: 'createdAt', width: 12 },
+      { header: 'Updated At', key: 'updatedAt', width: 12 },
+    ];
+
+    const filename = `completed_maintenance_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    await streamRowsInChunks({
+      res,
+      filename,
+      sheetName: 'Completed Maintenance Report',
+      columns,
+      countFn: () => this.prisma.maintenanceSchedule.count({ where }),
+      fetchChunk: (skip, take) =>
+        this.prisma.maintenanceSchedule.findMany({
+          where,
+          include,
+          orderBy,
+          skip,
+          take,
+        }),
+      mapRow: (record) => ({
+        id: record.id.toString(),
+        assetId: record.asset.assetId,
+        assetType: record.asset.assetType.name,
+        assetBrand: record.asset.brand.name,
+        assetModel: record.asset.model.name,
+        serialNumber: record.asset.serialNumber,
+        maintenanceType: record.maintenanceType,
+        description: record.description,
+        scheduledDate: record.scheduledDate
+          .toISOString()
+          .replace('T', ' ')
+          .split('.')[0],
+        actualStartDate: record.actualStartDate
+          ? record.actualStartDate
+              .toISOString()
+              .replace('T', ' ')
+              .split('.')[0]
           : '',
-        record.actualCompletionDate
+        actualCompletionDate: record.actualCompletionDate
           ? record.actualCompletionDate
               .toISOString()
               .replace('T', ' ')
               .split('.')[0]
           : '',
-        record.cancellationDate
+        cancellationDate: record.cancellationDate
           ? record.cancellationDate
               .toISOString()
               .replace('T', ' ')
               .split('.')[0]
           : '',
-        record.status,
-        record.frequencyDays || '',
-        record.estimatedCost ? Number(record.estimatedCost).toFixed(2) : '',
-        record.actualCost ? Number(record.actualCost).toFixed(2) : '',
-        record.completionNotes || '',
-        record.cancellationNotes || '',
-        record.createdByUser?.username || 'System',
-        record.updatedByUser?.username || 'System',
-        record.createdAt.toISOString().replace('T', ' ').split('.')[0],
-        record.updatedAt.toISOString().replace('T', ' ').split('.')[0],
-      ]);
-
-      const headers = [
-        'Maintenance ID',
-        'Asset ID',
-        'Asset Type',
-        'Asset Brand',
-        'Asset Model',
-        'Serial Number',
-        'Maintenance Type',
-        'Description',
-        'Scheduled Date',
-        'Actual Start Date',
-        'Actual Completion Date',
-        'Cancellation Date',
-        'Status',
-        'Frequency (Days)',
-        'Estimated Cost',
-        'Actual Cost',
-        'Completion Notes',
-        'Cancellation Notes',
-        'Created By',
-        'Updated By',
-        'Created At',
-        'Updated At',
-      ];
-
-      // Create workbook and worksheet
-      const workbook = XLSX.utils.book_new();
-      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...exportData]);
-
-      // Set column widths
-      const columnWidths = [
-        { wch: 15 }, // Maintenance ID
-        { wch: 12 }, // Asset ID
-        { wch: 15 }, // Asset Type
-        { wch: 15 }, // Asset Brand
-        { wch: 15 }, // Asset Model
-        { wch: 20 }, // Serial Number
-        { wch: 15 }, // Maintenance Type
-        { wch: 40 }, // Description
-        { wch: 12 }, // Scheduled Date
-        { wch: 12 }, // Actual Start Date
-        { wch: 12 }, // Actual Completion Date
-        { wch: 12 }, // Cancellation Date
-        { wch: 12 }, // Status
-        { wch: 12 }, // Frequency
-        { wch: 12 }, // Estimated Cost
-        { wch: 12 }, // Actual Cost
-        { wch: 40 }, // Completion Notes
-        { wch: 40 }, // Cancellation Notes
-        { wch: 15 }, // Created By
-        { wch: 15 }, // Updated By
-        { wch: 12 }, // Created At
-        { wch: 12 }, // Updated At
-      ];
-      worksheet['!cols'] = columnWidths;
-
-      // Add worksheet to workbook
-      XLSX.utils.book_append_sheet(
-        workbook,
-        worksheet,
-        'Completed Maintenance Report',
-      );
-
-      // Generate Excel file
-      const excelBuffer = XLSX.write(workbook, {
-        type: 'buffer',
-        bookType: 'xlsx',
-      });
-
-      return excelBuffer;
-    } catch (error) {
-      console.error('Error exporting maintenance to Excel:', error);
-      throw new Error('Failed to export maintenance to Excel');
-    }
+        status: record.status,
+        frequencyDays: record.frequencyDays || '',
+        estimatedCost: record.estimatedCost
+          ? Number(record.estimatedCost).toFixed(2)
+          : '',
+        actualCost: record.actualCost
+          ? Number(record.actualCost).toFixed(2)
+          : '',
+        completionNotes: record.completionNotes || '',
+        cancellationNotes: record.cancellationNotes || '',
+        createdBy: record.createdByUser?.username || 'System',
+        updatedBy: record.updatedByUser?.username || 'System',
+        createdAt: record.createdAt
+          .toISOString()
+          .replace('T', ' ')
+          .split('.')[0],
+        updatedAt: record.updatedAt
+          .toISOString()
+          .replace('T', ' ')
+          .split('.')[0],
+      }),
+    });
   }
 
   /**

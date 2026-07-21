@@ -24,6 +24,8 @@ import {
   ApiBody,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { getExportErrorPayload } from '../../shared/export/safe-excel-export';
 import { EmployeesService } from './employees.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
@@ -337,6 +339,7 @@ export class EmployeesController {
   }
 
   @Get('export')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Export employees to Excel with asset details' })
   @ApiResponse({
     status: 200,
@@ -350,34 +353,27 @@ export class EmployeesController {
       },
     },
   })
+  @ApiResponse({
+    status: 400,
+    description: 'Export too large',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Another export is already in progress',
+  })
   async exportEmployeesToExcel(
     @Query() queryDto: QueryEmployeeDto,
     @Res() res: any,
   ) {
     try {
-      const excelBuffer =
-        await this.employeesService.exportEmployeesToExcel(queryDto);
-
-      // Set response headers
-      const filename = `employees_export_${new Date().toISOString().split('T')[0]}.xlsx`;
-      res.setHeader(
-        'Content-Type',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      );
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="${filename}"`,
-      );
-      res.setHeader('Content-Length', excelBuffer.length);
-
-      // Send the Excel file
-      res.send(excelBuffer);
+      await this.employeesService.exportEmployeesToExcel(queryDto, res);
     } catch (error) {
       console.error('Error exporting employees:', error);
-      res.status(500).json({
-        message: 'Failed to export employees',
-        error: error.message,
-      });
+      if (!res.headersSent) {
+        const { status, body } = getExportErrorPayload(error);
+        return res.status(status).json(body);
+      }
+      throw error;
     }
   }
 

@@ -22,6 +22,15 @@ import { EmployeeStatus, Prisma, AuditAction } from '@prisma/client';
 import * as XLSX from 'xlsx';
 import { AuditService } from '../audit/audit.service';
 import { pickFields } from '../audit/audit.util';
+import type { Response } from 'express';
+import {
+  assertExportRowLimit,
+  getExportChunkSize,
+  streamRowsInChunks,
+  withExportLock,
+  createStreamingWorkbook,
+  type ColumnDef,
+} from '../../shared/export/safe-excel-export';
 
 const EMPLOYEE_AUDIT_FIELDS = [
   'employeeId',
@@ -2054,209 +2063,235 @@ export class EmployeesService {
     throw new ConflictException('Employee with this email already exists');
   }
 
-  // Export employees to Excel with asset details
-  async exportEmployeesToExcel(queryDto: QueryEmployeeDto) {
-    try {
-      const {
-        search,
-        status,
-        hasAssets,
-        assetCountRange,
-        sortBy = 'firstName',
-        sortOrder = 'asc',
-      } = queryDto;
+  // Export employees to Excel with asset details (streaming, capped)
+  async exportEmployeesToExcel(queryDto: QueryEmployeeDto, res: Response) {
+    const {
+      search,
+      status,
+      hasAssets,
+      assetCountRange,
+      sortBy = 'firstName',
+      sortOrder = 'asc',
+    } = queryDto;
 
-      // Build where clause
-      const where: Prisma.EmployeeWhereInput = {};
+    const where: Prisma.EmployeeWhereInput = {};
 
-      if (search) {
-        const conditions = this.buildEmployeeSearchConditions(search);
-        if (conditions.length > 0) {
-          where.OR = conditions;
-        }
+    if (search) {
+      const conditions = this.buildEmployeeSearchConditions(search);
+      if (conditions.length > 0) {
+        where.OR = conditions;
       }
+    }
 
-      if (status) {
-        where.status = status;
+    if (status) {
+      where.status = status;
+    }
+
+    if (hasAssets !== undefined) {
+      if (hasAssets) {
+        where.assetIssues = { some: { returnDate: null } };
+      } else {
+        where.assetIssues = { none: { returnDate: null } };
       }
+    }
 
-      if (hasAssets !== undefined) {
-        if (hasAssets) {
-          where.assetIssues = { some: { returnDate: null } };
-        } else {
-          where.assetIssues = { none: { returnDate: null } };
-        }
-      }
+    const orderBy: any = {};
+    switch (sortBy) {
+      case 'name':
+        orderBy.firstName = sortOrder;
+        break;
+      case 'employeeId':
+        orderBy.employeeId = sortOrder;
+        break;
+      case 'email':
+        orderBy.email = sortOrder;
+        break;
+      case 'status':
+        orderBy.status = sortOrder;
+        break;
+      case 'createdAt':
+        orderBy.createdAt = sortOrder;
+        break;
+      default:
+        orderBy.firstName = 'asc';
+    }
 
-      // Note: assetCountRange filtering will be handled after fetching data
-
-      // Build orderBy clause
-      const orderBy: any = {};
-      switch (sortBy) {
-        case 'name':
-          orderBy.firstName = sortOrder;
-          break;
-        case 'employeeId':
-          orderBy.employeeId = sortOrder;
-          break;
-        case 'email':
-          orderBy.email = sortOrder;
-          break;
-        case 'status':
-          orderBy.status = sortOrder;
-          break;
-        case 'createdAt':
-          orderBy.createdAt = sortOrder;
-          break;
-        default:
-          orderBy.firstName = 'asc';
-      }
-
-      // Use the where clause as is since we removed assetCountRange assignment
-
-      // Get all employees with related data
-      let employees = await this.prisma.employee.findMany({
-        where,
+    const include = {
+      createdByUser: {
+        select: {
+          id: true,
+          username: true,
+          employee: { select: { firstName: true, lastName: true } },
+        },
+      },
+      updatedByUser: {
+        select: {
+          id: true,
+          username: true,
+          employee: { select: { firstName: true, lastName: true } },
+        },
+      },
+      assetIssues: {
+        where: { returnDate: null },
         include: {
-          createdByUser: {
-            select: {
-              id: true,
-              username: true,
-              employee: { select: { firstName: true, lastName: true } },
-            },
-          },
-          updatedByUser: {
-            select: {
-              id: true,
-              username: true,
-              employee: { select: { firstName: true, lastName: true } },
-            },
-          },
-          assetIssues: {
-            where: { returnDate: null }, // Only active assignments
+          asset: {
             include: {
-              asset: {
-                include: {
-                  assetType: { select: { name: true } },
-                  brand: { select: { name: true } },
-                  model: { select: { name: true } },
-                },
-              },
+              assetType: { select: { name: true } },
+              brand: { select: { name: true } },
+              model: { select: { name: true } },
             },
           },
         },
-        orderBy,
-      });
+      },
+    } as const;
 
-      // Filter by asset count range if specified
-      if (assetCountRange) {
-        employees = employees.filter((employee) => {
-          const assetCount = employee.assetIssues.length;
-          switch (assetCountRange) {
-            case '0':
-              return assetCount === 0;
-            case '1-2':
-              return assetCount >= 1 && assetCount <= 2;
-            case '3+':
-              return assetCount >= 3;
-            default:
-              return true;
-          }
-        });
+    const columns: ColumnDef[] = [
+      { header: 'Employee ID', key: 'employeeId', width: 12 },
+      { header: 'First Name', key: 'firstName', width: 15 },
+      { header: 'Last Name', key: 'lastName', width: 15 },
+      { header: 'Email', key: 'email', width: 25 },
+      { header: 'Phone', key: 'phone', width: 15 },
+      { header: 'Date of Birth', key: 'dateOfBirth', width: 12 },
+      { header: 'Address', key: 'address', width: 30 },
+      { header: 'Status', key: 'status', width: 10 },
+      { header: 'Number of Assets', key: 'assetCount', width: 15 },
+      { header: 'Asset Details', key: 'assetDetails', width: 50 },
+      { header: 'Created By', key: 'createdBy', width: 15 },
+      { header: 'Updated By', key: 'updatedBy', width: 15 },
+      { header: 'Created At', key: 'createdAt', width: 12 },
+      { header: 'Updated At', key: 'updatedAt', width: 12 },
+    ];
+
+    const filename = `employees_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    const matchesAssetCountRange = (assetCount: number): boolean => {
+      if (!assetCountRange) return true;
+      switch (assetCountRange) {
+        case '0':
+          return assetCount === 0;
+        case '1-2':
+          return assetCount >= 1 && assetCount <= 2;
+        case '3+':
+          return assetCount >= 3;
+        default:
+          return true;
       }
+    };
 
-      // Prepare data for Excel export
-      const exportData = employees.map((employee) => {
-        // Format asset details as requested: "del thinkpad (AST-0001)"
-        const assetDetails = employee.assetIssues
-          .map(
-            (issue) =>
-              `${issue.asset.brand.name} ${issue.asset.model.name} (${issue.asset.assetId})`,
-          )
-          .join('\n');
+    const mapEmployeeRow = (employee: any) => {
+      const assetDetails = employee.assetIssues
+        .map(
+          (issue: any) =>
+            `${issue.asset.brand.name} ${issue.asset.model.name} (${issue.asset.assetId})`,
+        )
+        .join('\n');
 
-        return [
-          employee.employeeId,
-          employee.firstName,
-          employee.lastName,
-          employee.email,
-          employee.phone || '',
-          employee.dateOfBirth
-            ? employee.dateOfBirth.toISOString().split('T')[0]
-            : '',
-          employee.address || '',
-          employee.status,
-          employee.assetIssues.length, // Number of assets
-          assetDetails, // Asset details in one cell
+      return {
+        employeeId: employee.employeeId,
+        firstName: employee.firstName,
+        lastName: employee.lastName,
+        email: employee.email,
+        phone: employee.phone || '',
+        dateOfBirth: employee.dateOfBirth
+          ? employee.dateOfBirth.toISOString().split('T')[0]
+          : '',
+        address: employee.address || '',
+        status: employee.status,
+        assetCount: employee.assetIssues.length,
+        assetDetails,
+        createdBy:
           (employee.createdByUser?.employee
             ? `${employee.createdByUser.employee.firstName} ${employee.createdByUser.employee.lastName}`.trim()
             : employee.createdByUser?.username) || 'System',
+        updatedBy:
           (employee.updatedByUser?.employee
             ? `${employee.updatedByUser.employee.firstName} ${employee.updatedByUser.employee.lastName}`.trim()
             : employee.updatedByUser?.username) || 'System',
-          employee.createdAt.toISOString().replace('T', ' ').split('.')[0],
-          employee.updatedAt.toISOString().replace('T', ' ').split('.')[0],
-        ];
+        createdAt: employee.createdAt
+          .toISOString()
+          .replace('T', ' ')
+          .split('.')[0],
+        updatedAt: employee.updatedAt
+          .toISOString()
+          .replace('T', ' ')
+          .split('.')[0],
+      };
+    };
+
+    // assetCountRange requires post-filter; do a chunked count pass then stream write
+    if (assetCountRange) {
+      await withExportLock(async () => {
+        const chunkSize = getExportChunkSize();
+        let matching = 0;
+        let skip = 0;
+        for (;;) {
+          const chunk = await this.prisma.employee.findMany({
+            where,
+            include,
+            orderBy,
+            skip,
+            take: chunkSize,
+          });
+          if (chunk.length === 0) break;
+          matching += chunk.filter((e) =>
+            matchesAssetCountRange(e.assetIssues.length),
+          ).length;
+          skip += chunkSize;
+          if (chunk.length < chunkSize) break;
+        }
+        assertExportRowLimit(matching);
+
+        const workbook = createStreamingWorkbook(res, filename);
+        const worksheet = workbook.addWorksheet('Employee Asset Report');
+        worksheet.columns = columns.map((c) => ({
+          header: c.header,
+          key: c.key,
+          width: c.width ?? 15,
+        }));
+
+        skip = 0;
+        for (;;) {
+          const chunk = await this.prisma.employee.findMany({
+            where,
+            include,
+            orderBy,
+            skip,
+            take: chunkSize,
+          });
+          if (chunk.length === 0) break;
+          for (const employee of chunk) {
+            if (!matchesAssetCountRange(employee.assetIssues.length)) continue;
+            const mapped = mapEmployeeRow(employee);
+            worksheet
+              .addRow(columns.map((c) => mapped[c.key as keyof typeof mapped]))
+              .commit();
+          }
+          skip += chunkSize;
+          if (chunk.length < chunkSize) break;
+        }
+
+        await worksheet.commit();
+        await workbook.commit();
       });
-
-      const headers = [
-        'Employee ID',
-        'First Name',
-        'Last Name',
-        'Email',
-        'Phone',
-        'Date of Birth',
-        'Address',
-        'Status',
-        'Number of Assets',
-        'Asset Details',
-        'Created By',
-        'Updated By',
-        'Created At',
-        'Updated At',
-      ];
-
-      // Create workbook and worksheet
-      const workbook = XLSX.utils.book_new();
-      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...exportData]);
-
-      // Set column widths
-      const columnWidths = [
-        { wch: 12 }, // Employee ID
-        { wch: 15 }, // First Name
-        { wch: 15 }, // Last Name
-        { wch: 25 }, // Email
-        { wch: 15 }, // Phone
-        { wch: 12 }, // Date of Birth
-        { wch: 30 }, // Address
-        { wch: 10 }, // Status
-        { wch: 15 }, // Number of Assets
-        { wch: 50 }, // Asset Details
-        { wch: 15 }, // Created By
-        { wch: 15 }, // Updated By
-        { wch: 12 }, // Created At
-        { wch: 12 }, // Updated At
-      ];
-      worksheet['!cols'] = columnWidths;
-
-      // Add worksheet to workbook
-      XLSX.utils.book_append_sheet(
-        workbook,
-        worksheet,
-        'Employee Asset Report',
-      );
-
-      // Generate Excel file
-      const excelBuffer = XLSX.write(workbook, {
-        type: 'buffer',
-        bookType: 'xlsx',
-      });
-
-      return excelBuffer;
-    } catch (error) {
-      console.error('Error exporting employees to Excel:', error);
-      throw new Error('Failed to export employees to Excel');
+      return;
     }
+
+    await streamRowsInChunks({
+      res,
+      filename,
+      sheetName: 'Employee Asset Report',
+      columns,
+      countFn: () => this.prisma.employee.count({ where }),
+      fetchChunk: (skip, take) =>
+        this.prisma.employee.findMany({
+          where,
+          include,
+          orderBy,
+          skip,
+          take,
+        }),
+      mapRow: mapEmployeeRow,
+    });
   }
 
   async getNonAdminEmployeesForDropdown() {

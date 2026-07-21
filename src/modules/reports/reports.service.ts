@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../core/database/prisma.service';
-import * as ExcelJS from 'exceljs';
 import type { Response } from 'express';
+import {
+  streamPreloadedRows,
+  type ColumnDef,
+} from '../../shared/export/safe-excel-export';
 
 export interface ReportFilters {
   reportType?: 'assets' | 'employees' | 'maintenance' | 'audit';
@@ -1019,155 +1022,119 @@ export class ReportsService {
     data: any[],
     reportType: string,
     res: Response,
-    filters?: ReportFilters,
+    _filters?: ReportFilters,
   ) {
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet(`${reportType} Report`);
-
-    // Set up headers based on report type
-    let headers: string[] = [];
+    let columns: ColumnDef[] = [];
+    let mapRow: (item: any) => unknown[];
 
     switch (reportType.toLowerCase()) {
       case 'asset inventory':
-        headers = [
-          'Asset ID',
-          'Type',
-          'Brand',
-          'Model',
-          'Serial Number',
-          'Status',
-          'Assigned To',
-          'Location',
-          'Purchase Date',
-          'Purchase Price',
-          'Vendor',
-          'Warranty Expiry',
+        columns = [
+          { header: 'Asset ID', key: 'assetId' },
+          { header: 'Type', key: 'type' },
+          { header: 'Brand', key: 'brand' },
+          { header: 'Model', key: 'model' },
+          { header: 'Serial Number', key: 'serialNumber' },
+          { header: 'Status', key: 'status' },
+          { header: 'Assigned To', key: 'assignedTo' },
+          { header: 'Location', key: 'location' },
+          { header: 'Purchase Date', key: 'purchaseDate' },
+          { header: 'Purchase Price', key: 'purchasePrice' },
+          { header: 'Vendor', key: 'vendor' },
+          { header: 'Warranty Expiry', key: 'warrantyExpiry' },
+        ];
+        mapRow = (item) => [
+          item.assetId,
+          item.type,
+          item.brand,
+          item.model,
+          item.serialNumber,
+          item.status,
+          item.assignedTo,
+          item.location,
+          item.purchaseDate,
+          item.purchasePrice,
+          item.vendor,
+          item.warrantyExpiry,
         ];
         break;
       case 'employee asset':
-        headers = [
-          'Employee Name',
-          'Email',
-          'Department',
-          'Position',
-          'Total Assets',
-          'Total Value',
-          'Asset Details',
-          'Specifications',
+        columns = [
+          { header: 'Employee Name', key: 'employeeName' },
+          { header: 'Email', key: 'email' },
+          { header: 'Department', key: 'department' },
+          { header: 'Position', key: 'position' },
+          { header: 'Total Assets', key: 'totalAssets' },
+          { header: 'Total Value', key: 'totalValue' },
+          { header: 'Asset Details', key: 'assetDetails' },
+          { header: 'Specifications', key: 'specifications' },
+        ];
+        mapRow = (item) => [
+          item.employeeName,
+          item.email,
+          item.department,
+          item.position,
+          item.totalAssetsAssigned,
+          item.totalAssetValue,
+          item.assets
+            .map(
+              (a: any) =>
+                `${a.type}: ${a.brand} ${a.model}${
+                  a.serialNumber ? ` (SN: ${a.serialNumber})` : ''
+                }`,
+            )
+            .join('; '),
+          item.assets
+            .map((a: any) => {
+              const header = `${a.assetId || a.type}`;
+              const specs = a.specifications || '';
+              return specs ? `${header} → ${specs}` : `${header} → -`;
+            })
+            .join(' | '),
         ];
         break;
       case 'maintenance':
-        headers = [
-          'Asset ID',
-          'Asset Type',
-          'Brand',
-          'Model',
-          'Maintenance Type',
-          'Description',
-          'Scheduled Date',
-          'Status',
-          'Cost',
-          'Vendor',
+        columns = [
+          { header: 'Asset ID', key: 'assetId' },
+          { header: 'Asset Type', key: 'assetType' },
+          { header: 'Brand', key: 'assetBrand' },
+          { header: 'Model', key: 'assetModel' },
+          { header: 'Maintenance Type', key: 'maintenanceType' },
+          { header: 'Description', key: 'description' },
+          { header: 'Scheduled Date', key: 'scheduledDate' },
+          { header: 'Status', key: 'status' },
+          { header: 'Cost', key: 'cost' },
+          { header: 'Vendor', key: 'vendor' },
+        ];
+        mapRow = (item) => [
+          item.assetId,
+          item.assetType,
+          item.assetBrand,
+          item.assetModel,
+          item.maintenanceType,
+          item.description,
+          item.scheduledDate,
+          item.status,
+          item.cost,
+          item.vendor,
         ];
         break;
       default:
-        headers = Object.keys(data[0] || {});
+        columns = Object.keys(data[0] || {}).map((key) => ({
+          header: key,
+          key,
+        }));
+        mapRow = (item) => Object.values(item);
     }
 
-    // Add headers
-    worksheet.addRow(headers);
-
-    // Style headers
-    const headerRow = worksheet.getRow(1);
-    headerRow.font = { bold: true, color: { argb: 'FFFFFF' } };
-    headerRow.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: '331FEA' }, // Using the purple from your design
-    };
-
-    // Add data rows
-    for (const item of data) {
-      let row: any[] = [];
-
-      switch (reportType.toLowerCase()) {
-        case 'asset inventory':
-          row = [
-            item.assetId,
-            item.type,
-            item.brand,
-            item.model,
-            item.serialNumber,
-            item.status,
-            item.assignedTo,
-            item.location,
-            item.purchaseDate,
-            item.purchasePrice,
-            item.vendor,
-            item.warrantyExpiry,
-          ];
-          break;
-        case 'employee asset':
-          row = [
-            item.employeeName,
-            item.email,
-            item.department,
-            item.position,
-            item.totalAssetsAssigned,
-            item.totalAssetValue,
-            item.assets
-              .map(
-                (a: any) =>
-                  `${a.type}: ${a.brand} ${a.model}${
-                    a.serialNumber ? ` (SN: ${a.serialNumber})` : ''
-                  }`,
-              )
-              .join('; '),
-            item.assets
-              .map((a: any) => {
-                const header = `${a.assetId || a.type}`;
-                const specs = a.specifications || '';
-                return specs ? `${header} → ${specs}` : `${header} → -`;
-              })
-              .join(' | '),
-          ];
-          break;
-        case 'maintenance':
-          row = [
-            item.assetId,
-            item.assetType,
-            item.assetBrand,
-            item.assetModel,
-            item.maintenanceType,
-            item.description,
-            item.scheduledDate,
-            item.status,
-            item.cost,
-            item.vendor,
-          ];
-          break;
-        default:
-          row = Object.values(item);
-      }
-
-      worksheet.addRow(row);
-    }
-
-    // Auto-fit columns
-    for (const column of worksheet.columns) {
-      column.width = 15;
-    }
-
-    // Set response headers
     const filename = `${reportType.replaceAll(' ', '_').toLowerCase()}_report_${new Date().toISOString().split('T')[0]}.xlsx`;
-    res.setHeader(
-      'Content-Type',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    );
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
-    // Write to response
-    await workbook.xlsx.write(res);
-    res.end();
+    await streamPreloadedRows(
+      res,
+      filename,
+      `${reportType} Report`,
+      columns,
+      data.map(mapRow),
+    );
   }
 }

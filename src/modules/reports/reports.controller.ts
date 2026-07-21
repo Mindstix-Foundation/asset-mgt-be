@@ -6,8 +6,13 @@ import {
   ApiBearerAuth,
   ApiQuery,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { ReportsService, type ReportFilters } from './reports.service';
+import {
+  assertExportRowLimit,
+  getExportErrorPayload,
+} from '../../shared/export/safe-excel-export';
 
 @ApiTags('reports')
 @ApiBearerAuth()
@@ -114,6 +119,7 @@ export class ReportsController {
   }
 
   @Post('export/asset-inventory')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Export asset inventory report to Excel' })
   @ApiResponse({
     status: 200,
@@ -123,16 +129,26 @@ export class ReportsController {
     @Body() filters: ReportFilters,
     @Res() res: Response,
   ) {
-    const data = await this.reportsService.getAssetInventoryReport(filters);
-    await this.reportsService.exportToExcel(
-      data,
-      'Asset Inventory',
-      res,
-      filters,
-    );
+    try {
+      const data = await this.reportsService.getAssetInventoryReport(filters);
+      assertExportRowLimit(data.length);
+      await this.reportsService.exportToExcel(
+        data,
+        'Asset Inventory',
+        res,
+        filters,
+      );
+    } catch (error) {
+      if (!res.headersSent) {
+        const { status, body } = getExportErrorPayload(error);
+        return res.status(status).json(body);
+      }
+      throw error;
+    }
   }
 
   @Post('export/employee-assets')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Export employee asset report to Excel' })
   @ApiResponse({
     status: 200,
@@ -142,16 +158,26 @@ export class ReportsController {
     @Body() filters: ReportFilters,
     @Res() res: Response,
   ) {
-    const data = await this.reportsService.getEmployeeAssetReport(filters);
-    await this.reportsService.exportToExcel(
-      data,
-      'Employee Asset',
-      res,
-      filters,
-    );
+    try {
+      const data = await this.reportsService.getEmployeeAssetReport(filters);
+      assertExportRowLimit(data.length);
+      await this.reportsService.exportToExcel(
+        data,
+        'Employee Asset',
+        res,
+        filters,
+      );
+    } catch (error) {
+      if (!res.headersSent) {
+        const { status, body } = getExportErrorPayload(error);
+        return res.status(status).json(body);
+      }
+      throw error;
+    }
   }
 
   @Post('export/maintenance')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Export maintenance report to Excel' })
   @ApiResponse({
     status: 200,
@@ -161,8 +187,17 @@ export class ReportsController {
     @Body() filters: ReportFilters,
     @Res() res: Response,
   ) {
-    const data = await this.reportsService.getMaintenanceReport(filters);
-    await this.reportsService.exportToExcel(data, 'Maintenance', res, filters);
+    try {
+      const data = await this.reportsService.getMaintenanceReport(filters);
+      assertExportRowLimit(data.length);
+      await this.reportsService.exportToExcel(data, 'Maintenance', res, filters);
+    } catch (error) {
+      if (!res.headersSent) {
+        const { status, body } = getExportErrorPayload(error);
+        return res.status(status).json(body);
+      }
+      throw error;
+    }
   }
 
   @Get('preview')

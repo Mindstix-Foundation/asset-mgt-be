@@ -67,7 +67,7 @@ async function bootstrap() {
         'X-Request-ID',
         'X-Fingerprint',
       ],
-      exposedHeaders: ['X-Request-ID'],
+      exposedHeaders: ['X-Request-ID', 'Content-Disposition'],
       maxAge: 86400, // 24 hours
     });
 

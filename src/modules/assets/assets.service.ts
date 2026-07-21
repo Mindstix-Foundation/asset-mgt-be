@@ -15,6 +15,11 @@ import {
 } from './dto';
 import { AssetEventType, Prisma, AuditAction } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
+import type { Response } from 'express';
+import {
+  streamRowsInChunks,
+  type ColumnDef,
+} from '../../shared/export/safe-excel-export';
 
 /**
  * Validation context for bulk upload processing
@@ -3609,247 +3614,222 @@ export class AssetsService {
     }
   }
 
-  async exportAssets(queryDto: AssetQueryDto) {
-    try {
-      const XLSX = require('xlsx');
+  async exportAssets(queryDto: AssetQueryDto, res: Response) {
+    const {
+      status,
+      assetTypeId,
+      brandId,
+      modelId,
+      search,
+      condition,
+      location,
+      sortBy = 'assetId',
+      sortOrder = 'asc',
+    } = queryDto;
 
-      // Get all assets with the same filtering logic as findAll
-      const {
-        status,
-        assetTypeId,
-        brandId,
-        modelId,
-        search,
-        condition,
-        location,
-        sortBy = 'assetId',
-        sortOrder = 'asc',
-      } = queryDto;
+    const where: any = {};
 
-      // Build where clause
-      const where: any = {};
+    if (status) {
+      where.status = status;
+    }
 
-      if (status) {
-        where.status = status;
-      }
+    if (assetTypeId) {
+      where.assetTypeId =
+        typeof assetTypeId === 'string'
+          ? Number.parseInt(assetTypeId)
+          : assetTypeId;
+    }
 
-      if (assetTypeId) {
-        where.assetTypeId =
-          typeof assetTypeId === 'string'
-            ? Number.parseInt(assetTypeId)
-            : assetTypeId;
-      }
+    if (brandId) {
+      where.brandId =
+        typeof brandId === 'string' ? Number.parseInt(brandId) : brandId;
+    }
 
-      if (brandId) {
-        where.brandId =
-          typeof brandId === 'string' ? Number.parseInt(brandId) : brandId;
-      }
+    if (modelId) {
+      where.modelId =
+        typeof modelId === 'string' ? Number.parseInt(modelId) : modelId;
+    }
 
-      if (modelId) {
-        where.modelId =
-          typeof modelId === 'string' ? Number.parseInt(modelId) : modelId;
-      }
+    if (condition) {
+      where.condition = condition;
+    }
 
-      if (condition) {
-        where.condition = condition;
-      }
+    if (location) {
+      where.location = location;
+    }
 
-      if (location) {
-        where.location = location;
-      }
+    if (search) {
+      where.OR = [
+        { assetId: { contains: search, mode: 'insensitive' } },
+        { serialNumber: { contains: search, mode: 'insensitive' } },
+        { notes: { contains: search, mode: 'insensitive' } },
+      ];
+    }
 
-      if (search) {
-        where.OR = [
-          { assetId: { contains: search, mode: 'insensitive' } },
-          { serialNumber: { contains: search, mode: 'insensitive' } },
-          { notes: { contains: search, mode: 'insensitive' } },
-        ];
-      }
+    const orderBy: any = {};
+    switch (sortBy) {
+      case 'assetId':
+        orderBy.assetId = sortOrder;
+        break;
+      case 'status':
+        orderBy.status = sortOrder;
+        break;
+      case 'condition':
+        orderBy.condition = sortOrder;
+        break;
+      case 'purchaseDate':
+        orderBy.purchaseDate = sortOrder;
+        break;
+      case 'createdAt':
+        orderBy.createdAt = sortOrder;
+        break;
+      case 'updatedAt':
+        orderBy.updatedAt = sortOrder;
+        break;
+      default:
+        orderBy.assetId = 'asc';
+    }
 
-      // Build orderBy clause
-      const orderBy: any = {};
-      switch (sortBy) {
-        case 'assetId':
-          orderBy.assetId = sortOrder;
-          break;
-        case 'status':
-          orderBy.status = sortOrder;
-          break;
-        case 'condition':
-          orderBy.condition = sortOrder;
-          break;
-        case 'purchaseDate':
-          orderBy.purchaseDate = sortOrder;
-          break;
-        case 'createdAt':
-          orderBy.createdAt = sortOrder;
-          break;
-        case 'updatedAt':
-          orderBy.updatedAt = sortOrder;
-          break;
-        default:
-          orderBy.assetId = 'asc';
-      }
-
-      // Get all assets with related data
-      const assets = await this.prisma.asset.findMany({
-        where,
-        include: {
-          assetType: {
+    const include = {
+      assetType: {
+        select: {
+          id: true,
+          name: true,
+          category: { select: { id: true, name: true } },
+        },
+      },
+      brand: { select: { id: true, name: true } },
+      model: { select: { id: true, name: true } },
+      vendor: { select: { id: true, name: true } },
+      createdByUser: {
+        select: {
+          id: true,
+          username: true,
+          employee: { select: { firstName: true, lastName: true } },
+        },
+      },
+      updatedByUser: {
+        select: {
+          id: true,
+          username: true,
+          employee: { select: { firstName: true, lastName: true } },
+        },
+      },
+      assetIssues: {
+        where: { returnDate: null },
+        select: {
+          id: true,
+          issueDate: true,
+          issueReason: true,
+          notes: true,
+          employee: {
             select: {
               id: true,
-              name: true,
-              category: { select: { id: true, name: true } },
-            },
-          },
-          brand: { select: { id: true, name: true } },
-          model: { select: { id: true, name: true } },
-          vendor: { select: { id: true, name: true } },
-          createdByUser: {
-            select: {
-              id: true,
-              username: true,
-              employee: { select: { firstName: true, lastName: true } },
-            },
-          },
-          updatedByUser: {
-            select: {
-              id: true,
-              username: true,
-              employee: { select: { firstName: true, lastName: true } },
-            },
-          },
-          assetIssues: {
-            where: { returnDate: null }, // Only active assignments
-            select: {
-              id: true,
-              issueDate: true,
-              issueReason: true,
-              notes: true,
-              employee: {
-                select: {
-                  id: true,
-                  employeeId: true,
-                  firstName: true,
-                  lastName: true,
-                },
-              },
+              employeeId: true,
+              firstName: true,
+              lastName: true,
             },
           },
         },
-        orderBy,
-      });
+      },
+    } as const;
 
-      // Prepare data for Excel export
-      const exportData = assets.map((asset) => ({
-        'Asset ID': asset.assetId,
-        'Serial Number': asset.serialNumber || '',
-        Category: asset.assetType?.category?.name || '',
-        'Asset Type': asset.assetType?.name || '',
-        Brand: asset.brand?.name || '',
-        Model: asset.model?.name || '',
-        Vendor: asset.vendor?.name || '',
-        Status: asset.status,
-        Condition: asset.condition,
-        Location: asset.location || '',
-        'Assigned To':
+    const columns: ColumnDef[] = [
+      { header: 'Asset ID', key: 'assetId', width: 12 },
+      { header: 'Serial Number', key: 'serialNumber', width: 15 },
+      { header: 'Category', key: 'category', width: 15 },
+      { header: 'Asset Type', key: 'assetType', width: 15 },
+      { header: 'Brand', key: 'brand', width: 12 },
+      { header: 'Model', key: 'model', width: 15 },
+      { header: 'Vendor', key: 'vendor', width: 15 },
+      { header: 'Status', key: 'status', width: 12 },
+      { header: 'Condition', key: 'condition', width: 12 },
+      { header: 'Location', key: 'location', width: 20 },
+      { header: 'Assigned To', key: 'assignedTo', width: 25 },
+      { header: 'Purchase Date', key: 'purchaseDate', width: 12 },
+      { header: 'Purchase Cost', key: 'purchaseCost', width: 15 },
+      { header: 'Warranty Start', key: 'warrantyStart', width: 12 },
+      { header: 'Warranty End', key: 'warrantyEnd', width: 12 },
+      { header: 'Notes', key: 'notes', width: 30 },
+      { header: 'Retirement Date', key: 'retirementDate', width: 12 },
+      { header: 'Retirement Reason', key: 'retirementReason', width: 20 },
+      { header: 'Reactivation Date', key: 'reactivationDate', width: 12 },
+      { header: 'Reactivation Reason', key: 'reactivationReason', width: 20 },
+      { header: 'Created By', key: 'createdBy', width: 15 },
+      { header: 'Created At', key: 'createdAt', width: 20 },
+      { header: 'Updated By', key: 'updatedBy', width: 15 },
+      { header: 'Updated At', key: 'updatedAt', width: 20 },
+    ];
+
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `assets_export_${timestamp}.xlsx`;
+
+    await streamRowsInChunks({
+      res,
+      filename,
+      sheetName: 'Assets',
+      columns,
+      countFn: () => this.prisma.asset.count({ where }),
+      fetchChunk: (skip, take) =>
+        this.prisma.asset.findMany({
+          where,
+          include,
+          orderBy,
+          skip,
+          take,
+        }),
+      mapRow: (asset) => ({
+        assetId: asset.assetId,
+        serialNumber: asset.serialNumber || '',
+        category: asset.assetType?.category?.name || '',
+        assetType: asset.assetType?.name || '',
+        brand: asset.brand?.name || '',
+        model: asset.model?.name || '',
+        vendor: asset.vendor?.name || '',
+        status: asset.status,
+        condition: asset.condition,
+        location: asset.location || '',
+        assignedTo:
           asset.assetIssues && asset.assetIssues.length > 0
             ? `${asset.assetIssues[0].employee.firstName} ${asset.assetIssues[0].employee.lastName} (${asset.assetIssues[0].employee.employeeId})`
             : 'Unassigned',
-        'Purchase Date': asset.purchaseDate
+        purchaseDate: asset.purchaseDate
           ? new Date(asset.purchaseDate).toLocaleDateString('en-GB')
           : '',
-        'Purchase Cost': asset.purchaseCost
+        purchaseCost: asset.purchaseCost
           ? `₹${asset.purchaseCost.toLocaleString()}`
           : '',
-        'Warranty Start': asset.warrantyStartDate
+        warrantyStart: asset.warrantyStartDate
           ? new Date(asset.warrantyStartDate).toLocaleDateString('en-GB')
           : '',
-        'Warranty End': asset.warrantyEndDate
+        warrantyEnd: asset.warrantyEndDate
           ? new Date(asset.warrantyEndDate).toLocaleDateString('en-GB')
           : '',
-        Notes: asset.notes || '',
-        'Retirement Date': asset.retirementDate
+        notes: asset.notes || '',
+        retirementDate: asset.retirementDate
           ? new Date(asset.retirementDate).toLocaleDateString('en-GB')
           : '',
-        'Retirement Reason': asset.retirementReason || '',
-        'Reactivation Date': asset.reactivationDate
+        retirementReason: asset.retirementReason || '',
+        reactivationDate: asset.reactivationDate
           ? new Date(asset.reactivationDate).toLocaleDateString('en-GB')
           : '',
-        'Reactivation Reason': asset.reactivationReason || '',
-        'Created By':
+        reactivationReason: asset.reactivationReason || '',
+        createdBy:
           (asset.createdByUser?.employee
             ? `${asset.createdByUser.employee.firstName} ${asset.createdByUser.employee.lastName}`.trim()
             : asset.createdByUser?.username) || '',
-        'Created At': asset.createdAt
+        createdAt: asset.createdAt
           ? new Date(asset.createdAt).toLocaleString('en-GB')
           : '',
-        'Updated By':
+        updatedBy:
           (asset.updatedByUser?.employee
             ? `${asset.updatedByUser.employee.firstName} ${asset.updatedByUser.employee.lastName}`.trim()
             : asset.updatedByUser?.username) || '',
-        'Updated At': asset.updatedAt
+        updatedAt: asset.updatedAt
           ? new Date(asset.updatedAt).toLocaleString('en-GB')
           : '',
-      }));
-
-      // Create workbook and worksheet
-      const workbook = XLSX.utils.book_new();
-      const worksheet = XLSX.utils.json_to_sheet(exportData);
-
-      // Set column widths for better readability
-      const columnWidths = [
-        { wch: 12 }, // Asset ID
-        { wch: 15 }, // Serial Number
-        { wch: 15 }, // Category
-        { wch: 15 }, // Asset Type
-        { wch: 12 }, // Brand
-        { wch: 15 }, // Model
-        { wch: 15 }, // Vendor
-        { wch: 12 }, // Status
-        { wch: 12 }, // Condition
-        { wch: 20 }, // Location
-        { wch: 25 }, // Assigned To
-        { wch: 12 }, // Purchase Date
-        { wch: 15 }, // Purchase Cost
-        { wch: 12 }, // Warranty Start
-        { wch: 12 }, // Warranty End
-        { wch: 30 }, // Notes
-        { wch: 12 }, // Retirement Date
-        { wch: 20 }, // Retirement Reason
-        { wch: 12 }, // Reactivation Date
-        { wch: 20 }, // Reactivation Reason
-        { wch: 15 }, // Created By
-        { wch: 20 }, // Created At
-        { wch: 15 }, // Updated By
-        { wch: 20 }, // Updated At
-      ];
-      worksheet['!cols'] = columnWidths;
-
-      // Add worksheet to workbook
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Assets');
-
-      // Generate Excel file buffer
-      const excelBuffer = XLSX.write(workbook, {
-        type: 'buffer',
-        bookType: 'xlsx',
-      });
-
-      // Generate filename with timestamp
-      const timestamp = new Date().toISOString().split('T')[0];
-      const filename = `assets_export_${timestamp}.xlsx`;
-
-      return {
-        message: 'Assets exported successfully',
-        data: {
-          filename,
-          buffer: excelBuffer,
-          count: assets.length,
-        },
-      };
-    } catch (error) {
-      throw new BadRequestException(`Export failed: ${error.message}`);
-    }
+      }),
+    });
   }
 
   /**

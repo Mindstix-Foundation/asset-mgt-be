@@ -18,6 +18,8 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { getExportErrorPayload } from '../../shared/export/safe-excel-export';
 import { MaintenanceService } from './maintenance.service';
 import { CreateMaintenanceDto } from './dto/create-maintenance.dto';
 import { UpdateMaintenanceDto } from './dto/update-maintenance.dto';
@@ -95,6 +97,7 @@ export class MaintenanceController {
   }
 
   @Get('export')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Export completed maintenance records to Excel' })
   @ApiResponse({
     status: 200,
@@ -109,34 +112,27 @@ export class MaintenanceController {
       },
     },
   })
+  @ApiResponse({
+    status: 400,
+    description: 'Export too large',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Another export is already in progress',
+  })
   async exportMaintenanceToExcel(
     @Query() queryDto: MaintenanceExportQueryDto,
     @Res() res: any,
   ) {
     try {
-      const excelBuffer =
-        await this.maintenanceService.exportMaintenanceToExcel(queryDto);
-
-      // Set response headers
-      const filename = `completed_maintenance_export_${new Date().toISOString().split('T')[0]}.xlsx`;
-      res.setHeader(
-        'Content-Type',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      );
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="${filename}"`,
-      );
-      res.setHeader('Content-Length', excelBuffer.length);
-
-      // Send the Excel file
-      res.send(excelBuffer);
+      await this.maintenanceService.exportMaintenanceToExcel(queryDto, res);
     } catch (error) {
       console.error('Error exporting maintenance:', error);
-      res.status(500).json({
-        message: 'Failed to export maintenance',
-        error: error.message,
-      });
+      if (!res.headersSent) {
+        const { status, body } = getExportErrorPayload(error);
+        return res.status(status).json(body);
+      }
+      throw error;
     }
   }
 

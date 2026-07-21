@@ -28,6 +28,8 @@ import {
 } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
+import { Throttle } from '@nestjs/throttler';
+import { getExportErrorPayload } from '../../shared/export/safe-excel-export';
 import { AssetsService } from './assets.service';
 import { AssetIdService } from './asset-id.service';
 import {
@@ -302,6 +304,7 @@ export class AssetsController {
   }
 
   @Get('export')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({
     summary: 'Export assets to Excel file with filtering support',
   })
@@ -375,11 +378,15 @@ export class AssetsController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Bad Request - Invalid query parameters',
+    description: 'Bad Request - Invalid query parameters or export too large',
   })
   @ApiResponse({
     status: 401,
     description: 'Unauthorized - User authentication required',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Another export is already in progress',
   })
   async exportAssets(
     @Query() queryDto: AssetQueryDto,
@@ -394,26 +401,13 @@ export class AssetsController {
     }
 
     try {
-      const result = await this.assetsService.exportAssets(queryDto);
-
-      // Set response headers for file download
-      res.setHeader(
-        'Content-Type',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      );
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="${result.data.filename}"`,
-      );
-      res.setHeader('Content-Length', result.data.buffer.length);
-
-      // Send the Excel file buffer
-      res.send(result.data.buffer);
+      await this.assetsService.exportAssets(queryDto, res);
     } catch (error) {
-      res.status(400).json({
-        message: 'Export failed',
-        error: error.message,
-      });
+      if (!res.headersSent) {
+        const { status, body } = getExportErrorPayload(error);
+        return res.status(status).json(body);
+      }
+      throw error;
     }
   }
 
