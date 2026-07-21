@@ -23,7 +23,7 @@
 #
 # Health: hit http://<EC2-private-IP>:8080/healthz  (the ALB target)
 #
-# Image tags use :latest for EC2 deploy simplicity. Rebuild on each release.
+# Image tags use yyyymmdd-X-Y-Z (currently 20260721-1-0-1). Bump package.json + these tags together on each release — do not use latest.
 # ==============================================================================
 
 name: asset-mgt
@@ -35,7 +35,7 @@ services:
     build:
       context: ../
       dockerfile: docker/backend/Dockerfile
-    image: asset-mgt-backend:latest
+    image: asset-mgt-backend:20260721-1-0-1
     container_name: asset-mgt-backend
     restart: unless-stopped
     environment:
@@ -84,7 +84,7 @@ services:
       dockerfile: ../../asset-mgt-be/docker/frontend/Dockerfile
       args:
         VITE_API_BASE_URL: ${ASST_TRACKER_FRONTEND_VITE_API_BASE_URL:-/api}
-    image: asset-mgt-frontend:latest
+    image: asset-mgt-frontend:20260721-1-0-1
     container_name: asset-mgt-frontend
     restart: unless-stopped
     expose:

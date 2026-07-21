@@ -13,7 +13,7 @@
 #   cp .env.example .env       # then edit secrets
 #   docker compose up -d --build
 #
-# Image tags are semver in this file (currently 1.0.0). Bump on each release — do not use latest.
+# Image tags use yyyymmdd-X-Y-Z (currently 20260721-1-0-1). Bump package.json + these tags together on each release — do not use latest.
 # ==============================================================================
 
 version: "3.9"
@@ -44,7 +44,7 @@ services:
     build:
       context: ../
       dockerfile: docker/backend/Dockerfile
-    image: asset-mgt-backend:latest
+    image: asset-mgt-backend:20260721-1-0-1
     container_name: asset-mgt-backend
     restart: unless-stopped
     depends_on:
@@ -81,7 +81,7 @@ services:
       dockerfile: ../../asset-mgt-be/docker/frontend/Dockerfile
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
-    image: asset-mgt-frontend:latest
+    image: asset-mgt-frontend:20260721-1-0-1
     container_name: asset-mgt-frontend
     restart: unless-stopped
     expose:
