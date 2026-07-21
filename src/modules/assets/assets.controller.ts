@@ -54,8 +54,9 @@ export class AssetsController {
     status: 200,
     description: 'Next asset ID generated successfully',
   })
-  async generateAssetId() {
-    const assetId = await this.assetIdService.generateNextAssetId();
+  async generateAssetId(@Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    const assetId = await this.assetIdService.generateNextAssetId(tenantId);
     return {
       message: 'Asset ID generated successfully',
       data: { assetId },
@@ -93,10 +94,13 @@ export class AssetsController {
   })
   async checkSerialNumberUnique(
     @Query('serialNumber') serialNumber: string,
+    @Request() req: any,
     @Query('excludeAssetId') excludeAssetId?: string,
   ) {
+    const tenantId = req.user.tenantId as number;
     return this.assetsService.checkSerialNumberUnique(
       serialNumber,
+      tenantId,
       excludeAssetId,
     );
   }
@@ -120,7 +124,8 @@ export class AssetsController {
       );
     }
     const userId = req.user.id;
-    return this.assetsService.create(createAssetDto, userId);
+    const tenantId = req.user.tenantId as number;
+    return this.assetsService.create(createAssetDto, userId, tenantId);
   }
 
   @Get()
@@ -190,8 +195,9 @@ export class AssetsController {
     description: 'Sort order (asc, desc)',
   })
   @ApiResponse({ status: 200, description: 'Assets retrieved successfully' })
-  async findAll(@Query() queryDto: AssetQueryDto) {
-    return this.assetsService.findAll(queryDto);
+  async findAll(@Query() queryDto: AssetQueryDto, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.assetsService.findAll(queryDto, tenantId);
   }
 
   @Get('stats')
@@ -213,8 +219,9 @@ export class AssetsController {
       },
     },
   })
-  async getAssetStats() {
-    return this.assetsService.getAssetStats();
+  async getAssetStats(@Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.assetsService.getAssetStats(tenantId);
   }
 
   @Get('unique-specifications')
@@ -251,10 +258,13 @@ export class AssetsController {
   async getUniqueSpecifications(
     @Query('assetTypeId') assetTypeId: string,
     @Query('brandId') brandId: string,
+    @Request() req: any,
   ) {
+    const tenantId = req.user.tenantId as number;
     return this.assetsService.getUniqueSpecifications(
       Number.parseInt(assetTypeId),
       Number.parseInt(brandId),
+      tenantId,
     );
   }
 
@@ -292,11 +302,14 @@ export class AssetsController {
   async getSpecificationValues(
     @Query('assetTypeId') assetTypeId: string,
     @Query('key') key: string,
+    @Request() req: any,
     @Query('search') search?: string,
   ) {
+    const tenantId = req.user.tenantId as number;
     return this.assetsService.getSpecificationValues(
       Number.parseInt(assetTypeId),
       key,
+      tenantId,
       search,
     );
   }
@@ -394,7 +407,8 @@ export class AssetsController {
     }
 
     try {
-      const result = await this.assetsService.exportAssets(queryDto);
+      const tenantId = req.user.tenantId as number;
+      const result = await this.assetsService.exportAssets(queryDto, tenantId);
 
       // Set response headers for file download
       res.setHeader(
@@ -492,8 +506,9 @@ export class AssetsController {
       },
     },
   })
-  async searchAssets(@Query() queryDto: any) {
-    return this.assetsService.searchAssets(queryDto);
+  async searchAssets(@Query() queryDto: any, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.assetsService.searchAssets(queryDto, tenantId);
   }
 
   @Get('dropdowns')
@@ -554,8 +569,9 @@ export class AssetsController {
       },
     },
   })
-  async getAssetsForDropdowns(@Query() query: any) {
-    return this.assetsService.getAssetsForDropdowns(query);
+  async getAssetsForDropdowns(@Query() query: any, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.assetsService.getAssetsForDropdowns(query, tenantId);
   }
 
   @Get('available')
@@ -653,8 +669,9 @@ export class AssetsController {
       },
     },
   })
-  async findAvailableAssets(@Query() queryDto: AssetQueryDto) {
-    return this.assetsService.findAvailableAssets(queryDto);
+  async findAvailableAssets(@Query() queryDto: AssetQueryDto, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.assetsService.findAvailableAssets(queryDto, tenantId);
   }
 
   @Get('deletable')
@@ -732,8 +749,9 @@ export class AssetsController {
     status: 200,
     description: 'Deletable assets retrieved successfully',
   })
-  async findDeletableAssets(@Query() queryDto: AssetQueryDto) {
-    return this.assetsService.findDeletableAssets(queryDto);
+  async findDeletableAssets(@Query() queryDto: AssetQueryDto, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.assetsService.findDeletableAssets(queryDto, tenantId);
   }
 
   @Get(':id')
@@ -741,8 +759,9 @@ export class AssetsController {
   @ApiParam({ name: 'id', description: 'Asset ID' })
   @ApiResponse({ status: 200, description: 'Asset retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Asset not found' })
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.assetsService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.assetsService.findOne(id, tenantId);
   }
 
   @Put(':id')
@@ -769,7 +788,8 @@ export class AssetsController {
       );
     }
     const userId = req.user.id;
-    return this.assetsService.update(id, updateAssetDto, userId);
+    const tenantId = req.user.tenantId as number;
+    return this.assetsService.update(id, updateAssetDto, userId, tenantId);
   }
 
   @Delete(':id')
@@ -784,7 +804,8 @@ export class AssetsController {
       'Cannot delete asset with active assignments or maintenance schedules',
   })
   async remove(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
-    return this.assetsService.remove(id, req.user?.id ?? req.user?.userId);
+    const tenantId = req.user.tenantId as number;
+    return this.assetsService.remove(id, req.user?.id ?? req.user?.userId, tenantId);
   }
 
   @Post('bulk-delete')
@@ -840,8 +861,9 @@ export class AssetsController {
     status: 400,
     description: 'Invalid request - at least one asset ID is required',
   })
-  async bulkDelete(@Body() bulkDeleteDto: BulkDeleteAssetDto) {
-    return this.assetsService.bulkDelete(bulkDeleteDto.assetIds);
+  async bulkDelete(@Body() bulkDeleteDto: BulkDeleteAssetDto, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.assetsService.bulkDelete(bulkDeleteDto.assetIds, tenantId);
   }
 
   @Put(':id/retire')
@@ -885,7 +907,8 @@ export class AssetsController {
       );
     }
     const userId = req.user.id;
-    return this.assetsService.retireAsset(id, retireAssetDto, userId);
+    const tenantId = req.user.tenantId as number;
+    return this.assetsService.retireAsset(id, retireAssetDto, userId, tenantId);
   }
 
   @Put(':id/reactivate')
@@ -930,7 +953,8 @@ export class AssetsController {
       );
     }
     const userId = req.user.id;
-    return this.assetsService.reactivateAsset(id, reactivateAssetDto, userId);
+    const tenantId = req.user.tenantId as number;
+    return this.assetsService.reactivateAsset(id, reactivateAssetDto, userId, tenantId);
   }
 
   @Post('validate-bulk-upload')
@@ -1008,7 +1032,8 @@ export class AssetsController {
       );
     }
     const userId = req.user.id;
-    return this.assetsService.validateBulkUpload(file, userId);
+    const tenantId = req.user.tenantId as number;
+    return this.assetsService.validateBulkUpload(file, userId, tenantId);
   }
 
   @Post('bulk-upload')
@@ -1081,7 +1106,8 @@ export class AssetsController {
       );
     }
     const userId = req.user.id;
+    const tenantId = req.user.tenantId as number;
     const isValidateOnly = validateOnly === 'true';
-    return this.assetsService.bulkUpload(file, userId, isValidateOnly);
+    return this.assetsService.bulkUpload(file, userId, tenantId, isValidateOnly);
   }
 }

@@ -6,7 +6,7 @@ import { GenerateReportDto } from './dto';
 export class AssetReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async generateReport(generateReportDto: GenerateReportDto) {
+  async generateReport(generateReportDto: GenerateReportDto, tenantId: number) {
     const { reportType, format, title, ...filters } = generateReportDto;
 
     try {
@@ -18,28 +18,28 @@ export class AssetReportsService {
 
       switch (reportType) {
         case 'assets':
-          ({ data, headers } = await this.generateAssetsReport(filters));
+          ({ data, headers } = await this.generateAssetsReport(filters, tenantId));
           break;
         case 'assignments':
-          ({ data, headers } = await this.generateAssignmentsReport(filters));
+          ({ data, headers } = await this.generateAssignmentsReport(filters, tenantId));
           break;
         case 'asset-categories':
-          ({ data, headers } = await this.generateAssetCategoriesReport());
+          ({ data, headers } = await this.generateAssetCategoriesReport(tenantId));
           break;
         case 'asset-types':
-          ({ data, headers } = await this.generateAssetTypesReport());
+          ({ data, headers } = await this.generateAssetTypesReport(tenantId));
           break;
         case 'brands':
-          ({ data, headers } = await this.generateBrandsReport());
+          ({ data, headers } = await this.generateBrandsReport(tenantId));
           break;
         case 'models':
-          ({ data, headers } = await this.generateModelsReport());
+          ({ data, headers } = await this.generateModelsReport(tenantId));
           break;
         case 'employees':
-          ({ data, headers } = await this.generateEmployeesReport());
+          ({ data, headers } = await this.generateEmployeesReport(tenantId));
           break;
         case 'vendors':
-          ({ data, headers } = await this.generateVendorsReport());
+          ({ data, headers } = await this.generateVendorsReport(tenantId));
           break;
         default:
           throw new BadRequestException(
@@ -98,8 +98,8 @@ export class AssetReportsService {
     }
   }
 
-  private async generateAssetsReport(filters: any) {
-    const where: any = {};
+  private async generateAssetsReport(filters: any, tenantId: number) {
+    const where: any = { tenantId };
 
     if (filters.assetTypeId) where.assetTypeId = filters.assetTypeId;
     if (filters.brandId) where.brandId = filters.brandId;
@@ -168,8 +168,8 @@ export class AssetReportsService {
     return { data, headers };
   }
 
-  private async generateAssignmentsReport(filters: any) {
-    const where: any = {};
+  private async generateAssignmentsReport(filters: any, tenantId: number) {
+    const where: any = { tenantId };
 
     if (filters.active !== undefined) {
       where.returnDate = filters.active ? null : { not: null };
@@ -245,8 +245,9 @@ export class AssetReportsService {
     return { data, headers };
   }
 
-  private async generateAssetCategoriesReport() {
+  private async generateAssetCategoriesReport(tenantId: number) {
     const categories = await this.prisma.assetCategory.findMany({
+      where: { tenantId },
       include: {
         createdByUser: { select: { username: true } },
         _count: { select: { assetTypes: true } },
@@ -275,8 +276,9 @@ export class AssetReportsService {
     return { data, headers };
   }
 
-  private async generateAssetTypesReport() {
+  private async generateAssetTypesReport(tenantId: number) {
     const assetTypes = await this.prisma.assetType.findMany({
+      where: { tenantId },
       include: {
         category: { select: { name: true } },
         createdByUser: { select: { username: true } },
@@ -310,8 +312,9 @@ export class AssetReportsService {
     return { data, headers };
   }
 
-  private async generateBrandsReport() {
+  private async generateBrandsReport(tenantId: number) {
     const brands = await this.prisma.brand.findMany({
+      where: { tenantId },
       include: {
         createdByUser: { select: { username: true } },
         _count: { select: { assets: true, models: true } },
@@ -342,8 +345,9 @@ export class AssetReportsService {
     return { data, headers };
   }
 
-  private async generateModelsReport() {
+  private async generateModelsReport(tenantId: number) {
     const models = await this.prisma.model.findMany({
+      where: { tenantId },
       include: {
         brand: { select: { name: true } },
         assetType: { select: { name: true } },
@@ -378,8 +382,9 @@ export class AssetReportsService {
     return { data, headers };
   }
 
-  private async generateEmployeesReport() {
+  private async generateEmployeesReport(tenantId: number) {
     const employees = await this.prisma.employee.findMany({
+      where: { tenantId },
       include: {
         createdByUser: { select: { username: true } },
         _count: { select: { assetIssues: true } },
@@ -420,8 +425,9 @@ export class AssetReportsService {
     return { data, headers };
   }
 
-  private async generateVendorsReport() {
+  private async generateVendorsReport(tenantId: number) {
     const vendors = await this.prisma.vendor.findMany({
+      where: { tenantId },
       include: {
         createdByUser: { select: { username: true } },
         _count: { select: { assets: true } },

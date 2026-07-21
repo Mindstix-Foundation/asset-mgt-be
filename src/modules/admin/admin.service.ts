@@ -20,7 +20,7 @@ export class AdminService {
     private readonly auditService: AuditService,
   ) {}
 
-  async getAdminUsers() {
+  async getAdminUsers(tenantId: number) {
     try {
       // Get ADMIN role ID
       const adminRole = await this.prisma.role.findFirst({
@@ -33,6 +33,7 @@ export class AdminService {
 
       const users = await this.prisma.user.findMany({
         where: {
+          tenantId,
           userRoles: {
             some: {
               roleId: adminRole.id,
@@ -77,7 +78,7 @@ export class AdminService {
     }
   }
 
-  async createAdminUser(createAdminDto: CreateAdminDto, currentUserId: number) {
+  async createAdminUser(createAdminDto: CreateAdminDto, currentUserId: number, tenantId: number) {
     try {
       const {
         employeeId,
@@ -86,19 +87,20 @@ export class AdminService {
         roles = ['ADMIN'],
       } = createAdminDto;
 
-      // Check if employee exists
-      const employee = await this.prisma.employee.findUnique({
-        where: { id: employeeId },
+      // Check if employee exists (scoped to tenant)
+      const employee = await this.prisma.employee.findFirst({
+        where: { id: employeeId, tenantId },
       });
 
       if (!employee) {
         throw new NotFoundException('Employee not found');
       }
 
-      // Check if employee is already an admin
+      // Check if employee is already an admin within this tenant
       const existingAdmin = await this.prisma.user.findFirst({
         where: {
           employeeId: employee.id,
+          tenantId,
           roles: {
             has: 'ADMIN',
           },
@@ -130,12 +132,13 @@ export class AdminService {
         throw new BadRequestException('ADMIN role not found in system');
       }
 
-      // Create admin user
+      // Create admin user (scoped to tenant)
       const adminUser = await this.prisma.user.create({
         data: {
           username,
           passwordHash: hashedPassword,
           employeeId: employee.id,
+          tenantId,
           roles: roles, // Keep for backward compatibility
           isActive: true,
           createdBy: currentUserId,
@@ -168,6 +171,7 @@ export class AdminService {
         recordId: adminUser.id,
         action: AuditAction.INSERT,
         userId: currentUserId,
+        tenantId,
         entityLabel: adminUser.username,
         summary: `Created admin user ${adminUser.username}`,
         after: {
@@ -198,6 +202,7 @@ export class AdminService {
     id: number,
     updateStatusDto: UpdateAdminStatusDto,
     currentUserId: number,
+    tenantId: number,
   ) {
     try {
       const { isActive } = updateStatusDto;
@@ -218,10 +223,11 @@ export class AdminService {
         throw new BadRequestException('ADMIN role not found in system');
       }
 
-      // Check if admin user exists (regardless of current role assignment active state)
+      // Check if admin user exists within this tenant (regardless of current role assignment active state)
       const adminUser = await this.prisma.user.findFirst({
         where: {
           id,
+          tenantId,
           userRoles: {
             some: {
               roleId: adminRole.id,
@@ -275,6 +281,7 @@ export class AdminService {
         recordId: updatedUser.id,
         action: AuditAction.UPDATE,
         userId: currentUserId,
+        tenantId,
         entityLabel: updatedUser.username,
         summary: `${isActive ? 'Activated' : 'Deactivated'} admin user ${updatedUser.username}`,
         changes: [
@@ -301,11 +308,11 @@ export class AdminService {
     }
   }
 
-  async removeAdminUser(id: number, currentUserId: number) {
+  async removeAdminUser(id: number, currentUserId: number, tenantId: number) {
     try {
-      // First check if user exists at all
-      const user = await this.prisma.user.findUnique({
-        where: { id },
+      // First check if user exists within this tenant
+      const user = await this.prisma.user.findFirst({
+        where: { id, tenantId },
         include: {
           employee: true,
           userRoles: {
@@ -371,6 +378,7 @@ export class AdminService {
         recordId: id,
         action: AuditAction.DELETE,
         userId: currentUserId,
+        tenantId,
         entityLabel: user.username,
         summary: `Removed admin user ${user.username}`,
         before: { username: user.username, isActive: user.isActive },

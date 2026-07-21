@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, Request } from '@nestjs/common';
 
 import {
   ApiTags,
@@ -58,7 +58,8 @@ export class AssetReportsController {
     status: 401,
     description: 'Unauthorized - Invalid or missing JWT token',
   })
-  async generateReport(@Body() generateReportDto: GenerateReportDto) {
-    return this.assetReportsService.generateReport(generateReportDto);
+  async generateReport(@Body() generateReportDto: GenerateReportDto, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.assetReportsService.generateReport(generateReportDto, tenantId);
   }
 }

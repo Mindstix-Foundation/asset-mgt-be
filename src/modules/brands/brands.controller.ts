@@ -70,7 +70,8 @@ export class BrandsController {
       );
     }
     const userId = req.user.id;
-    return this.brandsService.create(createBrandDto, userId);
+    const tenantId = req.user.tenantId as number;
+    return this.brandsService.create(createBrandDto, userId, tenantId);
   }
 
   @Get()
@@ -134,8 +135,9 @@ export class BrandsController {
       },
     },
   })
-  async findAll(@Query() queryDto: BrandQueryDto) {
-    return this.brandsService.findAll(queryDto);
+  async findAll(@Query() queryDto: BrandQueryDto, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.brandsService.findAll(queryDto, tenantId);
   }
 
   @Get(':id')
@@ -193,8 +195,9 @@ export class BrandsController {
     },
   })
   @ApiResponse({ status: 404, description: 'Brand not found' })
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.brandsService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.brandsService.findOne(id, tenantId);
   }
 
   @Delete(':id')
@@ -216,6 +219,7 @@ export class BrandsController {
     description: 'Cannot delete brand with associated models or assets',
   })
   async remove(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
-    return this.brandsService.remove(id, req.user?.id ?? req.user?.userId);
+    const tenantId = req.user.tenantId as number;
+    return this.brandsService.remove(id, req.user?.id ?? req.user?.userId, tenantId);
   }
 }

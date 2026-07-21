@@ -9,6 +9,8 @@ export class EmployeeResponseDto {
   phone?: string;
   dateOfBirth?: string;
   address?: string;
+  designationId?: number | null;
+  designation?: { id: number; name: string } | null;
   status: EmployeeStatus;
   createdAt: string;
   updatedAt: string;

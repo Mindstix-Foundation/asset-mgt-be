@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
+const SEED_TENANT_ID = 1;
 
 async function seedAssetCategoriesAndTypes() {
   console.log('🌱 Starting asset categories and types seed (UPDATED with proper structure)...');
@@ -215,11 +216,12 @@ async function seedAssetCategoriesAndTypes() {
   
   for (const [categoryName, categoryDesc] of Object.entries(categories)) {
     await prisma.assetCategory.upsert({
-      where: { name: categoryName },
+      where: { tenantId_name: { tenantId: SEED_TENANT_ID, name: categoryName } },
       update: {},
       create: {
         name: categoryName,
         description: categoryDesc,
+        tenantId: SEED_TENANT_ID,
         createdBy: adminUser.id,
         updatedBy: adminUser.id,
       },
@@ -241,7 +243,8 @@ async function seedAssetCategoriesAndTypes() {
     if (category) {
       await prisma.assetType.upsert({
         where: {
-          name_categoryId: {
+          tenantId_name_categoryId: {
+            tenantId: SEED_TENANT_ID,
             name: assetTypeData.name,
             categoryId: category.id,
           },
@@ -252,6 +255,7 @@ async function seedAssetCategoriesAndTypes() {
           description: assetTypeData.description,
           categoryId: category.id,
           isActive: true,
+          tenantId: SEED_TENANT_ID,
           createdBy: adminUser.id,
           updatedBy: adminUser.id,
         },
@@ -266,11 +270,12 @@ async function seedAssetCategoriesAndTypes() {
   
   for (const brandData of brandsData) {
     await prisma.brand.upsert({
-      where: { name: brandData.name },
+      where: { tenantId_name: { tenantId: SEED_TENANT_ID, name: brandData.name } },
       update: {},
       create: {
         name: brandData.name,
         description: brandData.description,
+        tenantId: SEED_TENANT_ID,
         createdBy: adminUser.id,
         updatedBy: adminUser.id,
       },
@@ -296,7 +301,8 @@ async function seedAssetCategoriesAndTypes() {
     if (brand && assetType) {
       await prisma.model.upsert({
         where: {
-          name_brandId_assetTypeId: {
+          tenantId_name_brandId_assetTypeId: {
+            tenantId: SEED_TENANT_ID,
             name: modelData.name,
             brandId: brand.id,
             assetTypeId: assetType.id,
@@ -307,6 +313,7 @@ async function seedAssetCategoriesAndTypes() {
           name: modelData.name,
           brandId: brand.id,
           assetTypeId: assetType.id,
+          tenantId: SEED_TENANT_ID,
           specifications: { description: modelData.description },
           createdBy: adminUser.id,
           updatedBy: adminUser.id,

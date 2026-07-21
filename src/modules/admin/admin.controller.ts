@@ -38,8 +38,9 @@ export class AdminController {
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
-  async getAdminUsers() {
-    return this.adminService.getAdminUsers();
+  async getAdminUsers(@Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.adminService.getAdminUsers(tenantId);
   }
 
   @Post('users')
@@ -53,7 +54,8 @@ export class AdminController {
     @Body() createAdminDto: CreateAdminDto,
     @Request() req: any,
   ) {
-    return this.adminService.createAdminUser(createAdminDto, req.user.id);
+    const tenantId = req.user.tenantId as number;
+    return this.adminService.createAdminUser(createAdminDto, req.user.id, tenantId);
   }
 
   @Patch('users/:id/status')
@@ -72,10 +74,12 @@ export class AdminController {
     @Body() updateStatusDto: UpdateAdminStatusDto,
     @Request() req: any,
   ) {
+    const tenantId = req.user.tenantId as number;
     return this.adminService.updateAdminStatus(
       Number.parseInt(id, 10),
       updateStatusDto,
       req.user.id,
+      tenantId,
     );
   }
 
@@ -91,9 +95,11 @@ export class AdminController {
   @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
   @ApiResponse({ status: 404, description: 'Admin user not found' })
   async removeAdminUser(@Param('id') id: string, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
     return this.adminService.removeAdminUser(
       Number.parseInt(id, 10),
       req.user.id,
+      tenantId,
     );
   }
 }

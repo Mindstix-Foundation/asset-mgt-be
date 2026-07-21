@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Request, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -21,7 +21,8 @@ export class AuditController {
   @Get()
   @ApiOperation({ summary: 'Get paginated audit logs (admin only)' })
   @ApiResponse({ status: 200, description: 'Audit logs retrieved successfully' })
-  findAll(@Query() query: QueryAuditLogDto) {
-    return this.auditService.findAll(query);
+  findAll(@Query() query: QueryAuditLogDto, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.auditService.findAll(query, tenantId);
   }
 }

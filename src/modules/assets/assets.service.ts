@@ -52,7 +52,7 @@ export class AssetsService {
     return `${asset.assetId} ${brand} ${model}`.trim() || asset.assetId;
   }
 
-  async checkSerialNumberUnique(serialNumber: string, excludeAssetId?: string) {
+  async checkSerialNumberUnique(serialNumber: string, tenantId: number, excludeAssetId?: string) {
     if (!serialNumber?.trim()) {
       throw new BadRequestException('Serial number is required');
     }
@@ -82,6 +82,7 @@ export class AssetsService {
     ];
 
     const where: any = {
+      tenantId,
       OR: serialNumberConditions,
     };
 
@@ -112,13 +113,14 @@ export class AssetsService {
   }
 
   /**
-   * Validate and generate asset ID
+   * Validate and generate asset ID scoped to tenant
    */
   private async validateAndGenerateAssetId(
+    tenantId: number,
     providedAssetId?: string,
   ): Promise<string> {
     if (!providedAssetId) {
-      return await this.assetIdService.generateNextAssetId();
+      return await this.assetIdService.generateNextAssetId(tenantId);
     }
 
     // Validate provided asset ID format
@@ -128,8 +130,8 @@ export class AssetsService {
       );
     }
 
-    // Check if provided asset ID already exists
-    if (await this.assetIdService.assetIdExists(providedAssetId)) {
+    // Check if provided asset ID already exists within tenant
+    if (await this.assetIdService.assetIdExists(tenantId, providedAssetId)) {
       throw new ConflictException('Asset ID already exists');
     }
 
@@ -137,20 +139,21 @@ export class AssetsService {
   }
 
   /**
-   * Validate foreign key references
+   * Validate foreign key references scoped to tenant
    */
   private async validateForeignKeys(
     createAssetDto: CreateAssetDto,
+    tenantId: number,
   ): Promise<{ assetType: any; brand: any; model: any; vendor: any }> {
     const [assetType, brand, model, vendor] = await Promise.all([
-      this.prisma.assetType.findUnique({
-        where: { id: createAssetDto.assetTypeId },
+      this.prisma.assetType.findFirst({
+        where: { id: createAssetDto.assetTypeId, tenantId },
       }),
-      this.prisma.brand.findUnique({ where: { id: createAssetDto.brandId } }),
-      this.prisma.model.findUnique({ where: { id: createAssetDto.modelId } }),
+      this.prisma.brand.findFirst({ where: { id: createAssetDto.brandId, tenantId } }),
+      this.prisma.model.findFirst({ where: { id: createAssetDto.modelId, tenantId } }),
       createAssetDto.vendorId
-        ? this.prisma.vendor.findUnique({
-            where: { id: createAssetDto.vendorId },
+        ? this.prisma.vendor.findFirst({
+            where: { id: createAssetDto.vendorId, tenantId },
           })
         : Promise.resolve(null),
     ]);
@@ -190,6 +193,7 @@ export class AssetsService {
     createAssetDto: CreateAssetDto,
     assetId: string,
     userId: number,
+    tenantId: number,
     assetType: any,
     brand: any,
     model: any,
@@ -198,6 +202,7 @@ export class AssetsService {
     const asset = await this.prisma.asset.create({
       data: {
         ...createAssetDto,
+        tenantId,
         assetId, // Use generated or validated asset ID
         serialNumber: createAssetDto.serialNumber
           ? createAssetDto.serialNumber.trim()
@@ -236,6 +241,7 @@ export class AssetsService {
     // Log asset creation event
     await this.prisma.assetEvent.create({
       data: {
+        tenantId,
         assetId: asset.id,
         eventType: AssetEventType.ASSET_CREATED,
         eventDate: new Date(),
@@ -261,6 +267,7 @@ export class AssetsService {
       recordId: asset.id,
       action: AuditAction.INSERT,
       userId,
+      tenantId,
       entityLabel: this.assetEntityLabel(asset),
       summary: `Created asset ${asset.assetId}`,
       after: {
@@ -355,16 +362,17 @@ export class AssetsService {
     throw error;
   }
 
-  async create(createAssetDto: CreateAssetDto, userId: number) {
+  async create(createAssetDto: CreateAssetDto, userId: number, tenantId: number) {
     try {
-      // Generate or validate asset ID
+      // Generate or validate asset ID (scoped to tenant)
       const assetId = await this.validateAndGenerateAssetId(
+        tenantId,
         createAssetDto.assetId,
       );
 
-      // Validate foreign key references
+      // Validate foreign key references (scoped to tenant)
       const { assetType, brand, model, vendor } =
-        await this.validateForeignKeys(createAssetDto);
+        await this.validateForeignKeys(createAssetDto, tenantId);
 
       // Validate model relationships
       this.validateModelRelationships(model, createAssetDto);
@@ -374,6 +382,7 @@ export class AssetsService {
         createAssetDto,
         assetId,
         userId,
+        tenantId,
         assetType,
         brand,
         model,
@@ -486,7 +495,7 @@ export class AssetsService {
     }
   }
 
-  async findAll(queryDto: AssetQueryDto) {
+  async findAll(queryDto: AssetQueryDto, tenantId: number) {
     const {
       page = 1,
       limit = 10,
@@ -509,6 +518,7 @@ export class AssetsService {
     const skip = (page - 1) * limit;
 
     const where: any = {
+      tenantId,
       ...this.buildSearchFilter(search),
       ...this.buildSimpleFilters(
         assetTypeId,
@@ -582,9 +592,9 @@ export class AssetsService {
     };
   }
 
-  async findOne(id: number) {
-    const asset = await this.prisma.asset.findUnique({
-      where: { id },
+  async findOne(id: number, tenantId: number) {
+    const asset = await this.prisma.asset.findFirst({
+      where: { id, tenantId },
       select: {
         id: true,
         assetId: true,
@@ -677,6 +687,7 @@ export class AssetsService {
   private async validateAssetIdForUpdate(
     assetId: string,
     currentAssetId: number,
+    tenantId: number,
   ): Promise<void> {
     if (!this.assetIdService.validateAssetIdFormat(assetId)) {
       throw new BadRequestException(
@@ -684,9 +695,10 @@ export class AssetsService {
       );
     }
 
-    // Check if provided asset ID already exists (excluding current asset)
+    // Check if provided asset ID already exists (excluding current asset, within tenant)
     const existingAsset = await this.prisma.asset.findFirst({
       where: {
+        tenantId,
         assetId: assetId,
         id: { not: currentAssetId },
       },
@@ -703,6 +715,7 @@ export class AssetsService {
   private async validateSerialNumberForUpdate(
     serialNumber: string,
     currentAssetId: number,
+    tenantId: number,
   ): Promise<void> {
     if (!serialNumber?.trim()) {
       // Serial number is optional, so empty is valid
@@ -735,6 +748,7 @@ export class AssetsService {
     ];
 
     const where: any = {
+      tenantId,
       OR: serialNumberConditions,
       id: { not: currentAssetId }, // Exclude current asset
     };
@@ -752,10 +766,11 @@ export class AssetsService {
   }
 
   /**
-   * Validate foreign key references for update operations
+   * Validate foreign key references for update operations (scoped to tenant)
    */
   private async validateForeignKeysForUpdate(
     updateAssetDto: UpdateAssetDto,
+    tenantId: number,
   ): Promise<void> {
     if (
       !updateAssetDto.assetTypeId &&
@@ -772,8 +787,8 @@ export class AssetsService {
     if (updateAssetDto.assetTypeId) {
       verifications.push({
         check: () =>
-          this.prisma.assetType.findUnique({
-            where: { id: updateAssetDto.assetTypeId },
+          this.prisma.assetType.findFirst({
+            where: { id: updateAssetDto.assetTypeId, tenantId },
           }),
         error: 'Asset type not found',
       });
@@ -781,8 +796,8 @@ export class AssetsService {
     if (updateAssetDto.brandId) {
       verifications.push({
         check: () =>
-          this.prisma.brand.findUnique({
-            where: { id: updateAssetDto.brandId },
+          this.prisma.brand.findFirst({
+            where: { id: updateAssetDto.brandId, tenantId },
           }),
         error: 'Brand not found',
       });
@@ -790,8 +805,8 @@ export class AssetsService {
     if (updateAssetDto.modelId) {
       verifications.push({
         check: () =>
-          this.prisma.model.findUnique({
-            where: { id: updateAssetDto.modelId },
+          this.prisma.model.findFirst({
+            where: { id: updateAssetDto.modelId, tenantId },
           }),
         error: 'Model not found',
       });
@@ -799,8 +814,8 @@ export class AssetsService {
     if (updateAssetDto.vendorId) {
       verifications.push({
         check: () =>
-          this.prisma.vendor.findUnique({
-            where: { id: updateAssetDto.vendorId },
+          this.prisma.vendor.findFirst({
+            where: { id: updateAssetDto.vendorId, tenantId },
           }),
         error: 'Vendor not found',
       });
@@ -817,9 +832,9 @@ export class AssetsService {
   /**
    * Get current asset data for update operations
    */
-  private async getCurrentAssetForUpdate(id: number): Promise<any> {
-    const currentAsset = await this.prisma.asset.findUnique({
-      where: { id },
+  private async getCurrentAssetForUpdate(id: number, tenantId: number): Promise<any> {
+    const currentAsset = await this.prisma.asset.findFirst({
+      where: { id, tenantId },
       select: {
         status: true,
         condition: true,
@@ -886,6 +901,7 @@ export class AssetsService {
     id: number,
     updateAssetDto: UpdateAssetDto,
     userId: number,
+    tenantId: number,
     currentAsset: any,
   ): Promise<any> {
     const asset = await this.prisma.asset.update({
@@ -924,7 +940,7 @@ export class AssetsService {
     });
 
     // Log audit changes
-    await this.logAssetChanges(id, currentAsset, updateAssetDto, userId);
+    await this.logAssetChanges(id, currentAsset, updateAssetDto, userId, tenantId);
 
     return asset;
   }
@@ -947,11 +963,11 @@ export class AssetsService {
     throw error;
   }
 
-  async update(id: number, updateAssetDto: UpdateAssetDto, userId: number) {
+  async update(id: number, updateAssetDto: UpdateAssetDto, userId: number, tenantId: number) {
     try {
       // Validate assetId format if being updated
       if (updateAssetDto.assetId) {
-        await this.validateAssetIdForUpdate(updateAssetDto.assetId, id);
+        await this.validateAssetIdForUpdate(updateAssetDto.assetId, id, tenantId);
       }
 
       // Validate serial number uniqueness if being updated
@@ -959,14 +975,15 @@ export class AssetsService {
         await this.validateSerialNumberForUpdate(
           updateAssetDto.serialNumber,
           id,
+          tenantId,
         );
       }
 
-      // Validate foreign key references
-      await this.validateForeignKeysForUpdate(updateAssetDto);
+      // Validate foreign key references (scoped to tenant)
+      await this.validateForeignKeysForUpdate(updateAssetDto, tenantId);
 
       // Get current asset data
-      const currentAsset = await this.getCurrentAssetForUpdate(id);
+      const currentAsset = await this.getCurrentAssetForUpdate(id, tenantId);
 
       // Validate asset condition
       this.validateAssetCondition(updateAssetDto, currentAsset);
@@ -976,6 +993,7 @@ export class AssetsService {
         id,
         updateAssetDto,
         userId,
+        tenantId,
         currentAsset,
       );
 
@@ -1327,6 +1345,7 @@ export class AssetsService {
     userId: number,
     resolvedChanges: any[],
     changes: any[],
+    tenantId: number,
   ): Promise<void> {
     // Get asset details for metadata
     const asset = await this.prisma.asset.findUnique({
@@ -1342,6 +1361,7 @@ export class AssetsService {
     // Create a single ASSET_UPDATED event with all changes in metadata
     await this.prisma.assetEvent.create({
       data: {
+        tenantId,
         assetId: assetId,
         eventType: AssetEventType.ASSET_UPDATED,
         eventDate: new Date(),
@@ -1364,6 +1384,7 @@ export class AssetsService {
       recordId: assetId,
       action: AuditAction.UPDATE,
       userId,
+      tenantId,
       entityLabel: asset ? this.assetEntityLabel(asset) : `Asset #${assetId}`,
       summary: `Updated asset ${asset?.assetId ?? assetId}`,
       changes: resolvedChanges.map((change: any) => ({
@@ -1388,6 +1409,7 @@ export class AssetsService {
     currentAsset: any,
     updateData: UpdateAssetDto,
     userId: number,
+    tenantId?: number,
     changeReason?: string,
     notes?: string,
   ): Promise<void> {
@@ -1422,15 +1444,16 @@ export class AssetsService {
         userId,
         resolvedChanges,
         changes,
+        tenantId ?? 0,
       );
     }
   }
 
-  async remove(id: number, userId: number) {
+  async remove(id: number, userId: number, tenantId: number) {
     try {
       // Check for asset deletion eligibility - only 3 criteria
-      const assetWithChecks = await this.prisma.asset.findUnique({
-        where: { id },
+      const assetWithChecks = await this.prisma.asset.findFirst({
+        where: { id, tenantId },
         include: {
           // Check for any assignment history (never been assigned)
           _count: {
@@ -1477,6 +1500,7 @@ export class AssetsService {
         recordId: id,
         action: AuditAction.DELETE,
         userId,
+        tenantId,
         entityLabel: assetWithChecks.assetId,
         summary: `Deleted asset ${assetWithChecks.assetId}`,
         before: {
@@ -1502,7 +1526,7 @@ export class AssetsService {
     }
   }
 
-  async bulkDelete(assetIds: number[]) {
+  async bulkDelete(assetIds: number[], tenantId: number) {
     const results: Array<{
       id: number;
       assetId: string | null;
@@ -1514,9 +1538,9 @@ export class AssetsService {
 
     for (const id of assetIds) {
       try {
-        // Check for asset deletion eligibility - same 3 criteria as single delete
-        const assetWithChecks = await this.prisma.asset.findUnique({
-          where: { id },
+        // Check for asset deletion eligibility - same 3 criteria as single delete (scoped to tenant)
+        const assetWithChecks = await this.prisma.asset.findFirst({
+          where: { id, tenantId },
           include: {
             _count: {
               select: {
@@ -1610,7 +1634,7 @@ export class AssetsService {
     };
   }
 
-  async getAssetStats() {
+  async getAssetStats(tenantId: number) {
     const [
       totalAssets,
       nonAssigned,
@@ -1620,13 +1644,13 @@ export class AssetsService {
       lost,
       donated,
     ] = await Promise.all([
-      this.prisma.asset.count(),
-      this.prisma.asset.count({ where: { status: 'NON_ASSIGNED' } }),
-      this.prisma.asset.count({ where: { status: 'ASSIGNED' } }),
-      this.prisma.asset.count({ where: { status: 'IN_MAINTENANCE' } }),
-      this.prisma.asset.count({ where: { status: 'RETIRED' } }),
-      this.prisma.asset.count({ where: { status: 'LOST' } }),
-      this.prisma.asset.count({ where: { status: 'DONATED' } }),
+      this.prisma.asset.count({ where: { tenantId } }),
+      this.prisma.asset.count({ where: { tenantId, status: 'NON_ASSIGNED' } }),
+      this.prisma.asset.count({ where: { tenantId, status: 'ASSIGNED' } }),
+      this.prisma.asset.count({ where: { tenantId, status: 'IN_MAINTENANCE' } }),
+      this.prisma.asset.count({ where: { tenantId, status: 'RETIRED' } }),
+      this.prisma.asset.count({ where: { tenantId, status: 'LOST' } }),
+      this.prisma.asset.count({ where: { tenantId, status: 'DONATED' } }),
     ]);
 
     return {
@@ -1729,9 +1753,10 @@ export class AssetsService {
     };
   }
 
-  async getUniqueSpecifications(assetTypeId: number, brandId: number) {
+  async getUniqueSpecifications(assetTypeId: number, brandId: number, tenantId: number) {
     const assets = await this.prisma.asset.findMany({
       where: {
+        tenantId,
         assetTypeId,
         brandId,
         model: {
@@ -1781,6 +1806,7 @@ export class AssetsService {
   async getSpecificationValues(
     assetTypeId: number,
     key: string,
+    tenantId: number,
     search?: string,
   ) {
     if (!assetTypeId || !key) {
@@ -1800,24 +1826,26 @@ export class AssetsService {
         SELECT DISTINCT specifications->>'${sanitizedKey}' AS val
         FROM assets
         WHERE asset_type_id = $1
+          AND tenant_id = $3
           AND specifications->>'${sanitizedKey}' IS NOT NULL
           AND specifications->>'${sanitizedKey}' != ''
           AND specifications->>'${sanitizedKey}' ILIKE $2
         ORDER BY val
         LIMIT 20
       `;
-      params = [assetTypeId, `%${search.trim()}%`];
+      params = [assetTypeId, `%${search.trim()}%`, tenantId];
     } else {
       query = `
         SELECT DISTINCT specifications->>'${sanitizedKey}' AS val
         FROM assets
         WHERE asset_type_id = $1
+          AND tenant_id = $2
           AND specifications->>'${sanitizedKey}' IS NOT NULL
           AND specifications->>'${sanitizedKey}' != ''
         ORDER BY val
         LIMIT 20
       `;
-      params = [assetTypeId];
+      params = [assetTypeId, tenantId];
     }
 
     const results = await this.prisma.$queryRawUnsafe<{ val: string }[]>(
@@ -1833,7 +1861,7 @@ export class AssetsService {
     };
   }
 
-  async findAvailableAssets(queryDto: AssetQueryDto) {
+  async findAvailableAssets(queryDto: AssetQueryDto, tenantId: number) {
     const {
       page = 1,
       limit = 10,
@@ -1849,6 +1877,7 @@ export class AssetsService {
     const skip = (page - 1) * limit;
 
     const where: any = {
+      tenantId,
       status: 'NON_ASSIGNED', // Only non-assigned assets
     };
 
@@ -1907,7 +1936,7 @@ export class AssetsService {
     };
   }
 
-  async findDeletableAssets(queryDto: AssetQueryDto) {
+  async findDeletableAssets(queryDto: AssetQueryDto, tenantId: number) {
     const {
       page = 1,
       limit = 10,
@@ -1926,6 +1955,7 @@ export class AssetsService {
     const skip = (page - 1) * limit;
 
     const where: any = {
+      tenantId,
       // Only NON_ASSIGNED assets
       status: 'NON_ASSIGNED',
       // No assignment history
@@ -2013,7 +2043,7 @@ export class AssetsService {
     };
   }
 
-  async searchAssets(queryDto: any) {
+  async searchAssets(queryDto: any, tenantId: number) {
     const {
       q,
       page = 1,
@@ -2049,7 +2079,7 @@ export class AssetsService {
       orConditions.push({ location: { in: matchedLocations } });
     }
 
-    const where: any = { OR: orConditions };
+    const where: any = { tenantId, OR: orConditions };
 
     // Apply additional filters
     if (assetTypeId) where.assetTypeId = Number.parseInt(assetTypeId);
@@ -2098,11 +2128,11 @@ export class AssetsService {
     };
   }
 
-  async getAssetsForDropdowns(query: any) {
+  async getAssetsForDropdowns(query: any, tenantId: number) {
     const { status = 'NON_ASSIGNED', assetTypeId, brandId, modelId } = query;
 
     // Build where clause
-    const where: any = {};
+    const where: any = { tenantId };
 
     // Default to NON_ASSIGNED if no status specified
     if (status) {
@@ -2253,7 +2283,7 @@ export class AssetsService {
   /**
    * Load existing data from database for validation
    */
-  private async loadValidationData(): Promise<{
+  private async loadValidationData(tenantId: number): Promise<{
     existingAssetIds: Set<string>;
     existingSerialNumbers: Set<string>;
     assetTypeMap: Map<number, any>;
@@ -2264,18 +2294,23 @@ export class AssetsService {
     const [existingAssets, assetTypes, brands, models, vendors] =
       await Promise.all([
         this.prisma.asset.findMany({
+          where: { tenantId },
           select: { assetId: true, serialNumber: true },
         }),
         this.prisma.assetType.findMany({
+          where: { tenantId },
           include: { models: { select: { id: true, name: true } } },
         }),
         this.prisma.brand.findMany({
+          where: { tenantId },
           include: { models: { select: { id: true, name: true } } },
         }),
         this.prisma.model.findMany({
+          where: { tenantId },
           select: { id: true, name: true, brandId: true, assetTypeId: true },
         }),
         this.prisma.vendor.findMany({
+          where: { tenantId },
           select: { id: true, name: true },
         }),
       ]);
@@ -2827,7 +2862,7 @@ export class AssetsService {
     }
   }
 
-  async validateBulkUpload(file: Express.Multer.File, userId: number) {
+  async validateBulkUpload(file: Express.Multer.File, userId: number, tenantId: number) {
     this.validateFile(file);
 
     try {
@@ -2843,7 +2878,7 @@ export class AssetsService {
       const errors: any[] = [];
       const validRows: any[] = [];
 
-      // Load existing data for validation
+      // Load existing data for validation (scoped to tenant)
       const {
         existingAssetIds,
         existingSerialNumbers,
@@ -2851,7 +2886,7 @@ export class AssetsService {
         brandMap,
         modelMap,
         vendorMap,
-      } = await this.loadValidationData();
+      } = await this.loadValidationData(tenantId);
 
       // Valid enum values - Only NON_ASSIGNED status allowed for bulk uploads
       const validStatuses = ['NON_ASSIGNED'];
@@ -3166,16 +3201,17 @@ export class AssetsService {
   ): Promise<{ success: boolean; error?: any }> {
     try {
       const { rowNumber, ...createData } = assetData;
+      const tenantId = createData.tenantId;
 
       const [assetType, brand, model, vendor] = await Promise.all([
-        this.prisma.assetType.findUnique({
-          where: { id: createData.assetTypeId },
+        this.prisma.assetType.findFirst({
+          where: { id: createData.assetTypeId, tenantId },
         }),
-        this.prisma.brand.findUnique({ where: { id: createData.brandId } }),
-        this.prisma.model.findUnique({ where: { id: createData.modelId } }),
+        this.prisma.brand.findFirst({ where: { id: createData.brandId, tenantId } }),
+        this.prisma.model.findFirst({ where: { id: createData.modelId, tenantId } }),
         createData.vendorId
-          ? this.prisma.vendor.findUnique({
-              where: { id: createData.vendorId },
+          ? this.prisma.vendor.findFirst({
+              where: { id: createData.vendorId, tenantId },
             })
           : Promise.resolve(null),
       ]);
@@ -3209,6 +3245,7 @@ export class AssetsService {
 
       await this.prisma.assetEvent.create({
         data: {
+          tenantId,
           assetId: asset.id,
           eventType: AssetEventType.ASSET_CREATED,
           eventDate: new Date(),
@@ -3246,6 +3283,7 @@ export class AssetsService {
   async bulkUpload(
     file: Express.Multer.File,
     userId: number,
+    tenantId: number,
     isValidateOnly: boolean = false,
   ) {
     this.validateFile(file);
@@ -3284,6 +3322,7 @@ export class AssetsService {
 
           validAssets.push({
             ...assetData,
+            tenantId,
             createdBy: userId,
             updatedBy: userId,
             rowNumber,
@@ -3349,11 +3388,12 @@ export class AssetsService {
     assetId: number,
     retireAssetDto: RetireAssetDto,
     userId: number,
+    tenantId: number,
   ) {
     try {
-      // Find the asset first
-      const asset = await this.prisma.asset.findUnique({
-        where: { id: assetId },
+      // Find the asset first (scoped to tenant)
+      const asset = await this.prisma.asset.findFirst({
+        where: { id: assetId, tenantId },
         include: {
           assetType: { select: { name: true } },
           brand: { select: { name: true } },
@@ -3405,6 +3445,7 @@ export class AssetsService {
       // Log asset retirement event
       await this.prisma.assetEvent.create({
         data: {
+          tenantId,
           assetId: assetId,
           eventType: AssetEventType.ASSET_RETIRED,
           eventDate: new Date(),
@@ -3429,6 +3470,7 @@ export class AssetsService {
         recordId: assetId,
         action: AuditAction.UPDATE,
         userId,
+        tenantId,
         entityLabel: this.assetEntityLabel(asset),
         summary: `Retired asset ${asset.assetId}`,
         changes: [
@@ -3481,11 +3523,12 @@ export class AssetsService {
     assetId: number,
     reactivateAssetDto: ReactivateAssetDto,
     userId: number,
+    tenantId: number,
   ) {
     try {
-      // Find the asset first
-      const asset = await this.prisma.asset.findUnique({
-        where: { id: assetId },
+      // Find the asset first (scoped to tenant)
+      const asset = await this.prisma.asset.findFirst({
+        where: { id: assetId, tenantId },
         include: {
           assetType: { select: { name: true } },
           brand: { select: { name: true } },
@@ -3524,6 +3567,7 @@ export class AssetsService {
       // Log asset reactivation event
       await this.prisma.assetEvent.create({
         data: {
+          tenantId,
           assetId: assetId,
           eventType: AssetEventType.ASSET_REACTIVATED,
           eventDate: new Date(),
@@ -3551,6 +3595,7 @@ export class AssetsService {
         recordId: assetId,
         action: AuditAction.UPDATE,
         userId,
+        tenantId,
         entityLabel: this.assetEntityLabel(asset),
         summary: `Reactivated asset ${asset.assetId}`,
         changes: [
@@ -3609,7 +3654,7 @@ export class AssetsService {
     }
   }
 
-  async exportAssets(queryDto: AssetQueryDto) {
+  async exportAssets(queryDto: AssetQueryDto, tenantId: number) {
     try {
       const XLSX = require('xlsx');
 
@@ -3627,7 +3672,7 @@ export class AssetsService {
       } = queryDto;
 
       // Build where clause
-      const where: any = {};
+      const where: any = { tenantId };
 
       if (status) {
         where.status = status;

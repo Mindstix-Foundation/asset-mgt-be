@@ -13,24 +13,28 @@ export class NotificationController {
     @Query() query: QueryNotificationDto,
   ) {
     const userId = req.user.id;
-    return await this.notificationService.getUserNotifications(userId, query);
+    const tenantId = req.user.tenantId as number;
+    return await this.notificationService.getUserNotifications(userId, tenantId, query);
   }
 
   @Get('unread-count')
   async getUnreadCount(@Request() req) {
     const userId = req.user.id;
-    const count = await this.notificationService.getUnreadCount(userId);
+    const tenantId = req.user.tenantId as number;
+    const count = await this.notificationService.getUnreadCount(userId, tenantId);
     return { count };
   }
 
   @Post('mark-as-read')
   async markAsRead(@Request() req, @Body() markAsReadDto: MarkAsReadDto) {
     const userId = req.user.id;
+    const tenantId = req.user.tenantId as number;
     const { notificationId } = markAsReadDto;
 
     const success = await this.notificationService.markAsRead(
       notificationId,
       userId,
+      tenantId,
     );
     return { success };
   }
@@ -38,11 +42,13 @@ export class NotificationController {
   @Post('mark-as-unread')
   async markAsUnread(@Request() req, @Body() markAsReadDto: MarkAsReadDto) {
     const userId = req.user.id;
+    const tenantId = req.user.tenantId as number;
     const { notificationId } = markAsReadDto;
 
     const success = await this.notificationService.markAsUnread(
       notificationId,
       userId,
+      tenantId,
     );
     return { success };
   }
@@ -50,7 +56,8 @@ export class NotificationController {
   @Post('mark-all-as-read')
   async markAllAsRead(@Request() req) {
     const userId = req.user.id;
-    const count = await this.notificationService.markAllAsRead(userId);
+    const tenantId = req.user.tenantId as number;
+    const count = await this.notificationService.markAllAsRead(userId, tenantId);
     return { count, message: `Marked ${count} notifications as read` };
   }
 

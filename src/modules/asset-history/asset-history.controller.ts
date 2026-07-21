@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query, Request } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -158,8 +158,10 @@ export class AssetHistoryController {
   async getAssetHistory(
     @Param('id') id: string,
     @Query() query: AssetHistoryQueryDto,
+    @Request() req: any,
   ) {
-    return this.assetHistoryService.getAssetHistory(id, query);
+    const tenantId = req.user.tenantId as number;
+    return this.assetHistoryService.getAssetHistory(id, query, tenantId);
   }
 
   @Get(':id/summary')
@@ -260,7 +262,9 @@ export class AssetHistoryController {
   async getAssetHistorySummary(
     @Param('id') id: string,
     @Query() query: AssetHistoryQueryDto,
+    @Request() req: any,
   ) {
-    return this.assetHistoryService.getAssetHistorySummary(id, query);
+    const tenantId = req.user.tenantId as number;
+    return this.assetHistoryService.getAssetHistorySummary(id, query, tenantId);
   }
 }

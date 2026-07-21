@@ -81,7 +81,8 @@ export class VendorsController {
       );
     }
     const userId = req.user.id;
-    const vendor = await this.vendorsService.create(createVendorDto, userId);
+    const tenantId = req.user.tenantId as number;
+    const vendor = await this.vendorsService.create(createVendorDto, userId, tenantId);
     return {
       message: 'Vendor created successfully',
       data: { vendor },
@@ -155,8 +156,9 @@ export class VendorsController {
       },
     },
   })
-  async findAll(@Query() queryDto: VendorQueryDto) {
-    return this.vendorsService.findAll(queryDto);
+  async findAll(@Query() queryDto: VendorQueryDto, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.vendorsService.findAll(queryDto, tenantId);
   }
 
   @Get('search')
@@ -189,8 +191,9 @@ export class VendorsController {
       },
     },
   })
-  async search(@Query() searchDto: VendorSearchDto) {
-    return this.vendorsService.search(searchDto);
+  async search(@Query() searchDto: VendorSearchDto, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.vendorsService.search(searchDto, tenantId);
   }
 
   @Get(':id')
@@ -223,8 +226,9 @@ export class VendorsController {
     },
   })
   @ApiResponse({ status: 404, description: 'Vendor not found' })
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.vendorsService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.vendorsService.findOne(id, tenantId);
   }
 
   @Put(':id')
@@ -264,7 +268,8 @@ export class VendorsController {
       );
     }
     const userId = req.user.id;
-    return this.vendorsService.update(id, updateVendorDto, userId);
+    const tenantId = req.user.tenantId as number;
+    return this.vendorsService.update(id, updateVendorDto, userId, tenantId);
   }
 
   @Delete(':id')
@@ -292,7 +297,8 @@ export class VendorsController {
         'User authentication required. Please login to perform this action.',
       );
     }
-    return this.vendorsService.remove(id, req.user.id);
+    const tenantId = req.user.tenantId as number;
+    return this.vendorsService.remove(id, req.user.id, tenantId);
   }
 
   @Patch(':id/status')
@@ -339,7 +345,8 @@ export class VendorsController {
       );
     }
     const userId = req.user.id;
-    return this.vendorsService.updateStatus(id, statusDto, userId);
+    const tenantId = req.user.tenantId as number;
+    return this.vendorsService.updateStatus(id, statusDto, userId, tenantId);
   }
 
   @Post('check-name')
@@ -391,6 +398,7 @@ export class VendorsController {
     }
 
     const userId = req.user.id;
+    const tenantId = req.user.tenantId as number;
     let excludeIdNumber: number | undefined;
 
     if (checkVendorNameDto.excludeId) {
@@ -399,6 +407,7 @@ export class VendorsController {
 
     return this.vendorsService.checkVendorNameExists(
       checkVendorNameDto.name.trim(),
+      tenantId,
       excludeIdNumber,
       userId,
     );
@@ -480,7 +489,8 @@ export class VendorsController {
       );
     }
     const userId = req.user.id;
-    return this.vendorsService.validateBulkUpload(file, userId);
+    const tenantId = req.user.tenantId as number;
+    return this.vendorsService.validateBulkUpload(file, userId, tenantId);
   }
 
   @Post('bulk-upload')
@@ -547,7 +557,8 @@ export class VendorsController {
       );
     }
     const userId = req.user.id;
+    const tenantId = req.user.tenantId as number;
     const isValidateOnly = validateOnly === 'true';
-    return this.vendorsService.bulkUpload(file, userId, isValidateOnly);
+    return this.vendorsService.bulkUpload(file, userId, tenantId, isValidateOnly);
   }
 }

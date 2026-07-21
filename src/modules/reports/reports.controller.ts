@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Query, Res, Body } from '@nestjs/common';
+import { Controller, Get, Post, Query, Res, Body, Request } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -21,8 +21,9 @@ export class ReportsController {
     status: 200,
     description: 'Analytics data retrieved successfully',
   })
-  async getAnalytics() {
-    const data = await this.reportsService.getAnalyticsData();
+  async getAnalytics(@Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    const data = await this.reportsService.getAnalyticsData(tenantId);
     return {
       message: 'Analytics data retrieved successfully',
       data,
@@ -50,14 +51,17 @@ export class ReportsController {
     description: 'Items per page (default 20, max 100)',
   })
   async getActivities(
+    @Request() req: any,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
+    const tenantId = req.user.tenantId as number;
     const pageNum = page ? Number(page) : 1;
     const limitNum = limit ? Number(limit) : 20;
     const result = await this.reportsService.getAllActivitiesPaginated(
       pageNum,
       limitNum,
+      tenantId,
     );
     return {
       message: 'Activities retrieved successfully',
@@ -75,8 +79,9 @@ export class ReportsController {
   @ApiQuery({ name: 'assetType', required: false })
   @ApiQuery({ name: 'fromDate', required: false })
   @ApiQuery({ name: 'toDate', required: false })
-  async getAssetInventory(@Query() filters: ReportFilters) {
-    const data = await this.reportsService.getAssetInventoryReport(filters);
+  async getAssetInventory(@Query() filters: ReportFilters, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    const data = await this.reportsService.getAssetInventoryReport(tenantId, filters);
     return {
       message: 'Asset inventory data retrieved successfully',
       data,
@@ -89,8 +94,9 @@ export class ReportsController {
     status: 200,
     description: 'Employee asset data retrieved successfully',
   })
-  async getEmployeeAssets(@Query() filters: ReportFilters) {
-    const data = await this.reportsService.getEmployeeAssetReport(filters);
+  async getEmployeeAssets(@Query() filters: ReportFilters, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    const data = await this.reportsService.getEmployeeAssetReport(tenantId, filters);
     return {
       message: 'Employee asset data retrieved successfully',
       data,
@@ -105,8 +111,9 @@ export class ReportsController {
   })
   @ApiQuery({ name: 'fromDate', required: false })
   @ApiQuery({ name: 'toDate', required: false })
-  async getMaintenance(@Query() filters: ReportFilters) {
-    const data = await this.reportsService.getMaintenanceReport(filters);
+  async getMaintenance(@Query() filters: ReportFilters, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    const data = await this.reportsService.getMaintenanceReport(tenantId, filters);
     return {
       message: 'Maintenance data retrieved successfully',
       data,
@@ -122,8 +129,10 @@ export class ReportsController {
   async exportAssetInventory(
     @Body() filters: ReportFilters,
     @Res() res: Response,
+    @Request() req: any,
   ) {
-    const data = await this.reportsService.getAssetInventoryReport(filters);
+    const tenantId = req.user.tenantId as number;
+    const data = await this.reportsService.getAssetInventoryReport(tenantId, filters);
     await this.reportsService.exportToExcel(
       data,
       'Asset Inventory',
@@ -141,8 +150,10 @@ export class ReportsController {
   async exportEmployeeAssets(
     @Body() filters: ReportFilters,
     @Res() res: Response,
+    @Request() req: any,
   ) {
-    const data = await this.reportsService.getEmployeeAssetReport(filters);
+    const tenantId = req.user.tenantId as number;
+    const data = await this.reportsService.getEmployeeAssetReport(tenantId, filters);
     await this.reportsService.exportToExcel(
       data,
       'Employee Asset',
@@ -160,8 +171,10 @@ export class ReportsController {
   async exportMaintenance(
     @Body() filters: ReportFilters,
     @Res() res: Response,
+    @Request() req: any,
   ) {
-    const data = await this.reportsService.getMaintenanceReport(filters);
+    const tenantId = req.user.tenantId as number;
+    const data = await this.reportsService.getMaintenanceReport(tenantId, filters);
     await this.reportsService.exportToExcel(data, 'Maintenance', res, filters);
   }
 
@@ -177,18 +190,20 @@ export class ReportsController {
   @ApiQuery({ name: 'toDate', required: false })
   async getReportPreview(
     @Query() query: ReportFilters & { reportType: string },
+    @Request() req: any,
   ) {
+    const tenantId = req.user.tenantId as number;
     let data: any[] = [];
 
     switch (query.reportType) {
       case 'assets':
-        data = await this.reportsService.getAssetInventoryReport(query);
+        data = await this.reportsService.getAssetInventoryReport(tenantId, query);
         break;
       case 'employees':
-        data = await this.reportsService.getEmployeeAssetReport(query);
+        data = await this.reportsService.getEmployeeAssetReport(tenantId, query);
         break;
       case 'maintenance':
-        data = await this.reportsService.getMaintenanceReport(query);
+        data = await this.reportsService.getMaintenanceReport(tenantId, query);
         break;
       default:
         data = [];

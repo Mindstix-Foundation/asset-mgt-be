@@ -31,6 +31,7 @@ const EMPLOYEE_AUDIT_FIELDS = [
   'phone',
   'dateOfBirth',
   'address',
+  'designationId',
   'status',
 ];
 
@@ -42,6 +43,7 @@ const EMPLOYEE_FIELD_LABELS: Record<string, string> = {
   phone: 'Phone',
   dateOfBirth: 'Date of Birth',
   address: 'Address',
+  designationId: 'Designation',
   status: 'Status',
 };
 
@@ -88,23 +90,24 @@ export class EmployeesService {
   async create(
     createEmployeeDto: CreateEmployeeDto,
     userId: number,
+    tenantId: number,
   ): Promise<EmployeeDetailResponseDto> {
-    // Check if email already exists
-    const existingEmployee = await this.prisma.employee.findUnique({
-      where: { email: createEmployeeDto.email },
+    // Check if email already exists within tenant
+    const existingEmployee = await this.prisma.employee.findFirst({
+      where: { tenantId, email: createEmployeeDto.email },
     });
 
     if (existingEmployee) {
       throw new ConflictException('Employee with this email already exists');
     }
 
-    // Use provided 4-digit employee ID (left as-is). Ensure uniqueness.
+    // Use provided 4-digit employee ID (left as-is). Ensure uniqueness within tenant.
     const employeeId = createEmployeeDto.employeeId;
     if (!/^\d{4}$/.test(employeeId)) {
       throw new BadRequestException('Employee ID must be exactly 4 digits');
     }
-    const existingId = await this.prisma.employee.findUnique({
-      where: { employeeId },
+    const existingId = await this.prisma.employee.findFirst({
+      where: { tenantId, employeeId },
       select: { id: true },
     });
     if (existingId) {
@@ -118,14 +121,23 @@ export class EmployeesService {
       ? new Date(createEmployeeDto.dateOfBirth)
       : null;
 
+    await this.assertDesignationBelongsToTenant(
+      createEmployeeDto.designationId,
+      tenantId,
+    );
+
     try {
       const employee = await this.prisma.employee.create({
         data: this.buildEmployeeCreateData(
           createEmployeeDto,
           userId,
+          tenantId,
           employeeId,
           dateOfBirth,
         ),
+        include: {
+          designation: { select: { id: true, name: true } },
+        },
       });
 
       await this.auditService.log({
@@ -133,6 +145,7 @@ export class EmployeesService {
         recordId: employee.id,
         action: AuditAction.INSERT,
         userId,
+        tenantId,
         entityLabel: this.employeeEntityLabel(employee),
         summary: `Created employee ${employee.firstName} ${employee.lastName}`,
         after: this.pickEmployeeAuditSnapshot(employee),
@@ -170,13 +183,14 @@ export class EmployeesService {
 
   async isEmailAvailable(
     email: string,
+    tenantId: number,
     excludeEmployeeId?: string,
   ): Promise<boolean> {
     if (!email) {
       throw new BadRequestException('Email is required');
     }
 
-    const whereClause: any = { email };
+    const whereClause: any = { tenantId, email };
     if (excludeEmployeeId) {
       whereClause.employeeId = { not: excludeEmployeeId };
     }
@@ -189,10 +203,12 @@ export class EmployeesService {
 
   async isEmployeeIdAvailable(
     employeeId: string,
+    tenantId: number,
     excludeEmployeeDbId?: string,
   ): Promise<boolean> {
-    const where: Prisma.EmployeeWhereUniqueInput = { employeeId };
-    const existing = await this.prisma.employee.findUnique({ where });
+    const existing = await this.prisma.employee.findFirst({
+      where: { tenantId, employeeId },
+    });
     if (!existing) return true;
     if (
       excludeEmployeeDbId &&
@@ -203,10 +219,11 @@ export class EmployeesService {
     return false;
   }
 
-  async getNextAvailableEmployeeId(): Promise<string> {
-    // Get the last created employee by createdAt timestamp
+  async getNextAvailableEmployeeId(tenantId: number): Promise<string> {
+    // Get the last created employee by createdAt timestamp within tenant
     // This returns the most recently added employee, not the highest ID
     const lastEmployee = await this.prisma.employee.findFirst({
+      where: { tenantId },
       select: { employeeId: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -235,13 +252,13 @@ export class EmployeesService {
     return nextId.toString().padStart(4, '0');
   }
 
-  async findAll(query: QueryEmployeeDto): Promise<EmployeeListResponseDto> {
+  async findAll(query: QueryEmployeeDto, tenantId: number): Promise<EmployeeListResponseDto> {
     const page = query.page || 1;
     const limit = Math.min(query.limit || 10, 100);
     const skip = (page - 1) * limit;
 
     // Build where clause
-    const where: Prisma.EmployeeWhereInput = {};
+    const where: Prisma.EmployeeWhereInput = { tenantId };
 
     this.applySearchFilters(where, query);
     this.applyStatusFilter(where, query);
@@ -276,6 +293,7 @@ export class EmployeesService {
       skip: isPostFilterByCount ? undefined : skip,
       take: isPostFilterByCount ? undefined : limit,
       include: {
+        designation: { select: { id: true, name: true } },
         assetIssues: {
           where: { returnDate: null },
           include: {
@@ -366,9 +384,9 @@ export class EmployeesService {
     };
   }
 
-  async findAllForDropdowns(status?: string, hasAssignedAssets?: boolean) {
+  async findAllForDropdowns(status?: string, hasAssignedAssets?: boolean, tenantId?: number) {
     // Build where clause
-    const where: Prisma.EmployeeWhereInput = {};
+    const where: Prisma.EmployeeWhereInput = tenantId ? { tenantId } : {};
 
     // Default to ACTIVE if no status specified
     if (status) {
@@ -862,10 +880,11 @@ export class EmployeesService {
   private async validateDuplicateEmployeeIdsInDb(
     employeeIds: string[],
     rows: any[],
+    tenantId: number,
   ): Promise<Array<{ row: number; field: string; message: string }>> {
     if (employeeIds.length === 0) return [];
     const existing = await this.prisma.employee.findMany({
-      where: { employeeId: { in: employeeIds } },
+      where: { tenantId, employeeId: { in: employeeIds } },
       select: { employeeId: true },
     });
     const existingSet = new Set(existing.map((e) => e.employeeId));
@@ -886,10 +905,11 @@ export class EmployeesService {
   private async validateDuplicateEmailsInDb(
     emails: string[],
     rows: any[],
+    tenantId: number,
   ): Promise<Array<{ row: number; field: string; message: string }>> {
     if (emails.length === 0) return [];
     const existing = await this.prisma.employee.findMany({
-      where: { email: { in: emails } },
+      where: { tenantId, email: { in: emails } },
       select: { email: true },
     });
     const existingEmails = new Set(existing.map((e) => e.email.toLowerCase()));
@@ -910,6 +930,7 @@ export class EmployeesService {
   private async insertEmployeesTransaction(
     rows: any[],
     userId: number,
+    tenantId: number,
   ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       for (const r of rows) {
@@ -917,6 +938,7 @@ export class EmployeesService {
         const dateOfBirth = r.dateOfBirth ? new Date(r.dateOfBirth) : null;
         await tx.employee.create({
           data: {
+            tenantId,
             employeeId,
             firstName: r.firstName,
             lastName: r.lastName,
@@ -936,6 +958,7 @@ export class EmployeesService {
   async bulkUpload(
     file: Express.Multer.File,
     userId: number,
+    tenantId: number,
     validateOnly: boolean = false,
   ) {
     // Validate basic file constraints
@@ -962,9 +985,9 @@ export class EmployeesService {
     // Check duplicates within file and against DB
     errors.push(
       ...this.validateDuplicateEmailsInFile(emails),
-      ...(await this.validateDuplicateEmailsInDb(emails, rows)),
+      ...(await this.validateDuplicateEmailsInDb(emails, rows, tenantId)),
       ...this.validateDuplicateEmployeeIdsInFile(employeeIds),
-      ...(await this.validateDuplicateEmployeeIdsInDb(employeeIds, rows)),
+      ...(await this.validateDuplicateEmployeeIdsInDb(employeeIds, rows, tenantId)),
     );
 
     if (validateOnly) {
@@ -983,7 +1006,7 @@ export class EmployeesService {
     }
 
     // Transactional insert: all or none
-    await this.insertEmployeesTransaction(rows, userId);
+    await this.insertEmployeesTransaction(rows, userId, tenantId);
 
     return {
       message: 'Employees uploaded successfully',
@@ -1001,22 +1024,24 @@ export class EmployeesService {
 
   async findOne(
     id: string,
+    tenantId: number,
     includeAssets: boolean = true,
   ): Promise<EmployeeDetailResponseDto> {
     // Disambiguate: 4-digit numeric strings are treated as employeeId; other all-digit strings map to DB id
-    let whereClause: Prisma.EmployeeWhereUniqueInput;
+    let whereClause: Prisma.EmployeeWhereInput;
     if (/^\d{4}$/.test(id)) {
-      whereClause = { employeeId: id };
+      whereClause = { tenantId, employeeId: id };
     } else if (/^\d+$/.test(id)) {
-      whereClause = { id: Number.parseInt(id, 10) };
+      whereClause = { tenantId, id: Number.parseInt(id, 10) };
     } else {
-      whereClause = { employeeId: id };
+      whereClause = { tenantId, employeeId: id };
     }
 
-    const employee = await this.prisma.employee.findUnique({
+    const employee = await this.prisma.employee.findFirst({
       where: whereClause,
       include: includeAssets
         ? {
+            designation: { select: { id: true, name: true } },
             assetIssues: {
               include: {
                 asset: {
@@ -1046,6 +1071,7 @@ export class EmployeesService {
             },
           }
         : {
+            designation: { select: { id: true, name: true } },
             user: {
               include: {
                 userRoles: {
@@ -1113,11 +1139,13 @@ export class EmployeesService {
     id: string,
     updateEmployeeDto: UpdateEmployeeDto,
     userId: number,
+    tenantId: number,
   ): Promise<EmployeeDetailResponseDto> {
     // Disambiguate: 4-digit numeric strings are treated as employeeId; other all-digit strings map to DB id
-    const whereClause = this.resolveEmployeeWhereClause(id);
+    const baseWhere = this.resolveEmployeeWhereClause(id);
+    const whereClause: Prisma.EmployeeWhereInput = { ...baseWhere, tenantId };
 
-    const existingEmployee = await this.prisma.employee.findUnique({
+    const existingEmployee = await this.prisma.employee.findFirst({
       where: whereClause,
       include: {
         user: {
@@ -1152,14 +1180,22 @@ export class EmployeesService {
         existingEmployee,
       )
     ) {
-      const emailExists = await this.prisma.employee.findUnique({
-        where: { email: updateEmployeeDto.email },
+      const emailExists = await this.prisma.employee.findFirst({
+        where: { tenantId, email: updateEmployeeDto.email },
       });
 
       if (emailExists) {
         throw new ConflictException('Employee with this email already exists');
       }
     }
+
+    if (updateEmployeeDto.designationId !== undefined) {
+      await this.assertDesignationBelongsToTenant(
+        updateEmployeeDto.designationId,
+        tenantId,
+      );
+    }
+
     const updateData = this.buildUpdateEmployeeData(
       updateEmployeeDto,
       userId,
@@ -1167,8 +1203,11 @@ export class EmployeesService {
     );
 
     const employee = await this.prisma.employee.update({
-      where: whereClause,
+      where: { id: existingEmployee.id },
       data: updateData,
+      include: {
+        designation: { select: { id: true, name: true } },
+      },
     });
 
     await this.auditService.log({
@@ -1176,6 +1215,7 @@ export class EmployeesService {
       recordId: employee.id,
       action: AuditAction.UPDATE,
       userId,
+      tenantId,
       entityLabel: this.employeeEntityLabel(employee),
       summary: `Updated employee ${employee.firstName} ${employee.lastName}`,
       before: this.pickEmployeeAuditSnapshot(existingEmployee),
@@ -1199,7 +1239,7 @@ export class EmployeesService {
 
   private resolveEmployeeWhereClause(
     id: string,
-  ): Prisma.EmployeeWhereUniqueInput {
+  ): Prisma.EmployeeWhereInput {
     if (/^\d{4}$/.test(id)) return { employeeId: id };
     if (/^\d+$/.test(id)) return { id: Number.parseInt(id, 10) };
     return { employeeId: id };
@@ -1274,20 +1314,21 @@ export class EmployeesService {
   async remove(
     id: string,
     userId: number,
+    tenantId: number,
     reassignAssetsTo?: string,
   ): Promise<EmployeeDetailResponseDto> {
     // Disambiguate: 4-digit numeric strings are treated as employeeId; other all-digit strings map to DB id
-    let whereClause: Prisma.EmployeeWhereUniqueInput;
+    let whereFilter: Prisma.EmployeeWhereInput;
     if (/^\d{4}$/.test(id)) {
-      whereClause = { employeeId: id };
+      whereFilter = { tenantId, employeeId: id };
     } else if (/^\d+$/.test(id)) {
-      whereClause = { id: Number.parseInt(id, 10) };
+      whereFilter = { tenantId, id: Number.parseInt(id, 10) };
     } else {
-      whereClause = { employeeId: id };
+      whereFilter = { tenantId, employeeId: id };
     }
 
-    const employee = await this.prisma.employee.findUnique({
-      where: whereClause,
+    const employee = await this.prisma.employee.findFirst({
+      where: whereFilter,
       include: {
         assetIssues: true, // Get all asset issues (current and past)
       },
@@ -1333,7 +1374,7 @@ export class EmployeesService {
 
     // Hard delete - permanently remove from database
     const deletedEmployee = await this.prisma.employee.delete({
-      where: whereClause,
+      where: { id: employee.id },
     });
 
     await this.auditService.log({
@@ -1341,6 +1382,7 @@ export class EmployeesService {
       recordId: deletedEmployee.id,
       action: AuditAction.DELETE,
       userId,
+      tenantId,
       entityLabel: this.employeeEntityLabel(deletedEmployee),
       summary: `Deleted employee ${deletedEmployee.firstName} ${deletedEmployee.lastName}`,
       before: beforeSnapshot,
@@ -1378,7 +1420,7 @@ export class EmployeesService {
     return `EMP-${next.toString().padStart(4, '0')}`;
   }
 
-  async getAssetHistory(employeeId: string): Promise<{
+  async getAssetHistory(employeeId: string, tenantId: number): Promise<{
     message: string;
     data: {
       assetHistory: Array<{
@@ -1404,12 +1446,12 @@ export class EmployeesService {
   }> {
     // Check if employeeId is numeric (database ID) or string (employeeId)
     const isNumericId = /^\d+$/.test(employeeId);
-    const whereClause = isNumericId
-      ? { id: Number.parseInt(employeeId, 10) }
-      : { employeeId };
+    const whereFilter: Prisma.EmployeeWhereInput = isNumericId
+      ? { tenantId, id: Number.parseInt(employeeId, 10) }
+      : { tenantId, employeeId };
 
-    const employee = await this.prisma.employee.findUnique({
-      where: whereClause,
+    const employee = await this.prisma.employee.findFirst({
+      where: whereFilter,
       select: { id: true, employeeId: true, firstName: true, lastName: true },
     });
 
@@ -1475,6 +1517,7 @@ export class EmployeesService {
   async getAssetEvents(
     employeeId: string,
     query: QueryEmployeeAssetEventsDto,
+    tenantId: number,
   ): Promise<{
     message: string;
     data: {
@@ -1504,12 +1547,12 @@ export class EmployeesService {
   }> {
     // Check if employeeId is numeric (database ID) or string (employeeId)
     const isNumericId = /^\d+$/.test(employeeId);
-    const whereClause = isNumericId
-      ? { id: Number.parseInt(employeeId, 10) }
-      : { employeeId };
+    const whereFilter2: Prisma.EmployeeWhereInput = isNumericId
+      ? { tenantId, id: Number.parseInt(employeeId, 10) }
+      : { tenantId, employeeId };
 
-    const employee = await this.prisma.employee.findUnique({
-      where: whereClause,
+    const employee = await this.prisma.employee.findFirst({
+      where: whereFilter2,
       select: { id: true, employeeId: true },
     });
     if (!employee) {
@@ -1762,11 +1805,31 @@ export class EmployeesService {
         ? employee.dateOfBirth.toISOString().split('T')[0]
         : undefined,
       address: employee.address,
+      designationId: employee.designationId ?? null,
+      designation: employee.designation
+        ? { id: employee.designation.id, name: employee.designation.name }
+        : null,
       status: employee.status,
       createdAt: employee.createdAt.toISOString(),
       updatedAt: employee.updatedAt.toISOString(),
       isAdmin: false, // Will be set separately after mapping
     };
+  }
+
+  private async assertDesignationBelongsToTenant(
+    designationId: number | undefined | null,
+    tenantId: number,
+  ): Promise<void> {
+    if (designationId == null) return;
+    const designation = await this.prisma.designation.findFirst({
+      where: { id: designationId, tenantId },
+      select: { id: true },
+    });
+    if (!designation) {
+      throw new BadRequestException(
+        'Invalid designation for this organization',
+      );
+    }
   }
 
   // --- Small helpers to reduce cognitive complexity in findAll ---
@@ -2003,10 +2066,12 @@ export class EmployeesService {
   private buildEmployeeCreateData(
     createEmployeeDto: CreateEmployeeDto,
     userId: number,
+    tenantId: number,
     employeeId: string,
     dateOfBirth: Date | null,
   ) {
     return {
+      tenantId,
       employeeId,
       firstName: this.formatName(createEmployeeDto.firstName),
       lastName: this.formatName(createEmployeeDto.lastName),
@@ -2014,6 +2079,7 @@ export class EmployeesService {
       phone: createEmployeeDto.phone,
       dateOfBirth,
       address: createEmployeeDto.address,
+      designationId: createEmployeeDto.designationId ?? null,
       status: EmployeeStatus.ACTIVE,
       createdBy: userId,
       updatedBy: userId,
@@ -2055,7 +2121,7 @@ export class EmployeesService {
   }
 
   // Export employees to Excel with asset details
-  async exportEmployeesToExcel(queryDto: QueryEmployeeDto) {
+  async exportEmployeesToExcel(queryDto: QueryEmployeeDto, tenantId: number) {
     try {
       const {
         search,
@@ -2067,7 +2133,7 @@ export class EmployeesService {
       } = queryDto;
 
       // Build where clause
-      const where: Prisma.EmployeeWhereInput = {};
+      const where: Prisma.EmployeeWhereInput = { tenantId };
 
       if (search) {
         const conditions = this.buildEmployeeSearchConditions(search);
@@ -2259,7 +2325,7 @@ export class EmployeesService {
     }
   }
 
-  async getNonAdminEmployeesForDropdown() {
+  async getNonAdminEmployeesForDropdown(tenantId: number) {
     try {
       // Determine admin users via UserRole mapping (source of truth)
       const adminRole = await this.prisma.role.findFirst({
@@ -2270,6 +2336,7 @@ export class EmployeesService {
         ? (
             await this.prisma.user.findMany({
               where: {
+                tenantId,
                 userRoles: {
                   some: {
                     roleId: adminRole.id,
@@ -2282,9 +2349,10 @@ export class EmployeesService {
           ).map((user) => user.employeeId)
         : [];
 
-      // Get active employees with email addresses, excluding admins
+      // Get active employees with email addresses, excluding admins (within tenant)
       const employees = await this.prisma.employee.findMany({
         where: {
+          tenantId,
           status: 'ACTIVE',
           email: {
             not: '',
@@ -2319,6 +2387,7 @@ export class EmployeesService {
   // Get employees who can be deleted (non-admin with no asset history)
   async getDeletableEmployees(
     query: QueryEmployeeDto,
+    tenantId: number,
   ): Promise<EmployeeListResponseDto> {
     const page = query.page || 1;
     const limit = Math.min(query.limit || 10, 100);
@@ -2326,6 +2395,7 @@ export class EmployeesService {
 
     // Build where clause
     const where: Prisma.EmployeeWhereInput = {
+      tenantId,
       // Include both ACTIVE and INACTIVE employees (no status filter)
       // Exclude employees with any asset history (current or past)
       assetIssues: {
@@ -2341,6 +2411,7 @@ export class EmployeesService {
     if (adminRole) {
       const adminUsers = await this.prisma.user.findMany({
         where: {
+          tenantId,
           userRoles: {
             some: {
               roleId: adminRole.id,

@@ -82,13 +82,13 @@ export class MaintenanceService {
     return snapshot;
   }
 
-  async create(createMaintenanceDto: CreateMaintenanceDto, userId: number) {
+  async create(createMaintenanceDto: CreateMaintenanceDto, userId: number, tenantId: number) {
     try {
       const { assetId, scheduledDate } = createMaintenanceDto;
 
-      // Check if asset exists
-      const asset = await this.prisma.asset.findUnique({
-        where: { id: assetId },
+      // Check if asset exists (scoped to tenant)
+      const asset = await this.prisma.asset.findFirst({
+        where: { id: assetId, tenantId },
       });
 
       if (!asset) {
@@ -131,6 +131,7 @@ export class MaintenanceService {
         maintenanceType: createMaintenanceDto.maintenanceType,
         description: createMaintenanceDto.description,
         frequencyDays: createMaintenanceDto.frequencyDays || null,
+        tenantId,
         asset: {
           connect: { id: assetId },
         },
@@ -181,6 +182,7 @@ export class MaintenanceService {
         // Log MAINTENANCE_SCHEDULED event to asset history
         await tx.assetEvent.create({
           data: {
+            tenantId,
             assetId: assetId,
             eventType: AssetEventType.MAINTENANCE_SCHEDULED,
             eventDate: new Date(),
@@ -211,6 +213,7 @@ export class MaintenanceService {
         recordId: maintenance.id,
         action: AuditAction.INSERT,
         userId,
+        tenantId,
         entityLabel: this.maintenanceEntityLabel(maintenance),
         summary: `Scheduled maintenance for ${maintenance.asset.assetId}`,
         after: this.pickMaintenanceSnapshot(maintenance),
@@ -233,12 +236,17 @@ export class MaintenanceService {
     }
   }
 
-  private buildWhereConditions(query: MaintenanceQueryDto): {
+  private buildWhereConditions(query: MaintenanceQueryDto, tenantId?: number): {
     conditions: string[];
     params: any[];
   } {
     const conditions: string[] = ['m.is_active = true'];
     const params: any[] = [];
+
+    if (tenantId !== undefined) {
+      conditions.push(`m.tenant_id = $${params.length + 1}`);
+      params.push(tenantId);
+    }
 
     if (query.search) {
       conditions.push(`(
@@ -363,7 +371,7 @@ export class MaintenanceService {
     }
   }
 
-  async findAll(query: MaintenanceQueryDto) {
+  async findAll(query: MaintenanceQueryDto, tenantId: number) {
     const {
       page = 1,
       limit = 10,
@@ -378,13 +386,13 @@ export class MaintenanceService {
         id, asset_id, maintenance_type, scheduled_date, frequency_days, description,
         estimated_cost, status, actual_start_date, actual_completion_date,
         actual_cost, completion_notes, cancellation_date, cancellation_reason,
-        cancellation_notes, is_active, created_by, created_at, updated_by, updated_at
+        cancellation_notes, is_active, tenant_id, created_by, created_at, updated_by, updated_at
       FROM maintenance_schedules 
       WHERE is_active = true
       ORDER BY asset_id, created_at DESC
     `;
 
-    const { conditions, params } = this.buildWhereConditions(query);
+    const { conditions, params } = this.buildWhereConditions(query, tenantId);
     const whereClause =
       conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const orderByClause = this.buildOrderByClause(sortBy, sortOrder);
@@ -512,9 +520,9 @@ export class MaintenanceService {
     };
   }
 
-  async findOne(id: number) {
-    const maintenance = await this.prisma.maintenanceSchedule.findUnique({
-      where: { id },
+  async findOne(id: number, tenantId: number) {
+    const maintenance = await this.prisma.maintenanceSchedule.findFirst({
+      where: { id, tenantId },
       include: {
         asset: {
           select: {
@@ -545,10 +553,11 @@ export class MaintenanceService {
     id: number,
     updateMaintenanceDto: UpdateMaintenanceDto,
     userId: number,
+    tenantId: number,
   ) {
     const existingMaintenance =
-      await this.prisma.maintenanceSchedule.findUnique({
-        where: { id },
+      await this.prisma.maintenanceSchedule.findFirst({
+        where: { id, tenantId },
       });
 
     if (!existingMaintenance) {
@@ -597,6 +606,7 @@ export class MaintenanceService {
       // Log MAINTENANCE_UPDATED event to asset history
       await tx.assetEvent.create({
         data: {
+          tenantId,
           assetId: updated.assetId,
           eventType: AssetEventType.MAINTENANCE_UPDATED,
           eventDate: new Date(),
@@ -663,6 +673,7 @@ export class MaintenanceService {
       recordId: maintenance.id,
       action: AuditAction.UPDATE,
       userId,
+      tenantId,
       entityLabel: this.maintenanceEntityLabel(maintenance),
       summary: `Updated maintenance for ${maintenance.asset.assetId}`,
       before: this.pickMaintenanceSnapshot(existingMaintenance),
@@ -741,9 +752,9 @@ export class MaintenanceService {
     return { updateData, shouldStartToday };
   }
 
-  async remove(id: number, userId: number) {
-    const maintenance = await this.prisma.maintenanceSchedule.findUnique({
-      where: { id },
+  async remove(id: number, userId: number, tenantId: number) {
+    const maintenance = await this.prisma.maintenanceSchedule.findFirst({
+      where: { id, tenantId },
       include: {
         asset: {
           select: {
@@ -802,6 +813,7 @@ export class MaintenanceService {
       // Log MAINTENANCE_CANCELLED event to asset history
       await tx.assetEvent.create({
         data: {
+          tenantId,
           assetId: assetDbId,
           eventType: AssetEventType.MAINTENANCE_CANCELLED,
           eventDate: new Date(),
@@ -837,6 +849,7 @@ export class MaintenanceService {
       recordId: id,
       action: AuditAction.DELETE,
       userId,
+      tenantId,
       entityLabel: this.maintenanceEntityLabel(maintenance),
       summary: `Deleted maintenance for ${maintenance.asset.assetId}`,
       before: this.pickMaintenanceSnapshot(maintenance),
@@ -852,9 +865,10 @@ export class MaintenanceService {
     actualCost: number,
     completionNotes?: string,
     userId?: number,
+    tenantId?: number,
   ) {
-    const maintenance = await this.prisma.maintenanceSchedule.findUnique({
-      where: { id },
+    const maintenance = await this.prisma.maintenanceSchedule.findFirst({
+      where: tenantId !== undefined ? { id, tenantId } : { id },
     });
 
     if (!maintenance) {
@@ -920,6 +934,7 @@ export class MaintenanceService {
       // Log MAINTENANCE_COMPLETED event to asset history
       await tx.assetEvent.create({
         data: {
+          tenantId: tenantId ?? maintenance.tenantId,
           assetId: updated.assetId,
           eventType: AssetEventType.MAINTENANCE_COMPLETED,
           eventDate: new Date(),
@@ -952,6 +967,7 @@ export class MaintenanceService {
       recordId: updated.id,
       action: AuditAction.UPDATE,
       userId: userId || maintenance.updatedBy,
+      tenantId,
       entityLabel: this.maintenanceEntityLabel(updated),
       summary: `Completed maintenance for ${updated.asset.assetId}`,
       changes: [
@@ -982,9 +998,10 @@ export class MaintenanceService {
     _cancelDate: string | undefined,
     cancelNotes: string,
     userId?: number,
+    tenantId?: number,
   ) {
-    const maintenance = await this.prisma.maintenanceSchedule.findUnique({
-      where: { id },
+    const maintenance = await this.prisma.maintenanceSchedule.findFirst({
+      where: tenantId !== undefined ? { id, tenantId } : { id },
     });
 
     if (!maintenance) {
@@ -1050,6 +1067,7 @@ export class MaintenanceService {
       // Log MAINTENANCE_CANCELLED event to asset history
       await tx.assetEvent.create({
         data: {
+          tenantId: tenantId ?? maintenance.tenantId,
           assetId: updated.assetId,
           eventType: AssetEventType.MAINTENANCE_CANCELLED,
           eventDate: new Date(),
@@ -1081,6 +1099,7 @@ export class MaintenanceService {
       recordId: updated.id,
       action: AuditAction.UPDATE,
       userId: userId || maintenance.updatedBy,
+      tenantId,
       entityLabel: this.maintenanceEntityLabel(updated),
       summary: `Cancelled maintenance for ${updated.asset.assetId}`,
       changes: [
@@ -1108,10 +1127,12 @@ export class MaintenanceService {
   async checkAssetAvailability(
     assetId: number,
     scheduledDate: string,
+    tenantId: number,
     excludeMaintenanceId?: number,
   ) {
     const where: Prisma.MaintenanceScheduleWhereInput = {
       assetId,
+      tenantId,
       scheduledDate: new Date(scheduledDate),
       status: {
         in: [MaintenanceStatus.SCHEDULED, MaintenanceStatus.IN_PROGRESS],
@@ -1134,16 +1155,16 @@ export class MaintenanceService {
     };
   }
 
-  async getMaintenanceHistory(assetId: string) {
+  async getMaintenanceHistory(assetId: string, tenantId: number) {
     try {
       // First try to find asset by assetId (string) or by id (if it's a number)
       let asset;
       const isNumeric = /^\d+$/.test(assetId);
 
       if (isNumeric) {
-        // If it's a number, search by internal ID
-        asset = await this.prisma.asset.findUnique({
-          where: { id: Number.parseInt(assetId) },
+        // If it's a number, search by internal ID (scoped to tenant)
+        asset = await this.prisma.asset.findFirst({
+          where: { id: Number.parseInt(assetId), tenantId },
           select: {
             id: true,
             assetId: true,
@@ -1156,9 +1177,9 @@ export class MaintenanceService {
           },
         });
       } else {
-        // If it's a string, search by assetId
-        asset = await this.prisma.asset.findUnique({
-          where: { assetId: assetId },
+        // If it's a string, search by assetId (scoped to tenant)
+        asset = await this.prisma.asset.findFirst({
+          where: { assetId: assetId, tenantId },
           select: {
             id: true,
             assetId: true,
@@ -1176,11 +1197,12 @@ export class MaintenanceService {
         throw new NotFoundException('Asset not found');
       }
 
-      // Get all maintenance records for this asset, ordered by creation date descending
+      // Get all maintenance records for this asset (scoped to tenant), ordered by creation date descending
       const maintenanceHistory = await this.prisma.maintenanceSchedule.findMany(
         {
           where: {
             assetId: asset.id, // Use the internal asset ID
+            tenantId,
             isActive: true,
           },
           include: {
@@ -1253,17 +1275,18 @@ export class MaintenanceService {
       page?: number;
       limit?: number;
     },
+    tenantId: number,
   ) {
-    // Resolve asset
-    const asset = await this.resolveAssetId(assetIdParam);
+    // Resolve asset (scoped to tenant)
+    const asset = await this.resolveAssetId(assetIdParam, tenantId);
     if (!asset) throw new NotFoundException('Asset not found');
     const assetSummary = this.formatAssetSummaryForHistory(asset);
 
     const page = Math.max(query.page || 1, 1);
     const limit = Math.min(query.limit || 20, 100);
 
-    // Base where
-    const where: any = { assetId: asset.id, isActive: true };
+    // Base where (scoped to tenant)
+    const where: any = { assetId: asset.id, tenantId, isActive: true };
 
     // Filters - Don't filter by status at database level since we create events based on status
     // if (query.status) where.status = query.status as any
@@ -1332,13 +1355,14 @@ export class MaintenanceService {
     };
   }
 
-  private async resolveAssetId(assetIdParam: string) {
+  private async resolveAssetId(assetIdParam: string, tenantId?: number) {
     const isNumeric = /^\d+$/.test(assetIdParam);
-    const where = isNumeric
+    const baseWhere = isNumeric
       ? { id: Number.parseInt(assetIdParam) }
       : { assetId: assetIdParam };
+    const where = tenantId !== undefined ? { ...baseWhere, tenantId } : baseWhere;
 
-    return this.prisma.asset.findUnique({
+    return this.prisma.asset.findFirst({
       where,
       select: {
         id: true,
@@ -1650,7 +1674,7 @@ export class MaintenanceService {
   }
 
   // Export maintenance records to Excel
-  async exportMaintenanceToExcel(queryDto: MaintenanceExportQueryDto) {
+  async exportMaintenanceToExcel(queryDto: MaintenanceExportQueryDto, tenantId: number) {
     try {
       const {
         search,
@@ -1668,6 +1692,7 @@ export class MaintenanceService {
       // Build where clause
       const where: Prisma.MaintenanceScheduleWhereInput = {
         isActive: true,
+        tenantId,
       };
 
       if (search) {
@@ -1896,9 +1921,9 @@ export class MaintenanceService {
   /**
    * Get maintenance statistics based on latest status per asset
    */
-  async getMaintenanceStats() {
+  async getMaintenanceStats(tenantId: number) {
     try {
-      // Use raw SQL to get the latest maintenance record per asset
+      // Use raw SQL to get the latest maintenance record per asset for this tenant
       const latestMaintenancePerAsset = await this.prisma.$queryRaw`
         SELECT DISTINCT ON (ms."asset_id") 
           ms."asset_id",
@@ -1906,6 +1931,7 @@ export class MaintenanceService {
           ms."scheduled_date",
           ms."created_at"
         FROM "maintenance_schedules" ms
+        WHERE ms."tenant_id" = ${tenantId}
         ORDER BY ms."asset_id", ms."scheduled_date" DESC, ms."created_at" DESC
       `;
 

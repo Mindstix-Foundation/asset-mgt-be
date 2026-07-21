@@ -16,11 +16,12 @@ export class BrandsService {
     private readonly auditService: AuditService,
   ) {}
 
-  async create(createBrandDto: CreateBrandDto, userId: number) {
+  async create(createBrandDto: CreateBrandDto, userId: number, tenantId: number) {
     try {
-      // Check for case-insensitive duplicate
+      // Check for case-insensitive duplicate within tenant
       const existingBrand = await this.prisma.brand.findFirst({
         where: {
+          tenantId,
           name: {
             equals: createBrandDto.name,
             mode: 'insensitive',
@@ -40,6 +41,7 @@ export class BrandsService {
       const brand = await this.prisma.brand.create({
         data: {
           ...createBrandDto,
+          tenantId,
           name: capitalizedName,
           createdBy: userId,
           updatedBy: userId,
@@ -59,6 +61,7 @@ export class BrandsService {
         recordId: brand.id,
         action: AuditAction.INSERT,
         userId,
+        tenantId,
         entityLabel: brand.name,
         summary: `Created brand ${brand.name}`,
         after: { name: brand.name, description: brand.description },
@@ -79,7 +82,7 @@ export class BrandsService {
     }
   }
 
-  async findAll(queryDto: BrandQueryDto) {
+  async findAll(queryDto: BrandQueryDto, tenantId: number) {
     const {
       page = 1,
       limit = 10,
@@ -89,14 +92,13 @@ export class BrandsService {
     } = queryDto;
     const skip = (page - 1) * limit;
 
-    const where = search
-      ? {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' as const } },
-            { description: { contains: search, mode: 'insensitive' as const } },
-          ],
-        }
-      : {};
+    const where: any = { tenantId };
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' as const } },
+        { description: { contains: search, mode: 'insensitive' as const } },
+      ];
+    }
 
     const orderBy = { [sortBy]: sortOrder } as any;
 
@@ -135,9 +137,9 @@ export class BrandsService {
     };
   }
 
-  async findOne(id: number) {
-    const brand = await this.prisma.brand.findUnique({
-      where: { id },
+  async findOne(id: number, tenantId: number) {
+    const brand = await this.prisma.brand.findFirst({
+      where: { id, tenantId },
       include: {
         createdByUser: {
           select: { id: true, username: true },
@@ -182,10 +184,10 @@ export class BrandsService {
     };
   }
 
-  async remove(id: number, userId: number) {
+  async remove(id: number, userId: number, tenantId: number) {
     // Check if brand has associated models or assets
-    const brandWithRelations = await this.prisma.brand.findUnique({
-      where: { id },
+    const brandWithRelations = await this.prisma.brand.findFirst({
+      where: { id, tenantId },
       include: {
         _count: {
           select: { models: true, assets: true },
@@ -213,6 +215,7 @@ export class BrandsService {
       recordId: id,
       action: AuditAction.DELETE,
       userId,
+      tenantId,
       entityLabel: brandWithRelations.name,
       summary: `Deleted brand ${brandWithRelations.name}`,
       before: { name: brandWithRelations.name },

@@ -7,6 +7,7 @@
 import { PrismaClient, NotificationType } from '@prisma/client';
 
 const prisma = new PrismaClient();
+const SEED_TENANT_ID = 1;
 
 const SAMPLE_COUNT = 35;
 const MAINTENANCE_TYPES = [
@@ -40,6 +41,7 @@ async function main() {
 
     return {
       userId: admin.id,
+      tenantId: SEED_TENANT_ID,
       type: NotificationType.MAINTENANCE_REMINDER,
       title: `Maintenance due today — ${assetId}`,
       message: `${maintenanceType} maintenance is scheduled for today on asset ${assetId}.`,

@@ -1,6 +1,7 @@
 import { PrismaClient, AssetStatus, AssetCondition, AssetEventType } from '@prisma/client';
 
 const prisma = new PrismaClient();
+const SEED_TENANT_ID = 1;
 
 function pad(num: number, size: number): string {
   let s = String(num);
@@ -368,8 +369,8 @@ async function seedAssetAssignments() {
     const employeeId = pad(assignment.staffId, 4);
 
     // Get employee
-    const employee = await prisma.employee.findUnique({
-      where: { employeeId },
+    const employee = await prisma.employee.findFirst({
+      where: { employeeId, tenantId: SEED_TENANT_ID },
     });
 
     if (!employee) {
@@ -381,8 +382,8 @@ async function seedAssetAssignments() {
     for (const serialNumber of assignment.serialNumbers) {
       try {
         // Get asset by serial number
-        const asset = await prisma.asset.findUnique({
-          where: { serialNumber },
+        const asset = await prisma.asset.findFirst({
+          where: { serialNumber, tenantId: SEED_TENANT_ID },
         });
 
         if (!asset) {
@@ -424,6 +425,7 @@ async function seedAssetAssignments() {
             issueCondition: AssetCondition.NEW,
             issueReason: 'Initial Assignment', // Add issue reason
             notes: 'Assigned via seed data', // Add notes
+            tenantId: SEED_TENANT_ID,
             createdBy: adminUser.id,
             updatedBy: adminUser.id,
           },
@@ -432,6 +434,7 @@ async function seedAssetAssignments() {
         // Create AssetEvent record for history tracking
         await prisma.assetEvent.create({
           data: {
+            tenantId: SEED_TENANT_ID,
             assetId: asset.id,
             eventType: AssetEventType.ASSET_ISSUED,
             eventDate: issueTimestamp,

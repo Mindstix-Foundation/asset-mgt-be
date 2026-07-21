@@ -44,7 +44,8 @@ export class MaintenanceController {
   })
   create(@Body() createMaintenanceDto: CreateMaintenanceDto, @Req() req: any) {
     const userId = req.user?.id || req.user?.userId || req.user?.sub;
-    return this.maintenanceService.create(createMaintenanceDto, userId);
+    const tenantId = req.user.tenantId as number;
+    return this.maintenanceService.create(createMaintenanceDto, userId, tenantId);
   }
 
   @Get()
@@ -55,8 +56,9 @@ export class MaintenanceController {
     status: 200,
     description: 'Maintenances retrieved successfully',
   })
-  findAll(@Query() query: MaintenanceQueryDto) {
-    return this.maintenanceService.findAll(query);
+  findAll(@Query() query: MaintenanceQueryDto, @Req() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.maintenanceService.findAll(query, tenantId);
   }
 
   @Get('stats')
@@ -66,8 +68,9 @@ export class MaintenanceController {
     description: 'Maintenance statistics retrieved successfully',
   })
   @ApiResponse({ status: 500, description: 'Internal server error' })
-  async getStats() {
-    const stats = await this.maintenanceService.getMaintenanceStats();
+  async getStats(@Req() req: any) {
+    const tenantId = req.user.tenantId as number;
+    const stats = await this.maintenanceService.getMaintenanceStats(tenantId);
     return {
       message: 'Maintenance statistics retrieved successfully',
       data: stats,
@@ -82,14 +85,17 @@ export class MaintenanceController {
   checkAssetAvailability(
     @Query('assetId', ParseIntPipe) assetId: number,
     @Query('scheduledDate') scheduledDate: string,
+    @Req() req: any,
     @Query('excludeMaintenanceId') excludeMaintenanceId?: string,
   ) {
+    const tenantId = req.user.tenantId as number;
     const excludeId = excludeMaintenanceId
       ? Number.parseInt(excludeMaintenanceId, 10)
       : undefined;
     return this.maintenanceService.checkAssetAvailability(
       assetId,
       scheduledDate,
+      tenantId,
       excludeId,
     );
   }
@@ -112,10 +118,12 @@ export class MaintenanceController {
   async exportMaintenanceToExcel(
     @Query() queryDto: MaintenanceExportQueryDto,
     @Res() res: any,
+    @Req() req: any,
   ) {
     try {
+      const tenantId = req.user.tenantId as number;
       const excelBuffer =
-        await this.maintenanceService.exportMaintenanceToExcel(queryDto);
+        await this.maintenanceService.exportMaintenanceToExcel(queryDto, tenantId);
 
       // Set response headers
       const filename = `completed_maintenance_export_${new Date().toISOString().split('T')[0]}.xlsx`;
@@ -147,8 +155,9 @@ export class MaintenanceController {
     description: 'Maintenance history retrieved successfully',
   })
   @ApiResponse({ status: 404, description: 'Asset not found' })
-  getMaintenanceHistory(@Param('assetId') assetId: string) {
-    return this.maintenanceService.getMaintenanceHistory(assetId);
+  getMaintenanceHistory(@Param('assetId') assetId: string, @Req() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.maintenanceService.getMaintenanceHistory(assetId, tenantId);
   }
 
   @Get('asset/:assetId/history-events')
@@ -171,14 +180,16 @@ export class MaintenanceController {
       page?: number;
       limit?: number;
     },
+    @Req() req: any,
   ) {
+    const tenantId = req.user.tenantId as number;
     const page = query.page ? Number(query.page) : 1;
     const limit = query.limit ? Number(query.limit) : 20;
     return this.maintenanceService.getHistoryEvents(assetId, {
       ...query,
       page,
       limit,
-    });
+    }, tenantId);
   }
 
   @Get(':id')
@@ -188,8 +199,9 @@ export class MaintenanceController {
     description: 'Maintenance retrieved successfully',
   })
   @ApiResponse({ status: 404, description: 'Maintenance not found' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.maintenanceService.findOne(id);
+  findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.maintenanceService.findOne(id, tenantId);
   }
 
   @Patch(':id')
@@ -206,7 +218,8 @@ export class MaintenanceController {
     @Req() req: any,
   ) {
     const userId = req.user?.id || req.user?.userId || req.user?.sub;
-    return this.maintenanceService.update(id, updateMaintenanceDto, userId);
+    const tenantId = req.user.tenantId as number;
+    return this.maintenanceService.update(id, updateMaintenanceDto, userId, tenantId);
   }
 
   @Put(':id/complete')
@@ -226,11 +239,13 @@ export class MaintenanceController {
     @Req() req: any,
   ) {
     const userId = req.user?.id || req.user?.userId || req.user?.sub;
+    const tenantId = req.user.tenantId as number;
     return this.maintenanceService.completeMaintenance(
       id,
       body.actualCost,
       body.completionNotes,
       userId,
+      tenantId,
     );
   }
 
@@ -251,11 +266,13 @@ export class MaintenanceController {
     @Req() req: any,
   ) {
     const userId = req.user?.id || req.user?.userId || req.user?.sub;
+    const tenantId = req.user.tenantId as number;
     return this.maintenanceService.cancelMaintenance(
       id,
       undefined, // cancelDate - not used anymore
       body.cancelNotes,
       userId,
+      tenantId,
     );
   }
 
@@ -265,7 +282,8 @@ export class MaintenanceController {
   @ApiResponse({ status: 404, description: 'Maintenance not found' })
   remove(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     const userId = req.user?.id || req.user?.userId || req.user?.sub;
-    return this.maintenanceService.remove(id, userId);
+    const tenantId = req.user.tenantId as number;
+    return this.maintenanceService.remove(id, userId, tenantId);
   }
 }
 

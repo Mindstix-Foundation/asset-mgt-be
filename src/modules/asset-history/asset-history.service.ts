@@ -47,11 +47,12 @@ export class AssetHistoryService {
   }
 
   /**
-   * Get asset by ID or asset code
+   * Get asset by ID or asset code (scoped to tenant)
    */
-  private async getAssetByIdOrCode(idOrCode: string) {
+  private async getAssetByIdOrCode(idOrCode: string, tenantId: number) {
     const asset = await this.prisma.asset.findFirst({
       where: {
+        tenantId,
         OR: [
           { id: Number.isNaN(Number(idOrCode)) ? undefined : Number(idOrCode) },
           { assetId: idOrCode },
@@ -566,8 +567,8 @@ export class AssetHistoryService {
     eventDate: Date,
     event?: any,
   ): Promise<{ status: string; condition: string }> {
-    // Get the asset's current state (fallback)
-    const asset = await this.prisma.asset.findUnique({
+    // Get the asset's current state (fallback) - using findFirst since we know the internal ID
+    const asset = await this.prisma.asset.findFirst({
       where: { id: assetId },
       select: {
         status: true,
@@ -764,8 +765,9 @@ export class AssetHistoryService {
   async getAssetHistory(
     idOrCode: string,
     query: AssetHistoryQueryDto,
+    tenantId: number,
   ): Promise<AssetHistoryResponseDto> {
-    const asset = await this.getAssetByIdOrCode(idOrCode);
+    const asset = await this.getAssetByIdOrCode(idOrCode, tenantId);
 
     // Build where clause
     const where: any = {
@@ -877,8 +879,9 @@ export class AssetHistoryService {
   async getAssetHistorySummary(
     idOrCode: string,
     query: AssetHistoryQueryDto = {},
+    tenantId: number,
   ): Promise<AssetHistorySummaryResponseDto> {
-    const asset = await this.getAssetByIdOrCode(idOrCode);
+    const asset = await this.getAssetByIdOrCode(idOrCode, tenantId);
 
     // Build where clause for filtering
     const where: any = {

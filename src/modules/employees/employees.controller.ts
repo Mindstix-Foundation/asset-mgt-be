@@ -79,7 +79,8 @@ export class EmployeesController {
     @Body() createEmployeeDto: CreateEmployeeDto,
     @Request() req: any,
   ): Promise<EmployeeDetailResponseDto> {
-    return this.employeesService.create(createEmployeeDto, req.user.id);
+    const tenantId = req.user.tenantId as number;
+    return this.employeesService.create(createEmployeeDto, req.user.id, tenantId);
   }
 
   @Get('check-email')
@@ -98,10 +99,13 @@ export class EmployeesController {
   })
   async checkEmail(
     @Query('email') email: string,
+    @Request() req: any,
     @Query('excludeId') excludeId?: string,
   ) {
+    const tenantId = req.user.tenantId as number;
     const available = await this.employeesService.isEmailAvailable(
       email,
+      tenantId,
       excludeId,
     );
     return { message: 'Email availability', data: { available } };
@@ -126,13 +130,16 @@ export class EmployeesController {
   })
   async checkEmployeeId(
     @Query('employeeId') employeeId: string,
+    @Request() req: any,
     @Query('excludeId') excludeId?: string,
   ) {
     if (!employeeId || !/^\d{4}$/.test(employeeId)) {
       throw new BadRequestException('employeeId must be exactly 4 digits');
     }
+    const tenantId = req.user.tenantId as number;
     const available = await this.employeesService.isEmployeeIdAvailable(
       employeeId,
+      tenantId,
       excludeId,
     );
     return { message: 'Employee ID availability', data: { available } };
@@ -151,8 +158,9 @@ export class EmployeesController {
       },
     },
   })
-  async getNextAvailableEmployeeId() {
-    const employeeId = await this.employeesService.getNextAvailableEmployeeId();
+  async getNextAvailableEmployeeId(@Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    const employeeId = await this.employeesService.getNextAvailableEmployeeId(tenantId);
     return { message: 'Next available employee ID', data: { employeeId } };
   }
 
@@ -254,8 +262,10 @@ export class EmployeesController {
   })
   async findAll(
     @Query() query: QueryEmployeeDto,
+    @Request() req: any,
   ): Promise<EmployeeListResponseDto> {
-    return this.employeesService.findAll(query);
+    const tenantId = req.user.tenantId as number;
+    return this.employeesService.findAll(query, tenantId);
   }
 
   @Get('dropdowns')
@@ -305,13 +315,16 @@ export class EmployeesController {
     },
   })
   async findAllForDropdowns(
+    @Request() req: any,
     @Query('status') status?: string,
     @Query('hasAssignedAssets') hasAssignedAssets?: string,
   ) {
+    const tenantId = req.user.tenantId as number;
     const hasAssignedAssetsBool = hasAssignedAssets === 'true';
     return this.employeesService.findAllForDropdowns(
       status,
       hasAssignedAssetsBool,
+      tenantId,
     );
   }
 
@@ -332,8 +345,9 @@ export class EmployeesController {
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
-  async getNonAdminEmployeesForDropdown() {
-    return this.employeesService.getNonAdminEmployeesForDropdown();
+  async getNonAdminEmployeesForDropdown(@Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.employeesService.getNonAdminEmployeesForDropdown(tenantId);
   }
 
   @Get('export')
@@ -352,11 +366,13 @@ export class EmployeesController {
   })
   async exportEmployeesToExcel(
     @Query() queryDto: QueryEmployeeDto,
+    @Request() req: any,
     @Res() res: any,
   ) {
     try {
+      const tenantId = req.user.tenantId as number;
       const excelBuffer =
-        await this.employeesService.exportEmployeesToExcel(queryDto);
+        await this.employeesService.exportEmployeesToExcel(queryDto, tenantId);
 
       // Set response headers
       const filename = `employees_export_${new Date().toISOString().split('T')[0]}.xlsx`;
@@ -455,8 +471,10 @@ export class EmployeesController {
   })
   async getDeletableEmployees(
     @Query() query: QueryEmployeeDto,
+    @Request() req: any,
   ): Promise<EmployeeListResponseDto> {
-    return this.employeesService.getDeletableEmployees(query);
+    const tenantId = req.user.tenantId as number;
+    return this.employeesService.getDeletableEmployees(query, tenantId);
   }
 
   @Get(':id')
@@ -504,10 +522,12 @@ export class EmployeesController {
   @ApiResponse({ status: 404, description: 'Employee not found' })
   async findOne(
     @Param('id') id: string,
+    @Request() req: any,
     @Query('include_assets') includeAssets?: string,
   ): Promise<EmployeeDetailResponseDto> {
+    const tenantId = req.user.tenantId as number;
     const shouldIncludeAssets = includeAssets !== 'false';
-    return this.employeesService.findOne(id, shouldIncludeAssets);
+    return this.employeesService.findOne(id, tenantId, shouldIncludeAssets);
   }
 
   @Get(':id/asset-history')
@@ -561,8 +581,9 @@ export class EmployeesController {
     },
   })
   @ApiResponse({ status: 404, description: 'Employee not found' })
-  async getAssetHistory(@Param('id') id: string) {
-    return this.employeesService.getAssetHistory(id);
+  async getAssetHistory(@Param('id') id: string, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.employeesService.getAssetHistory(id, tenantId);
   }
 
   @Get(':id/asset-events')
@@ -579,8 +600,10 @@ export class EmployeesController {
   async getAssetEvents(
     @Param('id') id: string,
     @Query() query: QueryEmployeeAssetEventsDto,
+    @Request() req: any,
   ) {
-    return this.employeesService.getAssetEvents(id, query);
+    const tenantId = req.user.tenantId as number;
+    return this.employeesService.getAssetEvents(id, query, tenantId);
   }
 
   @Put(':id')
@@ -621,7 +644,8 @@ export class EmployeesController {
     @Body() updateEmployeeDto: UpdateEmployeeDto,
     @Request() req: any,
   ): Promise<EmployeeDetailResponseDto> {
-    return this.employeesService.update(id, updateEmployeeDto, req.user.id);
+    const tenantId = req.user.tenantId as number;
+    return this.employeesService.update(id, updateEmployeeDto, req.user.id, tenantId);
   }
 
   @Post('bulk-upload/validate')
@@ -656,7 +680,8 @@ export class EmployeesController {
     }
 
     const userId = req.user?.id || 1;
-    return this.employeesService.bulkUpload(file, userId, true);
+    const tenantId = req.user?.tenantId as number;
+    return this.employeesService.bulkUpload(file, userId, tenantId, true);
   }
 
   @Post('bulk-upload')
@@ -693,8 +718,9 @@ export class EmployeesController {
     @Request() req: any,
   ) {
     const userId = req.user?.id || 1;
+    const tenantId = req.user?.tenantId as number;
     const isValidateOnly = validateOnly === 'true';
-    return this.employeesService.bulkUpload(file, userId, isValidateOnly);
+    return this.employeesService.bulkUpload(file, userId, tenantId, isValidateOnly);
   }
 
   @Delete(':id')
@@ -743,6 +769,7 @@ export class EmployeesController {
     @Request() req: any,
     @Body('reassign_assets_to') reassignAssetsTo?: string,
   ): Promise<EmployeeDetailResponseDto> {
-    return this.employeesService.remove(id, req.user.id, reassignAssetsTo);
+    const tenantId = req.user.tenantId as number;
+    return this.employeesService.remove(id, req.user.id, tenantId, reassignAssetsTo);
   }
 }

@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Request } from '@nestjs/common';
 import { AppService } from './app.service';
 import { Public } from './core/auth/decorators/public.decorator';
 
@@ -13,7 +13,8 @@ export class AppController {
   }
 
   @Get('dashboard/stats')
-  async getDashboardStats() {
-    return await this.appService.getDashboardStats();
+  async getDashboardStats(@Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return await this.appService.getDashboardStats(tenantId);
   }
 }

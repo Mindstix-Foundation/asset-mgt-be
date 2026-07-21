@@ -4,26 +4,19 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 /**
- * MAIN SEED FILE - Cleans Database & Creates Admin User
- * 
- * This is the primary seed file that:
- * 1. Cleans all existing data from the database
- * 2. Creates the system administrator
- * 
- * Other data is seeded using dedicated seed files:
- * - Asset categories, types, brands, models: seed-asset-categories-updated.ts
- * - Assets: seed-assets-final.ts
- * - Employees: (separate employee seed file)
- * - Asset assignments: seed-asset-assignments.ts
+ * MAIN SEED FILE - Cleans Database & Creates Admin User + sample second tenant
+ *
+ * 1. Cleans all existing business data (preserves tenants table structure)
+ * 2. Ensures platform + default + sample tenants exist
+ * 3. Creates platform SUPER_ADMIN and org admins
  */
 
 async function cleanDatabase() {
   console.log('🧹 Cleaning database...\n');
 
   try {
-    // Use TRUNCATE CASCADE to delete all data efficiently, handling circular dependencies
-    console.log('  🗑️  Truncating all tables with CASCADE...');
-    
+    console.log('  🗑️  Truncating business tables with CASCADE...');
+
     await prisma.$executeRawUnsafe(`
       TRUNCATE TABLE 
         notifications,
@@ -42,10 +35,13 @@ async function cleanDatabase() {
         vendors,
         roles,
         users,
-        employees
+        employees,
+        audit_logs,
+        organization_registrations,
+        tenants
       RESTART IDENTITY CASCADE;
     `);
-    
+
     console.log('\n✅ Database cleaned successfully!\n');
   } catch (error) {
     console.error('❌ Error cleaning database:', error);
@@ -53,124 +49,200 @@ async function cleanDatabase() {
   }
 }
 
-async function createAdminUser() {
-  console.log('🌱 Starting admin seed...');
+async function ensureTenants() {
+  const platformTenant = await prisma.tenant.create({
+    data: {
+      name: 'Platform',
+      isPlatform: true,
+      isActive: true,
+    },
+  });
 
-  // Due to circular dependencies (employee needs user, user needs employee, both need created_by),
-  // we need to create them with SET CONSTRAINTS DEFERRED or use a workaround
-  
-  // 1. Hash the default password
-  const defaultPassword = 'Admin@123';
-  const passwordHash = await bcrypt.hash(defaultPassword, 10);
+  const defaultTenant = await prisma.tenant.create({
+    data: {
+      name: 'Mindstix',
+      isActive: true,
+      isPlatform: false,
+    },
+  });
 
-  // 2. Use transaction with deferred constraints (Postgres feature)
-  console.log('📝 Creating admin employee and user with deferred constraints...');
-  
-  const result = await prisma.$transaction(async (tx) => {
-    // Drop NOT NULL constraints temporarily (they may exist in DB but not in Prisma schema)
+  const sampleTenant = await prisma.tenant.create({
+    data: {
+      name: 'Acme Corp',
+      isActive: true,
+      isPlatform: false,
+    },
+  });
+
+  console.log(
+    `✅ Tenants created: ${platformTenant.name}, ${defaultTenant.name}, ${sampleTenant.name}`,
+  );
+  return { platformTenant, defaultTenant, sampleTenant };
+}
+
+async function createAdminForTenant(options: {
+  tenantId: number;
+  employeeId: string;
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  password: string;
+  roleName: 'ADMIN' | 'SUPER_ADMIN';
+  ensureRole: boolean;
+}) {
+  const passwordHash = await bcrypt.hash(options.password, 10);
+
+  return prisma.$transaction(async (tx) => {
     await tx.$executeRawUnsafe(`ALTER TABLE employees ALTER COLUMN created_by DROP NOT NULL`);
     await tx.$executeRawUnsafe(`ALTER TABLE employees ALTER COLUMN updated_by DROP NOT NULL`);
     await tx.$executeRawUnsafe(`ALTER TABLE users ALTER COLUMN created_by DROP NOT NULL`);
     await tx.$executeRawUnsafe(`ALTER TABLE users ALTER COLUMN updated_by DROP NOT NULL`);
-    
-    // Insert admin employee with NULL created_by (will update later)
+
     await tx.$executeRawUnsafe(`
-      INSERT INTO employees (employee_id, first_name, last_name, email, phone, date_of_birth, address, status)
-      VALUES ('9999', 'System', 'Administrator', 'admin@pebble-asset-tracker.com', '+91 9999999999', '1990-01-01', 'System', 'ACTIVE')
+      INSERT INTO employees (tenant_id, employee_id, first_name, last_name, email, phone, date_of_birth, address, status)
+      VALUES (${options.tenantId}, '${options.employeeId}', '${options.firstName}', '${options.lastName}', '${options.email}', '+91 9999999999', '1990-01-01', 'System', 'ACTIVE')
     `);
-    
-    const adminEmployee = await tx.employee.findUnique({
-      where: { employeeId: '9999' },
+
+    const employee = await tx.employee.findFirst({
+      where: {
+        tenantId: options.tenantId,
+        employeeId: options.employeeId,
+      },
     });
-    if (!adminEmployee) throw new Error('Failed to create admin employee');
-    console.log('✅ Admin employee created');
+    if (!employee) throw new Error(`Failed to create employee ${options.employeeId}`);
 
-    // Insert admin user with NULL created_by (will update later)
     await tx.$executeRawUnsafe(`
-      INSERT INTO users (employee_id, username, password_hash, roles, is_active)
-      VALUES (${adminEmployee.id}, 'admin', '${passwordHash}', ARRAY['ADMIN']::text[], true)
+      INSERT INTO users (tenant_id, employee_id, username, password_hash, roles, is_active)
+      VALUES (${options.tenantId}, ${employee.id}, '${options.username}', '${passwordHash}', ARRAY['${options.roleName}']::text[], true)
     `);
-    
-    const adminUser = await tx.user.findUnique({
-      where: { username: 'admin' },
+
+    const user = await tx.user.findUnique({
+      where: { username: options.username },
     });
-    if (!adminUser) throw new Error('Failed to create admin user');
-    console.log('✅ Admin user created');
+    if (!user) throw new Error(`Failed to create user ${options.username}`);
 
-    // Create ADMIN role (audit fields removed from roles table)
-    await tx.$executeRawUnsafe(`
-      INSERT INTO roles (role_name, is_active)
-      VALUES ('ADMIN', true)
-    `);
-    
-    const adminRole = await tx.role.findUnique({
-      where: { roleName: 'ADMIN' },
+    let role = await tx.role.findUnique({
+      where: { roleName: options.roleName },
     });
-    if (!adminRole) throw new Error('Failed to create admin role');
-    console.log('✅ ADMIN role created');
 
-    // Now update employee and user to reference proper IDs
+    if (!role && options.ensureRole) {
+      await tx.$executeRawUnsafe(`
+        INSERT INTO roles (role_name, is_active)
+        VALUES ('${options.roleName}', true)
+      `);
+      role = await tx.role.findUnique({
+        where: { roleName: options.roleName },
+      });
+    }
+    if (!role) throw new Error(`${options.roleName} role not found`);
+
+    // Ensure ADMIN role exists for org provisioning even when creating SUPER_ADMIN first
+    if (options.roleName === 'SUPER_ADMIN') {
+      const adminRole = await tx.role.findUnique({ where: { roleName: 'ADMIN' } });
+      if (!adminRole) {
+        await tx.$executeRawUnsafe(`
+          INSERT INTO roles (role_name, is_active) VALUES ('ADMIN', true)
+        `);
+      }
+    }
+
     await tx.$executeRawUnsafe(`
-      UPDATE employees SET created_by = ${adminUser.id}, updated_by = ${adminUser.id} WHERE id = ${adminEmployee.id}
+      UPDATE employees SET created_by = ${user.id}, updated_by = ${user.id} WHERE id = ${employee.id}
     `);
     await tx.$executeRawUnsafe(`
-      UPDATE users SET created_by = ${adminUser.id}, updated_by = ${adminUser.id} WHERE id = ${adminUser.id}
+      UPDATE users SET created_by = ${user.id}, updated_by = ${user.id} WHERE id = ${user.id}
     `);
-    console.log('✅ Updated audit fields to reference admin user');
 
-    // Assign ADMIN role to admin user
     await tx.userRole.create({
       data: {
-        userId: adminUser.id,
-        roleId: adminRole.id,
-        assignedBy: adminUser.id,
+        userId: user.id,
+        roleId: role.id,
+        assignedBy: user.id,
         isActive: true,
       },
     });
-    console.log('✅ ADMIN role assigned to user');
 
-    return adminUser.id;
+    return user.id;
   });
-
-  console.log('\n🎉 Admin seed completed successfully!');
-  console.log('\n📋 Login Credentials:');
-  console.log('   Username: admin');
-  console.log('   Password: Admin@123');
-  console.log('\n⚠️  Please change the password after first login!\n');
-
-  return result;
 }
 
 async function main() {
   try {
     console.log('🚀 Starting database seeding...\n');
-    
-    // Step 1: Clean all existing data
+
     await cleanDatabase();
-    
-    // Step 2: Create admin user
-    await createAdminUser();
-    
+    const { platformTenant, defaultTenant, sampleTenant } = await ensureTenants();
+
+    await createAdminForTenant({
+      tenantId: platformTenant.id,
+      employeeId: 'PLAT0001',
+      username: 'superadmin',
+      email: 'superadmin@platform.local',
+      firstName: 'Platform',
+      lastName: 'SuperAdmin',
+      password: 'SuperAdmin@123',
+      roleName: 'SUPER_ADMIN',
+      ensureRole: true,
+    });
+
+    await createAdminForTenant({
+      tenantId: defaultTenant.id,
+      employeeId: '9999',
+      username: 'admin',
+      email: 'admin@pebble-asset-tracker.com',
+      firstName: 'System',
+      lastName: 'Administrator',
+      password: 'Admin@123',
+      roleName: 'ADMIN',
+      ensureRole: true,
+    });
+
+    await createAdminForTenant({
+      tenantId: sampleTenant.id,
+      employeeId: 'A0001',
+      username: 'acme-admin',
+      email: 'admin@acme.example.com',
+      firstName: 'Acme',
+      lastName: 'Admin',
+      password: 'Admin@123',
+      roleName: 'ADMIN',
+      ensureRole: false,
+    });
+
+    // Minimal catalog row for sample tenant so isolation tests have tenant-owned data
+    const acmeAdmin = await prisma.user.findUnique({ where: { username: 'acme-admin' } });
+    if (acmeAdmin) {
+      await prisma.assetCategory.create({
+        data: {
+          tenantId: sampleTenant.id,
+          name: 'Acme Sample Category',
+          description: 'Seed category for second tenant isolation tests',
+          createdBy: acmeAdmin.id,
+          updatedBy: acmeAdmin.id,
+        },
+      });
+      await prisma.employee.create({
+        data: {
+          tenantId: sampleTenant.id,
+          employeeId: 'A0002',
+          firstName: 'Jane',
+          lastName: 'Doe',
+          email: 'jane.doe@acme.example.com',
+          status: EmployeeStatus.ACTIVE,
+          createdBy: acmeAdmin.id,
+          updatedBy: acmeAdmin.id,
+        },
+      });
+    }
+
     console.log('\n🎉 Database seeding completed successfully!');
     console.log('\n📊 Summary:');
-    console.log('   ✓ Database cleaned (all old data removed)');
-    console.log('   ✓ 1 Admin user created (username: admin)');
-    console.log('   ✓ 1 Admin employee created (ID: 9999)');
-    console.log('   ✓ 1 ADMIN role created and assigned');
-    
-    console.log('\n📝 Next Steps:');
-    console.log('   Option 1 (Recommended): Run all seeds at once');
-    console.log('      npx ts-node prisma/seeds/run-all-seeds.ts');
-    console.log('');
-    console.log('   Option 2: Run seeds individually in order');
-    console.log('      npx ts-node prisma/seeds/02-asset-structure.seed.ts');
-    console.log('      npx ts-node prisma/seeds/03-assets.seed.ts');
-    console.log('      npx ts-node prisma/seeds/04-employees.seed.ts');
-    console.log('      npx ts-node prisma/seeds/05-asset-assignments.seed.ts');
-    
-    console.log('\n⚠️  WARNING: All previous data has been deleted!');
-    console.log('   Make sure to run all remaining seed files to populate the database.\n');
-    
+    console.log(`   ✓ Platform:     Platform org (superadmin / SuperAdmin@123)`);
+    console.log(`   ✓ Default tenant: Mindstix (admin / Admin@123)`);
+    console.log(`   ✓ Sample tenant:  Acme Corp (acme-admin / Admin@123)`);
+    console.log('   ✓ SUPER_ADMIN manages organizations only; org ADMIN manages tenant data');
+    console.log('\n📝 Next: run remaining seed files for the default tenant catalog/assets.');
   } catch (error) {
     console.error('❌ Error during seeding:', error);
     throw error;

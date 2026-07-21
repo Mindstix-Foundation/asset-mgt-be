@@ -45,15 +45,17 @@ export class AssetTypesController {
       );
     }
     const userId = req.user.id;
-    return this.assetTypesService.create(createAssetTypeDto, userId);
+    const tenantId = req.user.tenantId as number;
+    return this.assetTypesService.create(createAssetTypeDto, userId, tenantId);
   }
 
   @Get()
   @ApiOperation({
     summary: 'Get all asset types with filtering and pagination',
   })
-  async findAll(@Query() queryDto: AssetTypeQueryDto) {
-    return this.assetTypesService.findAll(queryDto);
+  async findAll(@Query() queryDto: AssetTypeQueryDto, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.assetTypesService.findAll(queryDto, tenantId);
   }
 
   @Put(':id')
@@ -71,21 +73,27 @@ export class AssetTypesController {
       );
     }
     const userId = req.user.id;
-    return this.assetTypesService.update(id, updateAssetTypeDto, userId);
+    const tenantId = req.user.tenantId as number;
+    return this.assetTypesService.update(id, updateAssetTypeDto, userId, tenantId);
   }
 
   @Get('by-category/:categoryId')
   @ApiOperation({ summary: 'Get asset types by category ID' })
   @ApiParam({ name: 'categoryId', description: 'Asset Category ID' })
-  async findByCategory(@Param('categoryId', ParseIntPipe) categoryId: number) {
-    return this.assetTypesService.findByCategory(categoryId);
+  async findByCategory(
+    @Param('categoryId', ParseIntPipe) categoryId: number,
+    @Request() req: any,
+  ) {
+    const tenantId = req.user.tenantId as number;
+    return this.assetTypesService.findByCategory(categoryId, tenantId);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get asset type by ID' })
   @ApiParam({ name: 'id', description: 'Asset Type ID' })
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.assetTypesService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.assetTypesService.findOne(id, tenantId);
   }
 
   @Delete(':id')
@@ -93,6 +101,7 @@ export class AssetTypesController {
   @ApiOperation({ summary: 'Delete asset type by ID' })
   @ApiParam({ name: 'id', description: 'Asset Type ID' })
   async remove(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
-    return this.assetTypesService.remove(id, req.user?.id ?? req.user?.userId);
+    const tenantId = req.user.tenantId as number;
+    return this.assetTypesService.remove(id, req.user?.id ?? req.user?.userId, tenantId);
   }
 }

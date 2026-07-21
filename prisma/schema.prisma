@@ -7,8 +7,70 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Tenant {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique @db.VarChar(100)
+  isPlatform Boolean  @default(false) @map("is_platform")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  users              User[]
+  employees          Employee[]
+  designations       Designation[]
+  assetCategories    AssetCategory[]
+  assetTypes         AssetType[]
+  brands             Brand[]
+  models             Model[]
+  vendors            Vendor[]
+  assets             Asset[]
+  assetIssues        AssetIssue[]
+  maintenanceSchedules MaintenanceSchedule[]
+  assetEvents        AssetEvent[]
+  notifications      Notification[]
+  auditLogs          AuditLog[]
+  registrationRequests OrganizationRegistration[]
+
+  @@index([isActive])
+  @@index([isPlatform])
+  @@map("tenants")
+}
+
+enum OrganizationRegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// Self-service org signup requests awaiting platform SUPER_ADMIN review
+model OrganizationRegistration {
+  id               Int                            @id @default(autoincrement())
+  organizationName String                         @map("organization_name") @db.VarChar(100)
+  adminFirstName   String                         @map("admin_first_name") @db.VarChar(50)
+  adminLastName    String                         @map("admin_last_name") @db.VarChar(50)
+  adminEmail       String                         @map("admin_email") @db.VarChar(255)
+  adminUsername    String                         @map("admin_username") @db.VarChar(50)
+  adminPasswordHash String                        @map("admin_password_hash") @db.VarChar(255)
+  phone            String?                        @db.VarChar(20)
+  message          String?                        @db.VarChar(500)
+  status           OrganizationRegistrationStatus @default(PENDING)
+  rejectionReason  String?                        @map("rejection_reason") @db.VarChar(500)
+  reviewedBy       Int?                           @map("reviewed_by")
+  reviewedAt       DateTime?                      @map("reviewed_at") @db.Timestamptz(6)
+  tenantId         Int?                           @map("tenant_id")
+  createdAt        DateTime                       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime                       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant           Tenant?                        @relation(fields: [tenantId], references: [id])
+
+  @@index([status])
+  @@index([organizationName])
+  @@index([adminEmail])
+  @@map("organization_registrations")
+}
+
 model User {
   id                          Int                   @id @default(autoincrement())
+  tenantId                    Int                   @map("tenant_id")
   employeeId                  Int                   @unique @map("employee_id")
   username                    String                @unique @db.VarChar(50)
   passwordHash                String                @map("password_hash") @db.VarChar(255)
@@ -23,6 +85,7 @@ model User {
   refreshToken                String?               @map("refresh_token") @db.VarChar(500)
   refreshTokenExpires         DateTime?             @map("refresh_token_expires") @db.Timestamptz(6)
   roles                       String[]              @default([])
+  tenant                      Tenant                @relation(fields: [tenantId], references: [id])
   createdAssetCategories      AssetCategory[]       @relation("AssetCategoryCreatedBy")
   updatedAssetCategories      AssetCategory[]       @relation("AssetCategoryUpdatedBy")
   assetEvents                 AssetEvent[]          @relation("AssetEventPerformedBy")
@@ -37,6 +100,8 @@ model User {
   updatedBrands               Brand[]               @relation("BrandUpdatedBy")
   createdEmployees            Employee[]            @relation("EmployeeCreatedBy")
   updatedEmployees            Employee[]            @relation("EmployeeUpdatedBy")
+  createdDesignations         Designation[]         @relation("DesignationCreatedBy")
+  updatedDesignations         Designation[]         @relation("DesignationUpdatedBy")
   createdMaintenanceSchedules MaintenanceSchedule[] @relation("MaintenanceScheduleCreatedBy")
   updatedMaintenanceSchedules MaintenanceSchedule[] @relation("MaintenanceScheduleUpdatedBy")
   createdModels               Model[]               @relation("ModelCreatedBy")
@@ -56,6 +121,7 @@ model User {
   vendor                      Vendor?
   auditLogs                   AuditLog[]            @relation("AuditLogPerformedBy")
 
+  @@index([tenantId])
   @@index([isActive, lastLogin])
   @@map("users")
 }
@@ -130,25 +196,51 @@ model UserRole {
   @@map("user_roles")
 }
 
+model Designation {
+  id            Int        @id @default(autoincrement())
+  tenantId      Int        @map("tenant_id")
+  name          String     @db.VarChar(100)
+  description   String?
+  createdBy     Int        @map("created_by")
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedBy     Int        @map("updated_by")
+  updatedAt     DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant        Tenant     @relation(fields: [tenantId], references: [id])
+  createdByUser User       @relation("DesignationCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User       @relation("DesignationUpdatedBy", fields: [updatedBy], references: [id])
+  employees     Employee[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("designations")
+}
+
 model Employee {
   id            Int            @id @default(autoincrement())
-  employeeId    String         @unique @map("employee_id") @db.Char(8)
+  tenantId      Int            @map("tenant_id")
+  employeeId    String         @map("employee_id") @db.Char(8)
   firstName     String         @map("first_name") @db.VarChar(50)
   lastName      String         @map("last_name") @db.VarChar(50)
   email         String         @unique @db.VarChar(255)
   phone         String?        @db.VarChar(15)
   dateOfBirth   DateTime?      @map("date_of_birth") @db.Date
   address       String?
+  designationId Int?           @map("designation_id")
   status        EmployeeStatus @default(ACTIVE)
   createdBy     Int?           @map("created_by")
   createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedBy     Int?           @map("updated_by")
   updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  designation   Designation?   @relation(fields: [designationId], references: [id])
   assetIssues   AssetIssue[]
   createdByUser User?          @relation("EmployeeCreatedBy", fields: [createdBy], references: [id])
   updatedByUser User?          @relation("EmployeeUpdatedBy", fields: [updatedBy], references: [id])
   user          User?
 
+  @@unique([tenantId, employeeId])
+  @@index([tenantId])
+  @@index([designationId])
   @@index([status])
   @@index([firstName, lastName])
   @@map("employees")
@@ -156,21 +248,26 @@ model Employee {
 
 model AssetCategory {
   id            Int         @id @default(autoincrement())
-  name          String      @unique @db.VarChar(50)
+  tenantId      Int         @map("tenant_id")
+  name          String      @db.VarChar(50)
   description   String?
   createdBy     Int         @map("created_by")
   createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedBy     Int         @map("updated_by")
   updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant        Tenant      @relation(fields: [tenantId], references: [id])
   createdByUser User        @relation("AssetCategoryCreatedBy", fields: [createdBy], references: [id])
   updatedByUser User        @relation("AssetCategoryUpdatedBy", fields: [updatedBy], references: [id])
   assetTypes    AssetType[]
 
+  @@unique([tenantId, name])
+  @@index([tenantId])
   @@map("asset_categories")
 }
 
 model AssetType {
   id                    Int           @id @default(autoincrement())
+  tenantId              Int           @map("tenant_id")
   categoryId            Int           @map("category_id")
   name                  String        @db.VarChar(50)
   description           String?
@@ -180,13 +277,15 @@ model AssetType {
   updatedBy             Int           @map("updated_by")
   updatedAt             DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   specificationTemplate Json?         @map("specification_template")
+  tenant                Tenant        @relation(fields: [tenantId], references: [id])
   category              AssetCategory @relation(fields: [categoryId], references: [id])
   createdByUser         User          @relation("AssetTypeCreatedBy", fields: [createdBy], references: [id])
   updatedByUser         User          @relation("AssetTypeUpdatedBy", fields: [updatedBy], references: [id])
   assets                Asset[]
   models                Model[]
 
-  @@unique([name, categoryId])
+  @@unique([tenantId, name, categoryId])
+  @@index([tenantId])
   @@index([categoryId])
   @@index([isActive])
   @@map("asset_types")
@@ -194,22 +293,27 @@ model AssetType {
 
 model Brand {
   id            Int      @id @default(autoincrement())
-  name          String   @unique @db.VarChar(50)
+  tenantId      Int      @map("tenant_id")
+  name          String   @db.VarChar(50)
   description   String?
   createdBy     Int      @map("created_by")
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedBy     Int      @map("updated_by")
   updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
   assets        Asset[]
   createdByUser User     @relation("BrandCreatedBy", fields: [createdBy], references: [id])
   updatedByUser User     @relation("BrandUpdatedBy", fields: [updatedBy], references: [id])
   models        Model[]
 
+  @@unique([tenantId, name])
+  @@index([tenantId])
   @@map("brands")
 }
 
 model Model {
   id             Int       @id @default(autoincrement())
+  tenantId       Int       @map("tenant_id")
   brandId        Int       @map("brand_id")
   assetTypeId    Int       @map("asset_type_id")
   name           String    @db.VarChar(100)
@@ -218,13 +322,15 @@ model Model {
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedBy      Int       @map("updated_by")
   updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant         Tenant    @relation(fields: [tenantId], references: [id])
   assets         Asset[]
   assetType      AssetType @relation(fields: [assetTypeId], references: [id])
   brand          Brand     @relation(fields: [brandId], references: [id])
   createdByUser  User      @relation("ModelCreatedBy", fields: [createdBy], references: [id])
   updatedByUser  User      @relation("ModelUpdatedBy", fields: [updatedBy], references: [id])
 
-  @@unique([name, brandId, assetTypeId])
+  @@unique([tenantId, name, brandId, assetTypeId])
+  @@index([tenantId])
   @@index([brandId])
   @@index([assetTypeId])
   @@map("models")
@@ -232,6 +338,7 @@ model Model {
 
 model Vendor {
   id            Int          @id @default(autoincrement())
+  tenantId      Int          @map("tenant_id")
   name          String       @db.VarChar(100)
   contactPerson String?      @map("contact_person") @db.VarChar(100)
   email         String?      @db.VarChar(255)
@@ -247,11 +354,13 @@ model Vendor {
   updatedBy     Int          @map("updated_by")
   updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   vendorType    VendorType   @default(SUPPLIER) @map("vendor_type")
+  tenant        Tenant       @relation(fields: [tenantId], references: [id])
   assets        Asset[]
   createdByUser User         @relation("VendorCreatedBy", fields: [createdBy], references: [id])
   updatedByUser User         @relation("VendorUpdatedBy", fields: [updatedBy], references: [id])
   user          User?        @relation(fields: [userId], references: [id])
 
+  @@index([tenantId])
   @@index([name])
   @@index([vendorType])
   @@index([email])
@@ -263,11 +372,12 @@ model Vendor {
 
 model Asset {
   id                   Int                   @id @default(autoincrement())
-  assetId              String                @unique @map("asset_id") @db.VarChar(20)
+  tenantId             Int                   @map("tenant_id")
+  assetId              String                @map("asset_id") @db.VarChar(20)
   assetTypeId          Int                   @map("asset_type_id")
   brandId              Int                   @map("brand_id")
   modelId              Int                   @map("model_id")
-  serialNumber         String?               @unique @map("serial_number") @db.VarChar(100)
+  serialNumber         String?               @map("serial_number") @db.VarChar(100)
   purchaseDate         DateTime?             @map("purchase_date") @db.Date
   purchaseCost         Decimal?              @map("purchase_cost") @db.Decimal(10, 2)
   vendorId             Int?                  @map("vendor_id")
@@ -289,6 +399,7 @@ model Asset {
   updatedAt            DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   retirementNotes      String?               @map("retirement_notes")
   specifications       Json?
+  tenant               Tenant                @relation(fields: [tenantId], references: [id])
   assetEvents          AssetEvent[]          @relation("AssetEvents")
   assetIssues          AssetIssue[]
   assetType            AssetType             @relation(fields: [assetTypeId], references: [id])
@@ -299,6 +410,9 @@ model Asset {
   vendor               Vendor?               @relation(fields: [vendorId], references: [id])
   maintenanceSchedules MaintenanceSchedule[]
 
+  @@unique([tenantId, assetId])
+  @@unique([tenantId, serialNumber])
+  @@index([tenantId])
   @@index([assetTypeId])
   @@index([brandId])
   @@index([modelId])
@@ -314,6 +428,7 @@ model Asset {
 
 model AssetIssue {
   id              Int              @id @default(autoincrement())
+  tenantId        Int              @map("tenant_id")
   assetId         Int              @map("asset_id")
   employeeId      Int              @map("employee_id")
   issuedBy        Int              @map("issued_by")
@@ -330,12 +445,14 @@ model AssetIssue {
   updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   issueTimestamp  DateTime         @default(now()) @map("issue_timestamp") @db.Timestamptz(6)
   returnTimestamp DateTime?        @map("return_timestamp") @db.Timestamptz(6)
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
   asset           Asset            @relation(fields: [assetId], references: [id])
   createdByUser   User             @relation("AssetIssueCreatedBy", fields: [createdBy], references: [id])
   employee        Employee         @relation(fields: [employeeId], references: [id])
   issuedByUser    User             @relation("AssetIssuedBy", fields: [issuedBy], references: [id])
   updatedByUser   User             @relation("AssetIssueUpdatedBy", fields: [updatedBy], references: [id])
 
+  @@index([tenantId])
   @@index([assetId])
   @@index([employeeId])
   @@index([issuedBy])
@@ -350,6 +467,7 @@ model AssetIssue {
 
 model MaintenanceSchedule {
   id                   Int                 @id @default(autoincrement())
+  tenantId             Int                 @map("tenant_id")
   assetId              Int                 @map("asset_id")
   maintenanceType      MaintenanceTypeEnum @map("maintenance_type")
   scheduledDate        DateTime            @map("scheduled_date") @db.Timestamptz(6)
@@ -369,10 +487,12 @@ model MaintenanceSchedule {
   createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedBy            Int                 @map("updated_by")
   updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant               Tenant              @relation(fields: [tenantId], references: [id])
   asset                Asset               @relation(fields: [assetId], references: [id])
   createdByUser        User                @relation("MaintenanceScheduleCreatedBy", fields: [createdBy], references: [id])
   updatedByUser        User                @relation("MaintenanceScheduleUpdatedBy", fields: [updatedBy], references: [id])
 
+  @@index([tenantId])
   @@index([assetId])
   @@index([maintenanceType])
   @@index([scheduledDate])
@@ -385,6 +505,7 @@ model MaintenanceSchedule {
 
 model AssetEvent {
   id              Int            @id @default(autoincrement())
+  tenantId        Int            @map("tenant_id")
   assetId         Int            @map("asset_id")
   eventType       AssetEventType @map("event_type")
   eventDate       DateTime       @map("event_date") @db.Timestamptz(6)
@@ -396,9 +517,11 @@ model AssetEvent {
   ipAddress       String?        @map("ip_address") @db.VarChar(45)
   userAgent       String?        @map("user_agent") @db.VarChar(500)
   createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  tenant          Tenant         @relation(fields: [tenantId], references: [id])
   asset           Asset          @relation("AssetEvents", fields: [assetId], references: [id], onDelete: Cascade)
   performedByUser User           @relation("AssetEventPerformedBy", fields: [performedBy], references: [id])
 
+  @@index([tenantId])
   @@index([assetId])
   @@index([eventType])
   @@index([eventDate])
@@ -409,6 +532,7 @@ model AssetEvent {
 
 model Notification {
   id        Int              @id @default(autoincrement())
+  tenantId  Int              @map("tenant_id")
   userId    Int              @map("user_id")
   type      NotificationType @map("type")
   title     String           @db.VarChar(200)
@@ -417,8 +541,10 @@ model Notification {
   data      Json?            @map("data")
   createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   readAt    DateTime?        @map("read_at") @db.Timestamptz(6)
+  tenant    Tenant           @relation(fields: [tenantId], references: [id])
   user      User             @relation("UserNotifications", fields: [userId], references: [id])
 
+  @@index([tenantId])
   @@index([userId])
   @@index([type])
   @@index([isRead])
@@ -428,6 +554,7 @@ model Notification {
 
 model AuditLog {
   id            Int         @id @default(autoincrement())
+  tenantId      Int         @map("tenant_id")
   tableName     String      @map("table_name") @db.VarChar(50)
   recordId      Int         @map("record_id")
   action        AuditAction
@@ -441,8 +568,10 @@ model AuditLog {
   ipAddress     String?     @map("ip_address") @db.VarChar(45)
   userAgent     String?     @map("user_agent") @db.VarChar(500)
   createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  tenant        Tenant      @relation(fields: [tenantId], references: [id])
   user          User        @relation("AuditLogPerformedBy", fields: [userId], references: [id])
 
+  @@index([tenantId])
   @@index([tableName, recordId])
   @@index([userId])
   @@index([createdAt(sort: Desc)])

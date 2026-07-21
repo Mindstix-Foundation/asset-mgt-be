@@ -20,12 +20,12 @@ export class AssignmentsService {
     private readonly auditService: AuditService,
   ) {}
 
-  async create(createAssignmentDto: CreateAssignmentDto, userId: number) {
+  async create(createAssignmentDto: CreateAssignmentDto, userId: number, tenantId: number) {
     try {
-      // Verify asset and employee exist
+      // Verify asset and employee exist (scoped to tenant)
       const [asset, employee] = await Promise.all([
-        this.prisma.asset.findUnique({
-          where: { id: createAssignmentDto.assetId },
+        this.prisma.asset.findFirst({
+          where: { id: createAssignmentDto.assetId, tenantId },
           include: {
             assetIssues: {
               where: { returnDate: null },
@@ -33,8 +33,8 @@ export class AssignmentsService {
             },
           },
         }),
-        this.prisma.employee.findUnique({
-          where: { id: createAssignmentDto.employeeId },
+        this.prisma.employee.findFirst({
+          where: { id: createAssignmentDto.employeeId, tenantId },
         }),
       ]);
 
@@ -73,6 +73,7 @@ export class AssignmentsService {
           data: {
             assetId: createAssignmentDto.assetId,
             employeeId: createAssignmentDto.employeeId,
+            tenantId,
             issuedBy: userId,
             issueDate: new Date(createAssignmentDto.issueDate), // Business date
             issueTimestamp: new Date(), // Audit timestamp (current UTC time)
@@ -121,6 +122,7 @@ export class AssignmentsService {
         // Log asset issue event
         await prisma.assetEvent.create({
           data: {
+            tenantId,
             assetId: createAssignmentDto.assetId,
             eventType: AssetEventType.ASSET_ISSUED,
             eventDate: new Date(),
@@ -150,6 +152,7 @@ export class AssignmentsService {
         recordId: result.id,
         action: AuditAction.INSERT,
         userId,
+        tenantId,
         entityLabel: `${result.asset.assetId} → ${result.employee.firstName} ${result.employee.lastName}`,
         summary: `Issued asset ${result.asset.assetId} to ${result.employee.firstName} ${result.employee.lastName}`,
         after: {
@@ -173,7 +176,7 @@ export class AssignmentsService {
     }
   }
 
-  async findAllActiveForCollect(queryDto: AssignmentQueryDto) {
+  async findAllActiveForCollect(queryDto: AssignmentQueryDto, tenantId: number) {
     const {
       page = 1,
       limit = 10,
@@ -186,6 +189,7 @@ export class AssignmentsService {
     const skip = (page - 1) * limit;
 
     const where: any = {
+      tenantId,
       returnDate: null, // Only active assignments
     };
 
@@ -275,7 +279,7 @@ export class AssignmentsService {
     };
   }
 
-  async findAllActive(queryDto: AssignmentQueryDto) {
+  async findAllActive(queryDto: AssignmentQueryDto, tenantId: number) {
     const {
       page = 1,
       limit = 10,
@@ -288,6 +292,7 @@ export class AssignmentsService {
     const skip = (page - 1) * limit;
 
     const where: any = {
+      tenantId,
       returnDate: null, // Only active assignments
     };
 
@@ -370,7 +375,7 @@ export class AssignmentsService {
     };
   }
 
-  async findAll(queryDto: AssignmentQueryDto) {
+  async findAll(queryDto: AssignmentQueryDto, tenantId: number) {
     const {
       page = 1,
       limit = 10,
@@ -383,7 +388,7 @@ export class AssignmentsService {
     } = queryDto;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: any = { tenantId };
 
     if (search) {
       where.OR = [
@@ -473,9 +478,9 @@ export class AssignmentsService {
     };
   }
 
-  async findOne(id: number) {
-    const assignment = await this.prisma.assetIssue.findUnique({
-      where: { id },
+  async findOne(id: number, tenantId: number) {
+    const assignment = await this.prisma.assetIssue.findFirst({
+      where: { id, tenantId },
       include: {
         asset: {
           select: {
@@ -534,11 +539,12 @@ export class AssignmentsService {
     id: number,
     returnAssignmentDto: ReturnAssignmentDto,
     userId: number,
+    tenantId: number,
   ) {
     try {
-      // Find the active assignment
-      const assignment = await this.prisma.assetIssue.findUnique({
-        where: { id },
+      // Find the active assignment (scoped to tenant)
+      const assignment = await this.prisma.assetIssue.findFirst({
+        where: { id, tenantId },
         include: {
           asset: { select: { id: true, status: true } },
         },
@@ -612,6 +618,7 @@ export class AssignmentsService {
         // Log asset collection event
         await prisma.assetEvent.create({
           data: {
+            tenantId,
             assetId: assignment.assetId,
             eventType: AssetEventType.ASSET_COLLECTED,
             eventDate: new Date(),
@@ -643,6 +650,7 @@ export class AssignmentsService {
         recordId: result.id,
         action: AuditAction.UPDATE,
         userId,
+        tenantId,
         entityLabel: `${result.asset.assetId} ← ${result.employee.firstName} ${result.employee.lastName}`,
         summary: `Collected asset ${result.asset.assetId} from ${result.employee.firstName} ${result.employee.lastName}`,
         changes: [

@@ -15,6 +15,7 @@ import { AppModule } from '../src/app.module';
 import { NotificationService } from '../src/modules/notifications/notification.service';
 
 const prisma = new PrismaClient();
+const SEED_TENANT_ID = 1;
 
 function todayRange() {
   const start = new Date();
@@ -76,6 +77,7 @@ async function ensureMaintenanceDueToday(adminUserId: number) {
       description: `Test maintenance reminder — ${new Date().toISOString()}`,
       status: MaintenanceStatus.SCHEDULED,
       isActive: true,
+      tenantId: SEED_TENANT_ID,
       createdBy: adminUserId,
       updatedBy: adminUserId,
     },
@@ -116,7 +118,7 @@ async function main() {
   const adminEmail = admin.employee?.email;
   console.log(`Admin user id=${admin.id}, email=${adminEmail ?? '(none)'}`);
 
-  const maintenance = await ensureMaintenanceDueToday(admin.id);
+  const maintenance = await ensureMaintenanceDueToday(admin.id) as any;
 
   const notificationsBefore = await prisma.notification.count({
     where: {

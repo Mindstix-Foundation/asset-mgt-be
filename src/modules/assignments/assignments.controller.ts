@@ -97,7 +97,8 @@ export class AssignmentsController {
       );
     }
     const userId = req.user.id;
-    return this.assignmentsService.create(createAssignmentDto, userId);
+    const tenantId = req.user.tenantId as number;
+    return this.assignmentsService.create(createAssignmentDto, userId, tenantId);
   }
 
   @Get('active')
@@ -189,8 +190,9 @@ export class AssignmentsController {
       },
     },
   })
-  async findAllActive(@Query() queryDto: AssignmentQueryDto) {
-    return this.assignmentsService.findAllActive(queryDto);
+  async findAllActive(@Query() queryDto: AssignmentQueryDto, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.assignmentsService.findAllActive(queryDto, tenantId);
   }
 
   @Get('active/collect')
@@ -237,8 +239,9 @@ export class AssignmentsController {
     status: 200,
     description: 'Active assignments with enhanced data retrieved successfully',
   })
-  async findAllActiveForCollect(@Query() queryDto: AssignmentQueryDto) {
-    return this.assignmentsService.findAllActiveForCollect(queryDto);
+  async findAllActiveForCollect(@Query() queryDto: AssignmentQueryDto, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.assignmentsService.findAllActiveForCollect(queryDto, tenantId);
   }
 
   @Get()
@@ -287,8 +290,9 @@ export class AssignmentsController {
     status: 200,
     description: 'Assignments retrieved successfully',
   })
-  async findAll(@Query() queryDto: AssignmentQueryDto) {
-    return this.assignmentsService.findAll(queryDto);
+  async findAll(@Query() queryDto: AssignmentQueryDto, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.assignmentsService.findAll(queryDto, tenantId);
   }
 
   @Get(':id')
@@ -299,8 +303,9 @@ export class AssignmentsController {
     description: 'Assignment retrieved successfully',
   })
   @ApiResponse({ status: 404, description: 'Assignment not found' })
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.assignmentsService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.assignmentsService.findOne(id, tenantId);
   }
 
   @Put(':id/return')
@@ -357,6 +362,7 @@ export class AssignmentsController {
       );
     }
     const userId = req.user.id;
-    return this.assignmentsService.returnAsset(id, returnAssignmentDto, userId);
+    const tenantId = req.user.tenantId as number;
+    return this.assignmentsService.returnAsset(id, returnAssignmentDto, userId, tenantId);
   }
 }

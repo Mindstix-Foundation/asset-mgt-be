@@ -123,8 +123,8 @@ export class ReportsService {
     return { timeAgo: label, needsRealTimeUpdate: false };
   }
 
-  async getAnalyticsData(): Promise<AnalyticsData> {
-    // Get asset distribution by type (exclude RETIRED and LOST)
+  async getAnalyticsData(tenantId: number): Promise<AnalyticsData> {
+    // Get asset distribution by type (exclude RETIRED and LOST), scoped to tenant
     const assetsByType = await this.prisma.asset.groupBy({
       by: ['assetTypeId'],
       _count: {
@@ -134,14 +134,16 @@ export class ReportsService {
         purchaseCost: true,
       },
       where: {
+        tenantId,
         status: {
           notIn: ['RETIRED', 'LOST'],
         },
       },
     });
 
-    // Get asset type names
+    // Get asset type names (scoped to tenant)
     const assetTypes = await this.prisma.assetType.findMany({
+      where: { tenantId },
       select: {
         id: true,
         name: true,
@@ -152,9 +154,10 @@ export class ReportsService {
       assetTypes.map((type) => [type.id, type.name]),
     );
 
-    // Count only active assets (exclude RETIRED and LOST)
+    // Count only active assets (exclude RETIRED and LOST), scoped to tenant
     const totalAssets = await this.prisma.asset.count({
       where: {
+        tenantId,
         status: {
           notIn: ['RETIRED', 'LOST'],
         },
@@ -174,13 +177,14 @@ export class ReportsService {
       }),
     );
 
-    // Get status overview (exclude RETIRED, LOST, and DONATED)
+    // Get status overview (exclude RETIRED, LOST, and DONATED), scoped to tenant
     const assetsByStatus = await this.prisma.asset.groupBy({
       by: ['status'],
       _count: {
         id: true,
       },
       where: {
+        tenantId,
         status: {
           notIn: ['RETIRED', 'LOST', 'DONATED'],
         },
@@ -193,8 +197,8 @@ export class ReportsService {
       percentage: Math.round((item._count.id / totalAssets) * 100),
     }));
 
-    // Get latest N recent activities regardless of time window
-    const recentActivity = await this.getRecentActivitiesLastN(20);
+    // Get latest N recent activities regardless of time window (scoped to tenant)
+    const recentActivity = await this.getRecentActivitiesLastN(20, tenantId);
 
     return {
       assetDistribution,
@@ -377,6 +381,7 @@ export class ReportsService {
   async getAllActivitiesPaginated(
     page: number,
     limit: number,
+    tenantId: number,
   ): Promise<{
     data: RecentActivityData[];
     pagination: {
@@ -392,7 +397,7 @@ export class ReportsService {
     // Cap how many source rows we read per domain. Each row may produce 1-4
     // activity events, so the total event pool is at most ~5x this number.
     const SOURCE_ROW_CAP = 1000;
-    const all = await this.buildActivityPool(SOURCE_ROW_CAP);
+    const all = await this.buildActivityPool(SOURCE_ROW_CAP, tenantId);
 
     const sorted = all.toSorted(
       (a, b) => b.timestamp.getTime() - a.timestamp.getTime(),
@@ -421,11 +426,13 @@ export class ReportsService {
    */
   private async buildActivityPool(
     sourceRowCap: number,
+    tenantId: number,
   ): Promise<RecentActivityData[]> {
     const activities: RecentActivityData[] = [];
     const since = new Date(0);
 
     const recentAssets = await this.prisma.asset.findMany({
+      where: { tenantId },
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
       include: {
         assetType: true,
@@ -440,6 +447,7 @@ export class ReportsService {
       activities.push(...this.activitiesFromAsset(asset, since));
 
     const recentAssetIssues = await this.prisma.assetIssue.findMany({
+      where: { tenantId },
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
       include: {
         asset: { include: { assetType: true, brand: true, model: true } },
@@ -452,6 +460,7 @@ export class ReportsService {
       activities.push(...this.activitiesFromIssue(issue, since));
 
     const recentEmployees = await this.prisma.employee.findMany({
+      where: { tenantId },
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
       include: {
         createdByUser: { include: { employee: true } },
@@ -463,6 +472,7 @@ export class ReportsService {
       activities.push(...this.activitiesFromEmployee(employee, since));
 
     const recentMaintenance = await this.prisma.maintenanceSchedule.findMany({
+      where: { tenantId },
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
       include: {
         asset: { include: { assetType: true, brand: true, model: true } },
@@ -475,6 +485,7 @@ export class ReportsService {
       activities.push(...this.activitiesFromMaintenance(maintenance, since));
 
     const recentVendors = await this.prisma.vendor.findMany({
+      where: { tenantId },
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
       include: {
         createdByUser: { include: { employee: true } },
@@ -495,14 +506,16 @@ export class ReportsService {
    */
   private async getRecentActivitiesLastN(
     limit: number,
+    tenantId: number,
   ): Promise<RecentActivityData[]> {
     const activities: RecentActivityData[] = [];
 
     // Use an epoch start so activity builders include both created/updated events
     const since = new Date(0);
 
-    // Assets
+    // Assets (scoped to tenant)
     const recentAssets = await this.prisma.asset.findMany({
+      where: { tenantId },
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
       include: {
         assetType: true,
@@ -516,8 +529,9 @@ export class ReportsService {
     for (const asset of recentAssets)
       activities.push(...this.activitiesFromAsset(asset, since));
 
-    // Asset Issues
+    // Asset Issues (scoped to tenant)
     const recentAssetIssues = await this.prisma.assetIssue.findMany({
+      where: { tenantId },
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
       include: {
         asset: { include: { assetType: true, brand: true, model: true } },
@@ -529,8 +543,9 @@ export class ReportsService {
     for (const issue of recentAssetIssues)
       activities.push(...this.activitiesFromIssue(issue, since));
 
-    // Employees
+    // Employees (scoped to tenant)
     const recentEmployees = await this.prisma.employee.findMany({
+      where: { tenantId },
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
       include: {
         createdByUser: { include: { employee: true } },
@@ -541,8 +556,9 @@ export class ReportsService {
     for (const employee of recentEmployees)
       activities.push(...this.activitiesFromEmployee(employee, since));
 
-    // Maintenance
+    // Maintenance (scoped to tenant)
     const recentMaintenance = await this.prisma.maintenanceSchedule.findMany({
+      where: { tenantId },
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
       include: {
         asset: { include: { assetType: true, brand: true, model: true } },
@@ -554,8 +570,9 @@ export class ReportsService {
     for (const maintenance of recentMaintenance)
       activities.push(...this.activitiesFromMaintenance(maintenance, since));
 
-    // Vendors
+    // Vendors (scoped to tenant)
     const recentVendors = await this.prisma.vendor.findMany({
+      where: { tenantId },
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
       include: {
         createdByUser: { include: { employee: true } },
@@ -785,8 +802,8 @@ export class ReportsService {
     return out;
   }
 
-  async getAssetInventoryReport(filters?: ReportFilters) {
-    const whereClause: any = {};
+  async getAssetInventoryReport(tenantId: number, filters?: ReportFilters) {
+    const whereClause: any = { tenantId };
 
     if (filters?.assetType) {
       whereClause.assetType = {
@@ -846,8 +863,9 @@ export class ReportsService {
     }));
   }
 
-  async getEmployeeAssetReport(filters?: ReportFilters) {
+  async getEmployeeAssetReport(tenantId: number, filters?: ReportFilters) {
     const employees = await this.prisma.employee.findMany({
+      where: { tenantId },
       include: {
         assetIssues: {
           where: {
@@ -965,8 +983,9 @@ export class ReportsService {
       .replaceAll(/\bSsd\b/g, 'SSD');
   }
 
-  async getMaintenanceReport(filters?: ReportFilters) {
+  async getMaintenanceReport(tenantId: number, filters?: ReportFilters) {
     const whereClause: any = {
+      tenantId,
       // Only include COMPLETED records (has completion date, no cancellation date, and status is COMPLETED)
       status: 'COMPLETED',
       actualCompletionDate: { not: null },

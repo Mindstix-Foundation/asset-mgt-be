@@ -3,11 +3,13 @@ import {
   IsOptional,
   IsString,
   IsDateString,
+  IsInt,
   MinLength,
   MaxLength,
   Matches,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateEmployeeDto {
   @ApiProperty({
@@ -82,4 +84,13 @@ export class CreateEmployeeDto {
   @IsString()
   @MaxLength(500)
   address?: string;
+
+  @ApiPropertyOptional({
+    description: 'Designation ID for this organization',
+    example: 1,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  designationId?: number;
 }

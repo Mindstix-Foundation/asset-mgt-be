@@ -1,6 +1,7 @@
 import { PrismaClient, EmployeeStatus } from '@prisma/client';
 
 const prisma = new PrismaClient();
+const SEED_TENANT_ID = 1;
 
 function pad(num: number, size: number): string {
   let s = String(num);
@@ -232,6 +233,7 @@ async function seedEmployeesFromCSV() {
       lastName,
       email,
       status: EmployeeStatus.ACTIVE,
+      tenantId: SEED_TENANT_ID,
       createdBy: adminUser.id,
       updatedBy: adminUser.id,
     };

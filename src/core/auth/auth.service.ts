@@ -142,6 +142,14 @@ export class AuthService implements OnModuleInit {
               employeeId: true,
             },
           },
+          tenant: {
+            select: {
+              id: true,
+              name: true,
+              isPlatform: true,
+              isActive: true,
+            },
+          },
           userRoles: {
             where: {
               isActive: true,
@@ -155,6 +163,12 @@ export class AuthService implements OnModuleInit {
 
       if (!user) {
         throw new UnauthorizedException('Invalid credentials');
+      }
+
+      if (!user.tenant || !user.tenant.isActive) {
+        throw new UnauthorizedException(
+          'Organization is inactive or unavailable',
+        );
       }
 
       // Check if account is locked
@@ -231,6 +245,7 @@ export class AuthService implements OnModuleInit {
         username: user.username,
         email: user.employee.email,
         employeeId: user.employee.employeeId,
+        tenantId: user.tenantId,
       };
 
       const accessToken = this.jwtService.sign(payload);
@@ -245,6 +260,10 @@ export class AuthService implements OnModuleInit {
           email: user.employee.email,
           name: `${user.employee.firstName} ${user.employee.lastName}`,
           employeeId: user.employee.employeeId,
+          tenantId: user.tenantId,
+          tenantName: user.tenant.name,
+          isPlatform: user.tenant.isPlatform,
+          roles: user.userRoles.map((ur) => ur.role.roleName),
         },
       };
     } catch (error) {
@@ -270,10 +289,18 @@ export class AuthService implements OnModuleInit {
             employeeId: true,
           },
         },
+        tenant: {
+          select: {
+            id: true,
+            name: true,
+            isPlatform: true,
+            isActive: true,
+          },
+        },
       },
     });
 
-    if (!user || !user.isActive) {
+    if (!user || !user.isActive || !user.tenant?.isActive) {
       return null;
     }
 
@@ -283,6 +310,9 @@ export class AuthService implements OnModuleInit {
       email: user.employee.email,
       name: `${user.employee.firstName} ${user.employee.lastName}`,
       employeeId: user.employee.employeeId,
+      tenantId: user.tenantId,
+      tenantName: user.tenant.name,
+      isPlatform: user.tenant.isPlatform,
     };
   }
 
@@ -304,6 +334,14 @@ export class AuthService implements OnModuleInit {
               status: true,
             },
           },
+          tenant: {
+            select: {
+              id: true,
+              name: true,
+              isPlatform: true,
+              isActive: true,
+            },
+          },
           userRoles: {
             include: {
               role: true,
@@ -319,6 +357,12 @@ export class AuthService implements OnModuleInit {
         throw new UnauthorizedException('User not found or inactive');
       }
 
+      if (!user.tenant?.isActive) {
+        throw new UnauthorizedException(
+          'Organization is inactive or unavailable',
+        );
+      }
+
       return {
         success: true,
         data: {
@@ -327,6 +371,9 @@ export class AuthService implements OnModuleInit {
           email: user.employee.email,
           name: `${user.employee.firstName} ${user.employee.lastName}`,
           employeeId: user.employee.employeeId,
+          tenantId: user.tenantId,
+          tenantName: user.tenant.name,
+          isPlatform: user.tenant.isPlatform,
           employee: user.employee,
           roles: user.userRoles.map((userRole) => userRole.role.roleName),
           lastLogin: user.lastLogin,
@@ -367,6 +414,14 @@ export class AuthService implements OnModuleInit {
                   employeeId: true,
                 },
               },
+              tenant: {
+                select: {
+                  id: true,
+                  name: true,
+                  isPlatform: true,
+                  isActive: true,
+                },
+              },
             },
           },
         },
@@ -374,6 +429,12 @@ export class AuthService implements OnModuleInit {
 
       if (!session || !session.user.isActive) {
         throw new UnauthorizedException('Invalid or expired refresh token');
+      }
+
+      if (!session.user.tenant?.isActive) {
+        throw new UnauthorizedException(
+          'Organization is inactive or unavailable',
+        );
       }
 
       // Generate new tokens
@@ -404,6 +465,7 @@ export class AuthService implements OnModuleInit {
         username: session.user.username,
         email: session.user.employee.email,
         employeeId: session.user.employee.employeeId,
+        tenantId: session.user.tenantId,
       };
 
       return {

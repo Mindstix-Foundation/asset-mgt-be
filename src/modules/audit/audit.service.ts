@@ -13,6 +13,7 @@ export interface AuditLogInput {
   recordId: number;
   action: AuditAction;
   userId: number;
+  tenantId?: number;
   entityLabel?: string;
   summary?: string;
   before?: Record<string, unknown> | null;
@@ -81,6 +82,7 @@ export class AuditService {
           changedFields,
           metadata: metadata as Prisma.InputJsonValue,
           userId: input.userId,
+          tenantId: input.tenantId!,
           ipAddress: input.ipAddress,
           userAgent: input.userAgent,
         },
@@ -90,12 +92,12 @@ export class AuditService {
     }
   }
 
-  async findAll(query: QueryAuditLogDto) {
+  async findAll(query: QueryAuditLogDto, tenantId: number) {
     const page = query.page ?? 1;
     const limit = Math.min(query.limit ?? 20, 100);
     const skip = (page - 1) * limit;
 
-    const where: Prisma.AuditLogWhereInput = {};
+    const where: Prisma.AuditLogWhereInput = { tenantId };
 
     if (query.tableName) {
       where.tableName = query.tableName;

@@ -26,6 +26,7 @@ import {
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
+const SEED_TENANT_ID = 1;
 
 function pad(num: number, size: number): string {
   let s = String(num);
@@ -43,11 +44,11 @@ async function cleanAndCreateAdmin(): Promise<number> {
   console.log('Cleaning database...');
   await prisma.$executeRawUnsafe(`
     TRUNCATE TABLE
+      notifications,
+      audit_logs,
       refresh_sessions,
       blacklisted_tokens,
       password_resets,
-      asset_condition_history,
-      asset_status_history,
       asset_events,
       maintenance_schedules,
       asset_issues,
@@ -60,10 +61,23 @@ async function cleanAndCreateAdmin(): Promise<number> {
       vendors,
       roles,
       users,
-      employees
+      employees,
+      tenants
     RESTART IDENTITY CASCADE;
   `);
   console.log('Database cleaned.\n');
+
+  const defaultTenant = await prisma.tenant.create({
+    data: { name: 'Mindstix', isActive: true, isPlatform: false },
+  });
+  await prisma.tenant.create({
+    data: { name: 'Acme Corp', isActive: true, isPlatform: false },
+  });
+  if (defaultTenant.id !== SEED_TENANT_ID) {
+    throw new Error(
+      `Expected default tenant id ${SEED_TENANT_ID}, got ${defaultTenant.id}`,
+    );
+  }
 
   const passwordHash = await bcrypt.hash('Admin@123', 10);
 
@@ -74,15 +88,17 @@ async function cleanAndCreateAdmin(): Promise<number> {
     await tx.$executeRawUnsafe(`ALTER TABLE users ALTER COLUMN updated_by DROP NOT NULL`);
 
     await tx.$executeRawUnsafe(`
-      INSERT INTO employees (employee_id, first_name, last_name, email, phone, date_of_birth, address, status)
-      VALUES ('9999', 'Mindstix', 'Admin', 'admin@mindstix.com', '+91 9175024873', '1990-01-01', 'System', 'ACTIVE')
+      INSERT INTO employees (tenant_id, employee_id, first_name, last_name, email, phone, date_of_birth, address, status)
+      VALUES (${SEED_TENANT_ID}, '9999', 'Mindstix', 'Admin', 'admin@mindstix.com', '+91 9175024873', '1990-01-01', 'System', 'ACTIVE')
     `);
-    const adminEmployee = await tx.employee.findUnique({ where: { employeeId: '9999' } });
+    const adminEmployee = await tx.employee.findFirst({
+      where: { employeeId: '9999', tenantId: SEED_TENANT_ID },
+    });
     if (!adminEmployee) throw new Error('Failed to create admin employee');
 
     await tx.$executeRawUnsafe(`
-      INSERT INTO users (employee_id, username, password_hash, roles, is_active)
-      VALUES (${adminEmployee.id}, 'admin', '${passwordHash}', ARRAY['ADMIN']::text[], true)
+      INSERT INTO users (tenant_id, employee_id, username, password_hash, roles, is_active)
+      VALUES (${SEED_TENANT_ID}, ${adminEmployee.id}, 'admin', '${passwordHash}', ARRAY['ADMIN']::text[], true)
     `);
     const adminUser = await tx.user.findUnique({ where: { username: 'admin' } });
     if (!adminUser) throw new Error('Failed to create admin user');
@@ -287,9 +303,9 @@ async function seedAssetStructure(adminUserId: number) {
 
   for (const [name, description] of Object.entries(categories)) {
     await prisma.assetCategory.upsert({
-      where: { name },
+      where: { tenantId_name: { tenantId: SEED_TENANT_ID, name } },
       update: {},
-      create: { name, description, createdBy: adminUserId, updatedBy: adminUserId },
+      create: { name, description, tenantId: SEED_TENANT_ID, createdBy: adminUserId, updatedBy: adminUserId },
     });
   }
   console.log(`Created ${Object.keys(categories).length} categories`);
@@ -301,7 +317,7 @@ async function seedAssetStructure(adminUserId: number) {
     const cat = categoryMap.get(at.category);
     if (!cat) continue;
     await prisma.assetType.upsert({
-      where: { name_categoryId: { name: at.name, categoryId: cat.id } },
+      where: { tenantId_name_categoryId: { tenantId: SEED_TENANT_ID, name: at.name, categoryId: cat.id } },
       update: {
         description: at.description,
         specificationTemplate: at.specificationTemplate
@@ -314,6 +330,7 @@ async function seedAssetStructure(adminUserId: number) {
         description: at.description,
         categoryId: cat.id,
         isActive: true,
+        tenantId: SEED_TENANT_ID,
         specificationTemplate: at.specificationTemplate
           ? (at.specificationTemplate as unknown as Prisma.InputJsonValue)
           : undefined,
@@ -326,9 +343,9 @@ async function seedAssetStructure(adminUserId: number) {
 
   for (const b of brandsData) {
     await prisma.brand.upsert({
-      where: { name: b.name },
+      where: { tenantId_name: { tenantId: SEED_TENANT_ID, name: b.name } },
       update: {},
-      create: { name: b.name, description: b.description, createdBy: adminUserId, updatedBy: adminUserId },
+      create: { name: b.name, description: b.description, tenantId: SEED_TENANT_ID, createdBy: adminUserId, updatedBy: adminUserId },
     });
   }
   console.log(`Created ${brandsData.length} brands`);
@@ -343,12 +360,13 @@ async function seedAssetStructure(adminUserId: number) {
     const assetType = assetTypeMap.get(m.assetType);
     if (!brand || !assetType) continue;
     await prisma.model.upsert({
-      where: { name_brandId_assetTypeId: { name: m.name, brandId: brand.id, assetTypeId: assetType.id } },
+      where: { tenantId_name_brandId_assetTypeId: { tenantId: SEED_TENANT_ID, name: m.name, brandId: brand.id, assetTypeId: assetType.id } },
       update: {},
       create: {
         name: m.name,
         brandId: brand.id,
         assetTypeId: assetType.id,
+        tenantId: SEED_TENANT_ID,
         createdBy: adminUserId,
         updatedBy: adminUserId,
       },
@@ -554,6 +572,7 @@ async function seedEmployees(adminUserId: number) {
       lastName,
       email: emp.email,
       status: EmployeeStatus.ACTIVE,
+      tenantId: SEED_TENANT_ID,
       createdBy: adminUserId,
       updatedBy: adminUserId,
     };
@@ -1206,6 +1225,7 @@ async function seedAssetsAndAssignments(adminUserId: number) {
           data: {
             name: entry.assetType,
             categoryId: electronicsCategory.id,
+            tenantId: SEED_TENANT_ID,
             specificationTemplate: fallbackTemplate
               ? (fallbackTemplate as unknown as Prisma.InputJsonValue)
               : undefined,
@@ -1218,18 +1238,18 @@ async function seedAssetsAndAssignments(adminUserId: number) {
       let brand = await prisma.brand.findFirst({ where: { name: entry.brand } });
       if (!brand) {
         brand = await prisma.brand.create({
-          data: { name: entry.brand, createdBy: adminUserId, updatedBy: adminUserId },
+          data: { name: entry.brand, tenantId: SEED_TENANT_ID, createdBy: adminUserId, updatedBy: adminUserId },
         });
       }
 
       let model = await prisma.model.findFirst({ where: { name: entry.model, brandId: brand.id } });
       if (!model) {
         model = await prisma.model.create({
-          data: { name: entry.model, brandId: brand.id, assetTypeId: assetType.id, createdBy: adminUserId, updatedBy: adminUserId },
+          data: { name: entry.model, brandId: brand.id, assetTypeId: assetType.id, tenantId: SEED_TENANT_ID, createdBy: adminUserId, updatedBy: adminUserId },
         });
       }
 
-      const existing = await prisma.asset.findUnique({ where: { serialNumber: entry.serialNumber } });
+      const existing = await prisma.asset.findFirst({ where: { serialNumber: entry.serialNumber, tenantId: SEED_TENANT_ID } });
       if (existing) {
         console.log(`  Skipping existing asset: ${entry.serialNumber}`);
         continue;
@@ -1255,6 +1275,7 @@ async function seedAssetsAndAssignments(adminUserId: number) {
           assetTypeId: assetType.id,
           brandId: brand.id,
           modelId: model.id,
+          tenantId: SEED_TENANT_ID,
           status: 'NON_ASSIGNED',
           condition: 'WORKING_CONDITION',
           location: 'PUNE_INVENTORY_CENTER',
@@ -1268,7 +1289,7 @@ async function seedAssetsAndAssignments(adminUserId: number) {
 
       // Assign to employee
       const employeeId = pad(entry.staffId, 4);
-      const employee = await prisma.employee.findUnique({ where: { employeeId } });
+      const employee = await prisma.employee.findFirst({ where: { employeeId, tenantId: SEED_TENANT_ID } });
 
       if (employee) {
         const issueDate = new Date();
@@ -1285,6 +1306,7 @@ async function seedAssetsAndAssignments(adminUserId: number) {
             issueCondition: AssetCondition.NEW,
             issueReason: 'Initial Assignment',
             notes: 'Assigned via updated April 2026 seed',
+            tenantId: SEED_TENANT_ID,
             createdBy: adminUserId,
             updatedBy: adminUserId,
           },
@@ -1292,6 +1314,7 @@ async function seedAssetsAndAssignments(adminUserId: number) {
 
         await prisma.assetEvent.create({
           data: {
+            tenantId: SEED_TENANT_ID,
             assetId: asset.id,
             eventType: AssetEventType.ASSET_ISSUED,
             eventDate: issueTimestamp,

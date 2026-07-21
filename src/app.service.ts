@@ -9,7 +9,7 @@ export class AppService {
     return 'Hello World!';
   }
 
-  async getDashboardStats() {
+  async getDashboardStats(tenantId: number) {
     try {
       // Statuses excluded from "active" counts (out of business inventory)
       const excludedStatuses = ['RETIRED', 'LOST', 'DONATED'] as const;
@@ -17,6 +17,7 @@ export class AppService {
       // Get total assets count (exclude RETIRED, LOST, and DONATED)
       const totalAssets = await this.prisma.asset.count({
         where: {
+          tenantId,
           status: {
             notIn: [...excludedStatuses],
           },
@@ -30,6 +31,7 @@ export class AppService {
           id: true,
         },
         where: {
+          tenantId,
           status: {
             notIn: [...excludedStatuses],
           },
@@ -40,6 +42,7 @@ export class AppService {
       // This represents assets that are currently being maintained or scheduled for maintenance
       const assetsWithActiveMaintenance = await this.prisma.asset.count({
         where: {
+          tenantId,
           status: {
             notIn: [...excludedStatuses],
           },

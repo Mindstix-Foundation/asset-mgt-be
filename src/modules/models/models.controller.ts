@@ -50,7 +50,8 @@ export class ModelsController {
       );
     }
     const userId = req.user.id;
-    return this.modelsService.create(createModelDto, userId);
+    const tenantId = req.user.tenantId as number;
+    return this.modelsService.create(createModelDto, userId, tenantId);
   }
 
   @Get()
@@ -92,8 +93,9 @@ export class ModelsController {
     description: 'Sort order (asc, desc)',
   })
   @ApiResponse({ status: 200, description: 'Models retrieved successfully' })
-  async findAll(@Query() queryDto: ModelQueryDto) {
-    return this.modelsService.findAll(queryDto);
+  async findAll(@Query() queryDto: ModelQueryDto, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.modelsService.findAll(queryDto, tenantId);
   }
 
   @Get('by-brand/:brandId/asset-type/:assetTypeId')
@@ -105,8 +107,10 @@ export class ModelsController {
   async findByBrandAndAssetType(
     @Param('brandId', ParseIntPipe) brandId: number,
     @Param('assetTypeId', ParseIntPipe) assetTypeId: number,
+    @Request() req: any,
   ) {
-    return this.modelsService.findByBrandAndAssetType(brandId, assetTypeId);
+    const tenantId = req.user.tenantId as number;
+    return this.modelsService.findByBrandAndAssetType(brandId, assetTypeId, tenantId);
   }
 
   @Get(':id')
@@ -114,8 +118,9 @@ export class ModelsController {
   @ApiParam({ name: 'id', description: 'Model ID' })
   @ApiResponse({ status: 200, description: 'Model retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Model not found' })
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.modelsService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.modelsService.findOne(id, tenantId);
   }
 
   @Delete(':id')
@@ -129,6 +134,7 @@ export class ModelsController {
     description: 'Cannot delete model with associated assets',
   })
   async remove(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
-    return this.modelsService.remove(id, req.user?.id ?? req.user?.userId);
+    const tenantId = req.user.tenantId as number;
+    return this.modelsService.remove(id, req.user?.id ?? req.user?.userId, tenantId);
   }
 }

@@ -20,6 +20,7 @@ export class NotificationService {
     title: string,
     message: string,
     data?: any,
+    tenantId?: number,
   ) {
     try {
       const notification = await this.prisma.notification.create({
@@ -29,6 +30,7 @@ export class NotificationService {
           title,
           message,
           data: data ?? undefined,
+          tenantId: tenantId!,
         },
       });
 
@@ -42,7 +44,7 @@ export class NotificationService {
     }
   }
 
-  async getUserNotifications(userId: number, query: QueryNotificationDto = {}) {
+  async getUserNotifications(userId: number, tenantId: number, query: QueryNotificationDto = {}) {
     try {
       const page = Number(query.page) || 1;
       const limit = Math.min(Number(query.limit) || 20, 100);
@@ -50,6 +52,7 @@ export class NotificationService {
 
       const where = {
         userId,
+        tenantId,
         type: NotificationType.MAINTENANCE_REMINDER,
         ...(query.unreadOnly ? { isRead: false } : {}),
       };
@@ -103,12 +106,13 @@ export class NotificationService {
     return data;
   }
 
-  async markAsRead(notificationId: number, userId: number) {
+  async markAsRead(notificationId: number, userId: number, tenantId: number) {
     try {
       const notification = await this.prisma.notification.updateMany({
         where: {
           id: notificationId,
           userId,
+          tenantId,
           isRead: false,
           type: NotificationType.MAINTENANCE_REMINDER,
         },
@@ -128,12 +132,13 @@ export class NotificationService {
     }
   }
 
-  async markAsUnread(notificationId: number, userId: number) {
+  async markAsUnread(notificationId: number, userId: number, tenantId: number) {
     try {
       const notification = await this.prisma.notification.updateMany({
         where: {
           id: notificationId,
           userId,
+          tenantId,
           isRead: true,
           type: NotificationType.MAINTENANCE_REMINDER,
         },
@@ -153,11 +158,12 @@ export class NotificationService {
     }
   }
 
-  async markAllAsRead(userId: number) {
+  async markAllAsRead(userId: number, tenantId: number) {
     try {
       const result = await this.prisma.notification.updateMany({
         where: {
           userId,
+          tenantId,
           isRead: false,
           type: NotificationType.MAINTENANCE_REMINDER,
         },
@@ -177,11 +183,12 @@ export class NotificationService {
     }
   }
 
-  async getUnreadCount(userId: number) {
+  async getUnreadCount(userId: number, tenantId: number) {
     try {
       const count = await this.prisma.notification.count({
         where: {
           userId,
+          tenantId,
           isRead: false,
           type: NotificationType.MAINTENANCE_REMINDER,
         },
@@ -341,7 +348,7 @@ export class NotificationService {
       const endOfToday = new Date(today);
       endOfToday.setHours(23, 59, 59, 999);
 
-      // Find all scheduled maintenance for today
+      // Find all scheduled maintenance for today (across all tenants; tenantId is on the record)
       const scheduledMaintenances =
         await this.prisma.maintenanceSchedule.findMany({
           where: {
@@ -352,7 +359,11 @@ export class NotificationService {
               lte: endOfToday,
             },
           },
-          include: {
+          select: {
+            id: true,
+            maintenanceType: true,
+            scheduledDate: true,
+            tenantId: true,
             asset: {
               select: {
                 assetId: true,
@@ -390,13 +401,14 @@ export class NotificationService {
           scheduledDate: maintenance.scheduledDate.toISOString().split('T')[0],
         };
 
-        // Create notification
+        // Create notification (with tenantId from maintenance schedule)
         await this.createNotification(
           user.id,
           NotificationType.MAINTENANCE_REMINDER,
           title,
           message,
           notificationData,
+          maintenance.tenantId ?? undefined,
         );
 
         // Send email notification

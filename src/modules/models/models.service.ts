@@ -16,13 +16,13 @@ export class ModelsService {
     private readonly auditService: AuditService,
   ) {}
 
-  async create(createModelDto: CreateModelDto, userId: number) {
+  async create(createModelDto: CreateModelDto, userId: number, tenantId: number) {
     try {
-      // Verify brand and asset type exist
+      // Verify brand and asset type exist within the same tenant
       const [brand, assetType] = await Promise.all([
-        this.prisma.brand.findUnique({ where: { id: createModelDto.brandId } }),
-        this.prisma.assetType.findUnique({
-          where: { id: createModelDto.assetTypeId },
+        this.prisma.brand.findFirst({ where: { id: createModelDto.brandId, tenantId } }),
+        this.prisma.assetType.findFirst({
+          where: { id: createModelDto.assetTypeId, tenantId },
         }),
       ]);
 
@@ -36,6 +36,7 @@ export class ModelsService {
       const model = await this.prisma.model.create({
         data: {
           ...createModelDto,
+          tenantId,
           createdBy: userId,
           updatedBy: userId,
         },
@@ -64,6 +65,7 @@ export class ModelsService {
         recordId: model.id,
         action: AuditAction.INSERT,
         userId,
+        tenantId,
         entityLabel: model.name,
         summary: `Created model ${model.name}`,
         after: { name: model.name, brandId: model.brandId, assetTypeId: model.assetTypeId },
@@ -83,7 +85,7 @@ export class ModelsService {
     }
   }
 
-  async findAll(queryDto: ModelQueryDto) {
+  async findAll(queryDto: ModelQueryDto, tenantId: number) {
     const {
       page = 1,
       limit = 10,
@@ -95,7 +97,7 @@ export class ModelsService {
     } = queryDto;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: any = { tenantId };
 
     if (search) {
       where.name = { contains: search, mode: 'insensitive' as const };
@@ -156,11 +158,11 @@ export class ModelsService {
     };
   }
 
-  async findByBrandAndAssetType(brandId: number, assetTypeId: number) {
-    // First verify both brand and asset type exist
+  async findByBrandAndAssetType(brandId: number, assetTypeId: number, tenantId: number) {
+    // First verify both brand and asset type exist within the tenant
     const [brand, assetType] = await Promise.all([
-      this.prisma.brand.findUnique({ where: { id: brandId } }),
-      this.prisma.assetType.findUnique({ where: { id: assetTypeId } }),
+      this.prisma.brand.findFirst({ where: { id: brandId, tenantId } }),
+      this.prisma.assetType.findFirst({ where: { id: assetTypeId, tenantId } }),
     ]);
 
     if (!brand) {
@@ -172,6 +174,7 @@ export class ModelsService {
 
     const models = await this.prisma.model.findMany({
       where: {
+        tenantId,
         brandId: brandId,
         assetTypeId: assetTypeId,
       },
@@ -202,9 +205,9 @@ export class ModelsService {
     };
   }
 
-  async findOne(id: number) {
-    const model = await this.prisma.model.findUnique({
-      where: { id },
+  async findOne(id: number, tenantId: number) {
+    const model = await this.prisma.model.findFirst({
+      where: { id, tenantId },
       include: {
         brand: {
           select: { id: true, name: true, description: true },
@@ -250,11 +253,11 @@ export class ModelsService {
     };
   }
 
-  async remove(id: number, userId: number) {
+  async remove(id: number, userId: number, tenantId: number) {
     try {
       // Check if model has associated assets
-      const modelWithAssets = await this.prisma.model.findUnique({
-        where: { id },
+      const modelWithAssets = await this.prisma.model.findFirst({
+        where: { id, tenantId },
         include: {
           _count: {
             select: { assets: true },
@@ -281,6 +284,7 @@ export class ModelsService {
         recordId: id,
         action: AuditAction.DELETE,
         userId,
+        tenantId,
         entityLabel: modelWithAssets.name,
         summary: `Deleted model ${modelWithAssets.name}`,
         before: { name: modelWithAssets.name },

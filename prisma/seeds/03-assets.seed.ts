@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const prisma = new PrismaClient();
+const SEED_TENANT_ID = 1;
 
 // Load purchase data mapping from JSON file
 const purchaseDataPath = path.join(__dirname, 'purchase-data-mapping.json');
@@ -595,6 +596,7 @@ async function seedAssets() {
           data: {
             name: asset.assetType,
             categoryId: electronicsCategory.id, // Default to Electronics category
+            tenantId: SEED_TENANT_ID,
             createdBy: SYSTEM_USER_ID,
             updatedBy: SYSTEM_USER_ID,
           },
@@ -611,6 +613,7 @@ async function seedAssets() {
         brand = await prisma.brand.create({
           data: {
             name: asset.brand,
+            tenantId: SEED_TENANT_ID,
             createdBy: SYSTEM_USER_ID,
             updatedBy: SYSTEM_USER_ID,
           },
@@ -632,6 +635,7 @@ async function seedAssets() {
             name: asset.model,
             brandId: brand.id,
             assetTypeId: assetType.id,
+            tenantId: SEED_TENANT_ID,
             createdBy: SYSTEM_USER_ID,
             updatedBy: SYSTEM_USER_ID,
           },
@@ -640,8 +644,8 @@ async function seedAssets() {
       }
 
       // Check if asset already exists
-      const existingAsset = await prisma.asset.findUnique({
-        where: { serialNumber: asset.serialNumber },
+      const existingAsset = await prisma.asset.findFirst({
+        where: { tenantId: SEED_TENANT_ID, serialNumber: asset.serialNumber },
       });
 
       if (existingAsset) {
@@ -695,6 +699,7 @@ async function seedAssets() {
           assetTypeId: assetType.id,
           brandId: brand.id,
           modelId: model.id,
+          tenantId: SEED_TENANT_ID,
           status: 'NON_ASSIGNED',
           location: 'PUNE_INVENTORY_CENTER',
           condition: condition,

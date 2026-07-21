@@ -58,21 +58,22 @@ export class VendorsService {
   async create(
     createVendorDto: CreateVendorDto,
     userId: number,
+    tenantId: number,
   ): Promise<Vendor> {
     try {
-      // Check if vendor name already exists
+      // Check if vendor name already exists within tenant
       const existingVendor = await this.prisma.vendor.findFirst({
-        where: { name: createVendorDto.name },
+        where: { tenantId, name: createVendorDto.name },
       });
 
       if (existingVendor) {
         throw new ConflictException('Vendor name already exists');
       }
 
-      // Check if email already exists (if provided)
+      // Check if email already exists within tenant (if provided)
       if (createVendorDto.email) {
         const existingEmail = await this.prisma.vendor.findFirst({
-          where: { email: createVendorDto.email },
+          where: { tenantId, email: createVendorDto.email },
         });
 
         if (existingEmail) {
@@ -83,6 +84,7 @@ export class VendorsService {
       const vendor = await this.prisma.vendor.create({
         data: {
           ...createVendorDto,
+          tenantId,
           createdBy: userId,
           updatedBy: userId,
         },
@@ -93,6 +95,7 @@ export class VendorsService {
         recordId: vendor.id,
         action: AuditAction.INSERT,
         userId,
+        tenantId,
         entityLabel: vendor.name,
         summary: `Created vendor ${vendor.name}`,
         after: this.pickVendorAuditSnapshot(vendor),
@@ -126,14 +129,14 @@ export class VendorsService {
     }
   }
 
-  async findAll(queryDto: VendorQueryDto) {
+  async findAll(queryDto: VendorQueryDto, tenantId: number) {
     const { search, vendorType, status, sortBy, sortOrder } = queryDto;
     const page = queryDto.page || 1;
     const limit = Math.min(queryDto.limit || 10, 100);
     const skip = (page - 1) * limit;
 
     // Build where clause
-    const where: Prisma.VendorWhereInput = {};
+    const where: Prisma.VendorWhereInput = { tenantId };
 
     if (search) {
       where.OR = [
@@ -211,7 +214,7 @@ export class VendorsService {
     };
   }
 
-  async findOne(id: number): Promise<{
+  async findOne(id: number, tenantId: number): Promise<{
     message: string;
     data: {
       vendor: Vendor & {
@@ -221,8 +224,8 @@ export class VendorsService {
       };
     };
   }> {
-    const vendor = await this.prisma.vendor.findUnique({
-      where: { id },
+    const vendor = await this.prisma.vendor.findFirst({
+      where: { id, tenantId },
       include: {
         user: {
           select: {
@@ -260,20 +263,22 @@ export class VendorsService {
     id: number,
     updateVendorDto: UpdateVendorDto,
     userId: number,
+    tenantId: number,
   ): Promise<{ message: string; data: { vendor: Vendor } }> {
-    // Check if vendor exists
-    const existingVendor = await this.prisma.vendor.findUnique({
-      where: { id },
+    // Check if vendor exists within tenant
+    const existingVendor = await this.prisma.vendor.findFirst({
+      where: { id, tenantId },
     });
 
     if (!existingVendor) {
       throw new NotFoundException('Vendor not found');
     }
 
-    // Check if name already exists (if being updated)
+    // Check if name already exists within tenant (if being updated)
     if (updateVendorDto.name && updateVendorDto.name !== existingVendor.name) {
       const nameExists = await this.prisma.vendor.findFirst({
         where: {
+          tenantId,
           name: updateVendorDto.name,
           id: { not: id },
         },
@@ -284,13 +289,14 @@ export class VendorsService {
       }
     }
 
-    // Check if email already exists (if being updated)
+    // Check if email already exists within tenant (if being updated)
     if (
       updateVendorDto.email &&
       updateVendorDto.email !== existingVendor.email
     ) {
       const emailExists = await this.prisma.vendor.findFirst({
         where: {
+          tenantId,
           email: updateVendorDto.email,
           id: { not: id },
         },
@@ -315,6 +321,7 @@ export class VendorsService {
         recordId: vendor.id,
         action: AuditAction.UPDATE,
         userId,
+        tenantId,
         entityLabel: vendor.name,
         summary: `Updated vendor ${vendor.name}`,
         before: this.pickVendorAuditSnapshot(existingVendor),
@@ -333,10 +340,10 @@ export class VendorsService {
     }
   }
 
-  async remove(id: number, userId: number): Promise<{ message: string }> {
-    // Check if vendor exists
-    const vendor = await this.prisma.vendor.findUnique({
-      where: { id },
+  async remove(id: number, userId: number, tenantId: number): Promise<{ message: string }> {
+    // Check if vendor exists within tenant
+    const vendor = await this.prisma.vendor.findFirst({
+      where: { id, tenantId },
       include: {
         _count: {
           select: {
@@ -368,6 +375,7 @@ export class VendorsService {
       recordId: id,
       action: AuditAction.DELETE,
       userId,
+      tenantId,
       entityLabel: vendor.name,
       summary: `Deleted vendor ${vendor.name}`,
       before: beforeSnapshot,
@@ -384,9 +392,10 @@ export class VendorsService {
     id: number,
     statusDto: VendorStatusDto,
     userId: number,
+    tenantId: number,
   ): Promise<{ message: string; data: { vendor: Vendor } }> {
-    const vendor = await this.prisma.vendor.findUnique({
-      where: { id },
+    const vendor = await this.prisma.vendor.findFirst({
+      where: { id, tenantId },
     });
 
     if (!vendor) {
@@ -406,6 +415,7 @@ export class VendorsService {
       recordId: updatedVendor.id,
       action: AuditAction.UPDATE,
       userId,
+      tenantId,
       entityLabel: updatedVendor.name,
       summary: `Updated vendor ${updatedVendor.name} status to ${updatedVendor.status}`,
       before: this.pickVendorAuditSnapshot(vendor),
@@ -420,7 +430,7 @@ export class VendorsService {
     };
   }
 
-  async search(searchDto: VendorSearchDto) {
+  async search(searchDto: VendorSearchDto, tenantId: number) {
     const { q, limit } = searchDto;
 
     // Helper function to check if query matches any VendorType enum value
@@ -449,6 +459,7 @@ export class VendorsService {
 
     const vendors = await this.prisma.vendor.findMany({
       where: {
+        tenantId,
         OR: orConditions,
       },
       take: limit,
@@ -543,11 +554,12 @@ export class VendorsService {
   /**
    * Load existing vendor data for validation
    */
-  private async loadExistingVendorData(): Promise<{
+  private async loadExistingVendorData(tenantId: number): Promise<{
     existingNames: Set<string>;
     existingEmails: Set<string>;
   }> {
     const existingVendors = await this.prisma.vendor.findMany({
+      where: { tenantId },
       select: { name: true, email: true },
     });
 
@@ -797,7 +809,7 @@ export class VendorsService {
     return null;
   }
 
-  async validateBulkUpload(file: Express.Multer.File, userId: number) {
+  async validateBulkUpload(file: Express.Multer.File, userId: number, tenantId: number) {
     this.validateUploadedFile(file);
 
     try {
@@ -815,9 +827,9 @@ export class VendorsService {
       }> = [];
       const validVendors: CreateVendorDto[] = [];
 
-      // Load existing vendor data for validation
+      // Load existing vendor data for validation (scoped to tenant)
       const { existingNames, existingEmails } =
-        await this.loadExistingVendorData();
+        await this.loadExistingVendorData(tenantId);
 
       // Track duplicates within the file
       const fileNames = new Set<string>();
@@ -875,11 +887,13 @@ export class VendorsService {
     vendor: CreateVendorDto,
     rowNumber: number,
     userId: number,
+    tenantId: number,
   ): Promise<{ success: boolean; vendor?: Vendor; error?: any }> {
     try {
-      // Check for duplicates in database
+      // Check for duplicates in database within tenant
       const existingVendor = await this.prisma.vendor.findFirst({
         where: {
+          tenantId,
           OR: [
             { name: vendor.name },
             ...(vendor.email ? [{ email: vendor.email }] : []),
@@ -901,6 +915,7 @@ export class VendorsService {
       const createdVendor = await this.prisma.vendor.create({
         data: {
           ...vendor,
+          tenantId,
           createdBy: userId,
           updatedBy: userId,
         },
@@ -923,6 +938,7 @@ export class VendorsService {
   async bulkUpload(
     file: Express.Multer.File,
     userId: number,
+    tenantId: number,
     validateOnly: boolean = false,
   ) {
     this.validateUploadedFile(file);
@@ -939,9 +955,9 @@ export class VendorsService {
       }> = [];
       const validVendors: CreateVendorDto[] = [];
 
-      // Load existing vendor data for validation
+      // Load existing vendor data for validation (scoped to tenant)
       const { existingNames, existingEmails } =
-        await this.loadExistingVendorData();
+        await this.loadExistingVendorData(tenantId);
 
       // Track duplicates within the file
       const fileNames = new Set<string>();
@@ -996,7 +1012,7 @@ export class VendorsService {
         );
         const rowNumber = originalRowIndex + 2;
 
-        const result = await this.importSingleVendor(vendor, rowNumber, userId);
+        const result = await this.importSingleVendor(vendor, rowNumber, userId, tenantId);
         if (result.success && result.vendor) {
           imported.push(result.vendor);
         } else if (result.error) {
@@ -1028,12 +1044,14 @@ export class VendorsService {
 
   async checkVendorNameExists(
     name: string,
+    tenantId: number,
     excludeId?: number,
     userId?: number,
   ) {
     try {
       // Build the where clause
       const whereClause: any = {
+        tenantId,
         name: {
           equals: name,
           mode: 'insensitive', // Case-insensitive comparison

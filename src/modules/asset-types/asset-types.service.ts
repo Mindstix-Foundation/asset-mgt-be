@@ -58,11 +58,11 @@ export class AssetTypesService {
     return value.slice(start, end);
   }
 
-  async create(createAssetTypeDto: CreateAssetTypeDto, userId: number) {
+  async create(createAssetTypeDto: CreateAssetTypeDto, userId: number, tenantId: number) {
     try {
-      // Verify category exists
-      const category = await this.prisma.assetCategory.findUnique({
-        where: { id: createAssetTypeDto.categoryId },
+      // Verify category exists and belongs to same tenant
+      const category = await this.prisma.assetCategory.findFirst({
+        where: { id: createAssetTypeDto.categoryId, tenantId },
       });
 
       if (!category) {
@@ -77,6 +77,7 @@ export class AssetTypesService {
       const assetType = await this.prisma.assetType.create({
         data: {
           ...restDto,
+          tenantId,
           specificationTemplate: processedTemplate,
           createdBy: userId,
           updatedBy: userId,
@@ -99,6 +100,7 @@ export class AssetTypesService {
         recordId: assetType.id,
         action: AuditAction.INSERT,
         userId,
+        tenantId,
         entityLabel: assetType.name,
         summary: `Created asset type ${assetType.name}`,
         after: { name: assetType.name, categoryId: assetType.categoryId },
@@ -122,9 +124,10 @@ export class AssetTypesService {
     id: number,
     updateAssetTypeDto: UpdateAssetTypeDto,
     userId: number,
+    tenantId: number,
   ) {
-    const existingAssetType = await this.prisma.assetType.findUnique({
-      where: { id },
+    const existingAssetType = await this.prisma.assetType.findFirst({
+      where: { id, tenantId },
     });
 
     if (!existingAssetType) {
@@ -180,16 +183,17 @@ export class AssetTypesService {
       },
     });
 
-    await this.auditService.log({
-      tableName: 'asset_types',
-      recordId: assetType.id,
-      action: AuditAction.UPDATE,
-      userId,
-      entityLabel: assetType.name,
-      summary: `Updated asset type ${assetType.name}`,
-      before: pickFields(existingAssetType as any, ['description', 'isActive']),
-      after: pickFields(assetType as any, ['description', 'isActive']),
-    });
+      await this.auditService.log({
+        tableName: 'asset_types',
+        recordId: assetType.id,
+        action: AuditAction.UPDATE,
+        userId,
+        tenantId,
+        entityLabel: assetType.name,
+        summary: `Updated asset type ${assetType.name}`,
+        before: pickFields(existingAssetType as any, ['description', 'isActive']),
+        after: pickFields(assetType as any, ['description', 'isActive']),
+      });
 
     return {
       message: 'Asset type updated successfully',
@@ -197,7 +201,7 @@ export class AssetTypesService {
     };
   }
 
-  async findAll(queryDto: AssetTypeQueryDto) {
+  async findAll(queryDto: AssetTypeQueryDto, tenantId: number) {
     const {
       page = 1,
       limit = 10,
@@ -209,7 +213,7 @@ export class AssetTypesService {
     } = queryDto;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: any = { tenantId };
 
     if (search) {
       where.OR = [
@@ -266,10 +270,10 @@ export class AssetTypesService {
     };
   }
 
-  async findByCategory(categoryId: number) {
-    // First verify the category exists
-    const category = await this.prisma.assetCategory.findUnique({
-      where: { id: categoryId },
+  async findByCategory(categoryId: number, tenantId: number) {
+    // First verify the category exists and belongs to tenant
+    const category = await this.prisma.assetCategory.findFirst({
+      where: { id: categoryId, tenantId },
     });
 
     if (!category) {
@@ -278,6 +282,7 @@ export class AssetTypesService {
 
     const assetTypes = await this.prisma.assetType.findMany({
       where: {
+        tenantId,
         categoryId: categoryId,
         isActive: true,
       },
@@ -301,9 +306,9 @@ export class AssetTypesService {
     };
   }
 
-  async findOne(id: number) {
-    const assetType = await this.prisma.assetType.findUnique({
-      where: { id },
+  async findOne(id: number, tenantId: number) {
+    const assetType = await this.prisma.assetType.findFirst({
+      where: { id, tenantId },
       include: {
         category: {
           select: { id: true, name: true, description: true },
@@ -354,11 +359,11 @@ export class AssetTypesService {
     };
   }
 
-  async remove(id: number, userId: number) {
+  async remove(id: number, userId: number, tenantId: number) {
     try {
       // Check if asset type has associated models or assets
-      const assetTypeWithRelations = await this.prisma.assetType.findUnique({
-        where: { id },
+      const assetTypeWithRelations = await this.prisma.assetType.findFirst({
+        where: { id, tenantId },
         include: {
           _count: {
             select: { models: true, assets: true },
@@ -388,6 +393,7 @@ export class AssetTypesService {
         recordId: id,
         action: AuditAction.DELETE,
         userId,
+        tenantId,
         entityLabel: assetTypeWithRelations.name,
         summary: `Deleted asset type ${assetTypeWithRelations.name}`,
         before: { name: assetTypeWithRelations.name },

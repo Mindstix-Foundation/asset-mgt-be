@@ -74,7 +74,8 @@ export class AssetCategoriesController {
       );
     }
     const userId = req.user.id;
-    return this.assetCategoriesService.create(createAssetCategoryDto, userId);
+    const tenantId = req.user.tenantId as number;
+    return this.assetCategoriesService.create(createAssetCategoryDto, userId, tenantId);
   }
 
   @Get()
@@ -139,8 +140,9 @@ export class AssetCategoriesController {
       },
     },
   })
-  async findAll(@Query() queryDto: AssetCategoryQueryDto) {
-    return this.assetCategoriesService.findAll(queryDto);
+  async findAll(@Query() queryDto: AssetCategoryQueryDto, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.assetCategoriesService.findAll(queryDto, tenantId);
   }
 
   @Get(':id')
@@ -186,8 +188,9 @@ export class AssetCategoriesController {
     },
   })
   @ApiResponse({ status: 404, description: 'Asset category not found' })
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.assetCategoriesService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.assetCategoriesService.findOne(id, tenantId);
   }
 
   @Delete(':id')
@@ -209,6 +212,7 @@ export class AssetCategoriesController {
     description: 'Cannot delete category with associated asset types',
   })
   async remove(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
-    return this.assetCategoriesService.remove(id, req.user?.id ?? req.user?.userId);
+    const tenantId = req.user.tenantId as number;
+    return this.assetCategoriesService.remove(id, req.user?.id ?? req.user?.userId, tenantId);
   }
 }
