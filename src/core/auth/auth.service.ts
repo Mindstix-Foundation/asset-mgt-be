@@ -382,12 +382,21 @@ export class AuthService implements OnModuleInit {
         Date.now() + 7 * 24 * 60 * 60 * 1000,
       ); // 7 days
 
-      // Delete old session and create new one (token rotation)
-      await this.prisma.$transaction([
-        this.prisma.refreshSession.delete({
-          where: { id: session.id },
-        }),
-        this.prisma.refreshSession.create({
+      // Rotate session atomically. deleteMany avoids P2025 when two refresh
+      // requests race on the same token (second delete finds 0 rows).
+      await this.prisma.$transaction(async (tx) => {
+        const deleted = await tx.refreshSession.deleteMany({
+          where: {
+            id: session.id,
+            token: refreshToken,
+          },
+        });
+
+        if (deleted.count === 0) {
+          throw new UnauthorizedException('Invalid or expired refresh token');
+        }
+
+        await tx.refreshSession.create({
           data: {
             userId: session.userId,
             token: newRefreshToken,
@@ -396,8 +405,8 @@ export class AuthService implements OnModuleInit {
             ipAddress: deviceInfo?.ipAddress || session.ipAddress,
             userAgent: deviceInfo?.userAgent || session.userAgent,
           },
-        }),
-      ]);
+        });
+      });
 
       const payload = {
         sub: session.user.id,
