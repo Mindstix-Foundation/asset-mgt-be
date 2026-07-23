@@ -834,7 +834,7 @@ export class AuthService implements OnModuleInit {
         message:
           'If your email is registered with us, you will receive a password reset link shortly.',
       };
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.error('Password reset request failed:', error);
 
       // Handle specific error types
@@ -847,7 +847,11 @@ export class AuthService implements OnModuleInit {
       }
 
       // Log detailed error for debugging
-      if (error.code === 'EAUTH' || error.code === 'ECONNECTION') {
+      const errorCode =
+        error && typeof error === 'object' && 'code' in error
+          ? String((error as { code?: unknown }).code)
+          : undefined;
+      if (errorCode === 'EAUTH' || errorCode === 'ECONNECTION') {
         this.logger.error('SMTP Authentication or Connection Error:', error);
         throw new InternalServerErrorException(
           'Email service is currently unavailable. Please contact support or try again later.',
