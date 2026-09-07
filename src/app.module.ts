@@ -26,6 +26,7 @@ import { AssetsModule } from './modules/assets/assets.module';
 import { AssetHistoryModule } from './modules/asset-history/asset-history.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { SoftwareLicensesModule } from './modules/software-licenses/software-licenses.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { AuditModule } from './modules/audit/audit.module';
     AdminModule,
     PlatformModule,
     NotificationModule,
+    SoftwareLicensesModule,
   ],
   controllers: [AppController],
   providers: [

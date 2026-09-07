@@ -46,14 +46,16 @@ export class MaintenanceScheduler {
     }
   }
 
-  // Run daily at 1 PM to send maintenance reminder notifications
+  // Run daily at 1 PM to send maintenance, warranty, and license reminders
   @Cron('0 13 * * *')
   async sendMaintenanceReminders() {
     try {
       await this.notificationService.createMaintenanceReminderNotifications();
+      await this.notificationService.createWarrantyReminderNotifications();
+      await this.notificationService.createLicenseReminderNotifications();
     } catch (error) {
       this.logger.error(
-        'Failed to send maintenance reminders',
+        'Failed to send daily reminder notifications',
         error?.stack || error,
       );
     }

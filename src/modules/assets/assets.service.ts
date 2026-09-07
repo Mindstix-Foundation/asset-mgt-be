@@ -4,6 +4,8 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AssetIdService } from './asset-id.service';
 import {
@@ -15,6 +17,7 @@ import {
 } from './dto';
 import { AssetEventType, Prisma, AuditAction } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
+import { calculateDepreciation } from './depreciation.util';
 
 /**
  * Validation context for bulk upload processing
@@ -38,7 +41,19 @@ export class AssetsService {
     private readonly prisma: PrismaService,
     private readonly assetIdService: AssetIdService,
     private readonly auditService: AuditService,
+    private readonly configService: ConfigService,
   ) {}
+
+  private generateQrToken(): string {
+    return randomUUID();
+  }
+
+  private buildPublicAssetUrl(token: string): string {
+    const frontendUrl = (
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173'
+    ).replace(/\/$/, '');
+    return `${frontendUrl}/a/${token}`;
+  }
 
   private assetEntityLabel(asset: {
     assetId: string;
@@ -199,11 +214,13 @@ export class AssetsService {
     model: any,
     vendor: any,
   ): Promise<any> {
+    const { qrCode: _ignoredQrCode, ...assetFields } = createAssetDto;
     const asset = await this.prisma.asset.create({
       data: {
-        ...createAssetDto,
+        ...assetFields,
         tenantId,
         assetId, // Use generated or validated asset ID
+        qrCode: this.generateQrToken(),
         serialNumber: createAssetDto.serialNumber
           ? createAssetDto.serialNumber.trim()
           : null, // Trim serial number
@@ -607,6 +624,11 @@ export class AssetsService {
         purchaseCost: true,
         warrantyStartDate: true,
         warrantyEndDate: true,
+        depreciationMethod: true,
+        usefulLifeMonths: true,
+        salvageValue: true,
+        depreciationRatePercent: true,
+        firstYearDepreciationRatePercent: true,
         retirementDate: true,
         retirementReason: true,
         retirementNotes: true,
@@ -669,6 +691,26 @@ export class AssetsService {
       ...asset,
       specifications: asset.specifications, // Keep original keys
       purchaseCost: asset.purchaseCost ? Number(asset.purchaseCost) : null,
+      salvageValue: asset.salvageValue ? Number(asset.salvageValue) : null,
+      depreciationRatePercent: asset.depreciationRatePercent
+        ? Number(asset.depreciationRatePercent)
+        : null,
+      firstYearDepreciationRatePercent: asset.firstYearDepreciationRatePercent
+        ? Number(asset.firstYearDepreciationRatePercent)
+        : null,
+      depreciation: calculateDepreciation({
+        purchaseCost: asset.purchaseCost ? Number(asset.purchaseCost) : null,
+        purchaseDate: asset.purchaseDate,
+        depreciationMethod: asset.depreciationMethod,
+        usefulLifeMonths: asset.usefulLifeMonths,
+        salvageValue: asset.salvageValue ? Number(asset.salvageValue) : null,
+        depreciationRatePercent: asset.depreciationRatePercent
+          ? Number(asset.depreciationRatePercent)
+          : null,
+        firstYearDepreciationRatePercent: asset.firstYearDepreciationRatePercent
+          ? Number(asset.firstYearDepreciationRatePercent)
+          : null,
+      }),
       // Include label map separately so frontend can use it if needed for display
       specificationLabelMap: this.buildSpecificationLabelMap(
         asset.assetType?.specificationTemplate as any,
@@ -678,6 +720,98 @@ export class AssetsService {
     return {
       message: 'Asset retrieved successfully',
       data: { asset: transformedAsset },
+    };
+  }
+
+  /**
+   * Ensure asset has a QR token and return the public sticker URL.
+   */
+  async getQrForAsset(id: number, tenantId: number) {
+    const asset = await this.prisma.asset.findFirst({
+      where: { id, tenantId },
+      select: { id: true, assetId: true, qrCode: true },
+    });
+
+    if (!asset) {
+      throw new NotFoundException('Asset not found');
+    }
+
+    let token = asset.qrCode;
+    if (!token) {
+      token = this.generateQrToken();
+      await this.prisma.asset.update({
+        where: { id: asset.id },
+        data: { qrCode: token },
+      });
+    }
+
+    return {
+      message: 'Asset QR retrieved successfully',
+      data: {
+        token,
+        url: this.buildPublicAssetUrl(token),
+        assetId: asset.assetId,
+      },
+    };
+  }
+
+  /**
+   * Public lookup by QR token — limited fields, no auth.
+   */
+  async findPublicByQrToken(token: string) {
+    const asset = await this.prisma.asset.findFirst({
+      where: { qrCode: token },
+      select: {
+        assetId: true,
+        serialNumber: true,
+        status: true,
+        condition: true,
+        location: true,
+        assetType: {
+          select: {
+            name: true,
+            category: { select: { name: true } },
+          },
+        },
+        brand: { select: { name: true } },
+        model: { select: { name: true } },
+        assetIssues: {
+          where: { returnDate: null },
+          select: {
+            employee: {
+              select: { firstName: true, lastName: true },
+            },
+          },
+          take: 1,
+          orderBy: { issueDate: 'desc' },
+        },
+      },
+    });
+
+    if (!asset) {
+      throw new NotFoundException('Asset not found');
+    }
+
+    const openIssue = asset.assetIssues[0];
+    const currentOwner = openIssue
+      ? `${openIssue.employee.firstName} ${openIssue.employee.lastName}`.trim()
+      : null;
+
+    return {
+      message: 'Asset retrieved successfully',
+      data: {
+        asset: {
+          assetId: asset.assetId,
+          serialNumber: asset.serialNumber,
+          status: asset.status,
+          condition: asset.condition,
+          location: asset.location,
+          assetType: asset.assetType,
+          brand: asset.brand,
+          model: asset.model,
+          currentOwner,
+        },
+      },
     };
   }
 
@@ -904,10 +1038,11 @@ export class AssetsService {
     tenantId: number,
     currentAsset: any,
   ): Promise<any> {
+    const { qrCode: _ignoredUpdateQr, ...updateFields } = updateAssetDto;
     const asset = await this.prisma.asset.update({
       where: { id },
       data: {
-        ...updateAssetDto,
+        ...updateFields,
         serialNumber: updateAssetDto.serialNumber
           ? updateAssetDto.serialNumber.trim()
           : undefined, // Trim serial number
@@ -3227,9 +3362,11 @@ export class AssetsService {
         };
       }
 
+      const { qrCode: _ignoredBulkQr, ...bulkAssetFields } = createData;
       const asset = await this.prisma.asset.create({
         data: {
-          ...createData,
+          ...bulkAssetFields,
+          qrCode: this.generateQrToken(),
           purchaseDate: createData.purchaseDate
             ? new Date(createData.purchaseDate)
             : null,

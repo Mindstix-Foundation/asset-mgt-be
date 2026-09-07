@@ -443,22 +443,25 @@ export class AuthService implements OnModuleInit {
         Date.now() + 7 * 24 * 60 * 60 * 1000,
       ); // 7 days
 
-      // Delete old session and create new one (token rotation)
-      await this.prisma.$transaction([
-        this.prisma.refreshSession.delete({
-          where: { id: session.id },
-        }),
-        this.prisma.refreshSession.create({
-          data: {
-            userId: session.userId,
-            token: newRefreshToken,
-            expiresAt: refreshTokenExpires,
-            deviceId: deviceInfo?.deviceId || session.deviceId,
-            ipAddress: deviceInfo?.ipAddress || session.ipAddress,
-            userAgent: deviceInfo?.userAgent || session.userAgent,
-          },
-        }),
-      ]);
+      // Atomically rotate the refresh token. Conditioning on the current token
+      // ensures only one concurrent refresh wins; losers get count 0 (no P2025).
+      const rotated = await this.prisma.refreshSession.updateMany({
+        where: {
+          id: session.id,
+          token: refreshToken,
+        },
+        data: {
+          token: newRefreshToken,
+          expiresAt: refreshTokenExpires,
+          deviceId: deviceInfo?.deviceId || session.deviceId,
+          ipAddress: deviceInfo?.ipAddress || session.ipAddress,
+          userAgent: deviceInfo?.userAgent || session.userAgent,
+        },
+      });
+
+      if (rotated.count === 0) {
+        throw new UnauthorizedException('Invalid or expired refresh token');
+      }
 
       const payload = {
         sub: session.user.id,

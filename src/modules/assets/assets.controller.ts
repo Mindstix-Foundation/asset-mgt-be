@@ -754,6 +754,16 @@ export class AssetsController {
     return this.assetsService.findDeletableAssets(queryDto, tenantId);
   }
 
+  @Get(':id/qr')
+  @ApiOperation({ summary: 'Get or create QR token and public URL for an asset' })
+  @ApiParam({ name: 'id', description: 'Asset ID' })
+  @ApiResponse({ status: 200, description: 'Asset QR retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Asset not found' })
+  async getQr(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+    const tenantId = req.user.tenantId as number;
+    return this.assetsService.getQrForAsset(id, tenantId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get asset by ID with complete details' })
   @ApiParam({ name: 'id', description: 'Asset ID' })

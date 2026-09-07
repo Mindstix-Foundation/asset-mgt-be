@@ -9,6 +9,7 @@ import {
   MaxLength,
   MinLength,
   Min,
+  Max,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type, Transform } from 'class-transformer';
@@ -39,6 +40,14 @@ export const ASSET_LOCATION_VALUES = [
   'THANE_INVENTORY_CENTER',
 ] as const;
 export type AssetLocationValue = (typeof ASSET_LOCATION_VALUES)[number];
+
+export const DEPRECIATION_METHOD_VALUES = [
+  'STRAIGHT_LINE',
+  'REDUCING_BALANCE',
+  'INITIAL_HIGH_REDUCING',
+] as const;
+export type DepreciationMethodValue =
+  (typeof DEPRECIATION_METHOD_VALUES)[number];
 
 export class CreateAssetDto {
   @ApiPropertyOptional({
@@ -133,6 +142,70 @@ export class CreateAssetDto {
   @IsOptional()
   @IsDateString()
   warrantyEndDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Depreciation method',
+    enum: DEPRECIATION_METHOD_VALUES,
+    example: 'REDUCING_BALANCE',
+  })
+  @IsOptional()
+  @IsEnum(DEPRECIATION_METHOD_VALUES)
+  depreciationMethod?: DepreciationMethodValue;
+
+  @ApiPropertyOptional({
+    description: 'Useful life in months (required for STRAIGHT_LINE)',
+    example: 36,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  usefulLifeMonths?: number;
+
+  @ApiPropertyOptional({
+    description: 'Salvage / residual value floor',
+    example: 1000,
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === '' || value === null || value === undefined
+      ? value
+      : Number.parseFloat(value),
+  )
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  salvageValue?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Annual depreciation % for REDUCING_BALANCE, or ongoing % after year 1 for INITIAL_HIGH_REDUCING',
+    example: 10,
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === '' || value === null || value === undefined
+      ? value
+      : Number.parseFloat(value),
+  )
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  @Max(100)
+  depreciationRatePercent?: number;
+
+  @ApiPropertyOptional({
+    description: 'Year-1 depreciation % for INITIAL_HIGH_REDUCING',
+    example: 40,
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === '' || value === null || value === undefined
+      ? value
+      : Number.parseFloat(value),
+  )
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  @Max(100)
+  firstYearDepreciationRatePercent?: number;
 
   @ApiProperty({
     description:

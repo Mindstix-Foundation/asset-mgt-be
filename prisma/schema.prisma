@@ -30,6 +30,7 @@ model Tenant {
   notifications      Notification[]
   auditLogs          AuditLog[]
   registrationRequests OrganizationRegistration[]
+  softwareLicenses   SoftwareLicense[]
 
   @@index([isActive])
   @@index([isPlatform])
@@ -120,6 +121,8 @@ model User {
   updatedVendors              Vendor[]              @relation("VendorUpdatedBy")
   vendor                      Vendor?
   auditLogs                   AuditLog[]            @relation("AuditLogPerformedBy")
+  createdSoftwareLicenses     SoftwareLicense[]     @relation("SoftwareLicenseCreatedBy")
+  updatedSoftwareLicenses     SoftwareLicense[]     @relation("SoftwareLicenseUpdatedBy")
 
   @@index([tenantId])
   @@index([isActive, lastLogin])
@@ -234,6 +237,7 @@ model Employee {
   tenant        Tenant         @relation(fields: [tenantId], references: [id])
   designation   Designation?   @relation(fields: [designationId], references: [id])
   assetIssues   AssetIssue[]
+  softwareLicenses SoftwareLicense[] @relation("SoftwareLicenseAssignedTo")
   createdByUser User?          @relation("EmployeeCreatedBy", fields: [createdBy], references: [id])
   updatedByUser User?          @relation("EmployeeUpdatedBy", fields: [updatedBy], references: [id])
   user          User?
@@ -383,6 +387,14 @@ model Asset {
   vendorId             Int?                  @map("vendor_id")
   warrantyStartDate    DateTime?             @map("warranty_start_date") @db.Date
   warrantyEndDate      DateTime?             @map("warranty_end_date") @db.Date
+  /// Depreciation settings (book value is computed, not stored)
+  depreciationMethod   DepreciationMethod?   @map("depreciation_method")
+  usefulLifeMonths     Int?                  @map("useful_life_months")
+  salvageValue         Decimal?              @map("salvage_value") @db.Decimal(10, 2)
+  /// Annual % for REDUCING_BALANCE, or ongoing % after year 1 for INITIAL_HIGH_REDUCING
+  depreciationRatePercent Decimal?           @map("depreciation_rate_percent") @db.Decimal(5, 2)
+  /// Year-1 % for INITIAL_HIGH_REDUCING only
+  firstYearDepreciationRatePercent Decimal?  @map("first_year_depreciation_rate_percent") @db.Decimal(5, 2)
   location             AssetLocation?
   condition            AssetCondition        @default(NEW)
   status               AssetStatus           @default(NON_ASSIGNED)
@@ -422,8 +434,42 @@ model Asset {
   @@index([status, condition])
   @@index([retirementDate])
   @@index([reactivationDate])
-  @@index([qrCode])
+  @@index([warrantyEndDate])
+  @@unique([qrCode])
   @@map("assets")
+}
+
+/// Software / SaaS license tracking with expiry reminders
+model SoftwareLicense {
+  id            Int       @id @default(autoincrement())
+  tenantId      Int       @map("tenant_id")
+  name          String    @db.VarChar(150)
+  vendorName    String?   @map("vendor_name") @db.VarChar(100)
+  licenseKey    String?   @map("license_key") @db.VarChar(255)
+  seats         Int?
+  purchaseDate  DateTime? @map("purchase_date") @db.Date
+  purchaseCost  Decimal?  @map("purchase_cost") @db.Decimal(10, 2)
+  startDate     DateTime? @map("start_date") @db.Date
+  expiryDate    DateTime  @map("expiry_date") @db.Date
+  /// Employee responsible for this license (e.g. team lead)
+  assignedToId  Int       @map("assigned_to_id")
+  notes         String?
+  isActive      Boolean   @default(true) @map("is_active")
+  createdBy     Int       @map("created_by")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedBy     Int       @map("updated_by")
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant        Tenant    @relation(fields: [tenantId], references: [id])
+  assignedTo    Employee  @relation("SoftwareLicenseAssignedTo", fields: [assignedToId], references: [id])
+  createdByUser User      @relation("SoftwareLicenseCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User      @relation("SoftwareLicenseUpdatedBy", fields: [updatedBy], references: [id])
+
+  @@index([tenantId])
+  @@index([expiryDate])
+  @@index([isActive])
+  @@index([assignedToId])
+  @@index([tenantId, name])
+  @@map("software_licenses")
 }
 
 model AssetIssue {
@@ -666,6 +712,18 @@ enum NotificationType {
   ASSET_ASSIGNED
   ASSET_RETURNED
   SYSTEM_ALERT
+  WARRANTY_EXPIRING
+  WARRANTY_EXPIRED
+  LICENSE_EXPIRING
+  LICENSE_EXPIRED
+}
+
+enum DepreciationMethod {
+  STRAIGHT_LINE
+  /// Fixed % of remaining book value each year (WDV / reducing balance)
+  REDUCING_BALANCE
+  /// Higher % in year 1, then fixed % of remaining value thereafter
+  INITIAL_HIGH_REDUCING
 }
 
 enum AuditAction {

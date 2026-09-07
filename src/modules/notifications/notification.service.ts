@@ -5,6 +5,18 @@ import * as nodemailer from 'nodemailer';
 import { ConfigService } from '@nestjs/config';
 import { QueryNotificationDto } from './dto/query-notification.dto';
 
+/** In-app reminder types shown in the notification inbox */
+const REMINDER_NOTIFICATION_TYPES: NotificationType[] = [
+  NotificationType.MAINTENANCE_REMINDER,
+  NotificationType.WARRANTY_EXPIRING,
+  NotificationType.WARRANTY_EXPIRED,
+  NotificationType.LICENSE_EXPIRING,
+  NotificationType.LICENSE_EXPIRED,
+];
+
+const EXPIRY_LEAD_DAYS = 30;
+const EXPIRED_LOOKBACK_DAYS = 7;
+
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
@@ -53,7 +65,7 @@ export class NotificationService {
       const where = {
         userId,
         tenantId,
-        type: NotificationType.MAINTENANCE_REMINDER,
+        type: { in: REMINDER_NOTIFICATION_TYPES },
         ...(query.unreadOnly ? { isRead: false } : {}),
       };
 
@@ -114,7 +126,7 @@ export class NotificationService {
           userId,
           tenantId,
           isRead: false,
-          type: NotificationType.MAINTENANCE_REMINDER,
+          type: { in: REMINDER_NOTIFICATION_TYPES },
         },
         data: {
           isRead: true,
@@ -140,7 +152,7 @@ export class NotificationService {
           userId,
           tenantId,
           isRead: true,
-          type: NotificationType.MAINTENANCE_REMINDER,
+          type: { in: REMINDER_NOTIFICATION_TYPES },
         },
         data: {
           isRead: false,
@@ -165,7 +177,7 @@ export class NotificationService {
           userId,
           tenantId,
           isRead: false,
-          type: NotificationType.MAINTENANCE_REMINDER,
+          type: { in: REMINDER_NOTIFICATION_TYPES },
         },
         data: {
           isRead: true,
@@ -190,7 +202,7 @@ export class NotificationService {
           userId,
           tenantId,
           isRead: false,
-          type: NotificationType.MAINTENANCE_REMINDER,
+          type: { in: REMINDER_NOTIFICATION_TYPES },
         },
       });
 
@@ -430,6 +442,209 @@ export class NotificationService {
       this.logger.error(
         'Failed to create maintenance reminder notifications',
         error?.stack || error,
+      );
+    }
+  }
+
+  /** Notify tenant admins about warranties expiring soon or recently expired */
+  async createWarrantyReminderNotifications() {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const leadEnd = new Date(today);
+      leadEnd.setDate(leadEnd.getDate() + EXPIRY_LEAD_DAYS);
+      const expiredFrom = new Date(today);
+      expiredFrom.setDate(expiredFrom.getDate() - EXPIRED_LOOKBACK_DAYS);
+
+      const assets = await this.prisma.asset.findMany({
+        where: {
+          status: { not: 'RETIRED' },
+          warrantyEndDate: {
+            not: null,
+            gte: expiredFrom,
+            lte: leadEnd,
+          },
+        },
+        select: {
+          id: true,
+          tenantId: true,
+          assetId: true,
+          warrantyEndDate: true,
+          assetType: { select: { name: true } },
+          brand: { select: { name: true } },
+          model: { select: { name: true } },
+        },
+      });
+
+      for (const asset of assets) {
+        if (!asset.warrantyEndDate) continue;
+        const end = new Date(asset.warrantyEndDate);
+        end.setHours(0, 0, 0, 0);
+        const daysUntil = Math.ceil(
+          (end.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
+        );
+        const isExpired = daysUntil < 0;
+        const type = isExpired
+          ? NotificationType.WARRANTY_EXPIRED
+          : NotificationType.WARRANTY_EXPIRING;
+        const title = isExpired ? 'Warranty Expired' : 'Warranty Expiring Soon';
+        const message = isExpired
+          ? `Warranty for ${asset.assetType.name} - ${asset.brand.name} ${asset.model.name} (${asset.assetId}) expired on ${end.toISOString().slice(0, 10)}.`
+          : `Warranty for ${asset.assetType.name} - ${asset.brand.name} ${asset.model.name} (${asset.assetId}) expires in ${daysUntil} day(s) on ${end.toISOString().slice(0, 10)}.`;
+
+        await this.notifyTenantAdmins(asset.tenantId, type, title, message, {
+          assetDbId: asset.id,
+          assetId: asset.assetId,
+          warrantyEndDate: end.toISOString().slice(0, 10),
+          daysUntilExpiry: daysUntil,
+        });
+      }
+    } catch (error) {
+      this.logger.error(
+        'Failed to create warranty reminder notifications',
+        error?.stack || error,
+      );
+    }
+  }
+
+  /** Notify assignee + tenant admins about software licenses expiring/expired */
+  async createLicenseReminderNotifications() {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const leadEnd = new Date(today);
+      leadEnd.setDate(leadEnd.getDate() + EXPIRY_LEAD_DAYS);
+      const expiredFrom = new Date(today);
+      expiredFrom.setDate(expiredFrom.getDate() - EXPIRED_LOOKBACK_DAYS);
+
+      const licenses = await this.prisma.softwareLicense.findMany({
+        where: {
+          isActive: true,
+          expiryDate: {
+            gte: expiredFrom,
+            lte: leadEnd,
+          },
+        },
+        include: {
+          assignedTo: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              user: { select: { id: true, isActive: true } },
+            },
+          },
+        },
+      });
+
+      for (const license of licenses) {
+        const end = new Date(license.expiryDate);
+        end.setHours(0, 0, 0, 0);
+        const daysUntil = Math.ceil(
+          (end.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
+        );
+        const isExpired = daysUntil < 0;
+        const type = isExpired
+          ? NotificationType.LICENSE_EXPIRED
+          : NotificationType.LICENSE_EXPIRING;
+        const assigneeName = `${license.assignedTo.firstName} ${license.assignedTo.lastName}`;
+        const title = isExpired
+          ? 'Software License Expired'
+          : 'Software License Expiring Soon';
+        const message = isExpired
+          ? `License "${license.name}" (owner: ${assigneeName}) expired on ${end.toISOString().slice(0, 10)}.`
+          : `License "${license.name}" (owner: ${assigneeName}) expires in ${daysUntil} day(s) on ${end.toISOString().slice(0, 10)}.`;
+
+        const extraUserIds: number[] = [];
+        if (license.assignedTo.user?.isActive) {
+          extraUserIds.push(license.assignedTo.user.id);
+        }
+
+        await this.notifyTenantAdmins(
+          license.tenantId,
+          type,
+          title,
+          message,
+          {
+            licenseId: license.id,
+            licenseName: license.name,
+            assignedToId: license.assignedToId,
+            expiryDate: end.toISOString().slice(0, 10),
+            daysUntilExpiry: daysUntil,
+          },
+          extraUserIds,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        'Failed to create license reminder notifications',
+        error?.stack || error,
+      );
+    }
+  }
+
+  private async notifyTenantAdmins(
+    tenantId: number,
+    type: NotificationType,
+    title: string,
+    message: string,
+    data: Record<string, unknown>,
+    extraUserIds: number[] = [],
+  ) {
+    const admins = await this.prisma.user.findMany({
+      where: {
+        tenantId,
+        isActive: true,
+        OR: [
+          { roles: { has: 'ADMIN' } },
+          { roles: { has: 'SUPER_ADMIN' } },
+        ],
+      },
+      select: { id: true },
+    });
+
+    const recipientIds = [
+      ...new Set([...admins.map((a) => a.id), ...extraUserIds]),
+    ];
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    for (const userId of recipientIds) {
+      const todays = await this.prisma.notification.findMany({
+        where: {
+          userId,
+          tenantId,
+          type,
+          createdAt: { gte: startOfToday },
+        },
+        select: { data: true },
+      });
+
+      const alreadyNotified = todays.some((n) => {
+        const payload = this.parseNotificationData(n.data) as Record<
+          string,
+          unknown
+        > | null;
+        if (!payload) return false;
+        if (data.assetDbId != null) {
+          return payload.assetDbId === data.assetDbId;
+        }
+        if (data.licenseId != null) {
+          return payload.licenseId === data.licenseId;
+        }
+        return false;
+      });
+
+      if (alreadyNotified) continue;
+
+      await this.createNotification(
+        userId,
+        type,
+        title,
+        message,
+        data,
+        tenantId,
       );
     }
   }
