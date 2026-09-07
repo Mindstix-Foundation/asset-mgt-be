@@ -198,9 +198,17 @@ export class EmployeesController {
   @ApiQuery({
     name: 'assetCountRange',
     required: false,
-    enum: ['0', '1-2', '3+'],
+    enum: ['0', '1', '2', '3', '4', '5', '5+'],
     description: 'Filter by asset count range',
-    example: '1-2',
+    example: '1',
+  })
+  @ApiQuery({
+    name: 'assetTypeId',
+    required: false,
+    type: Number,
+    description:
+      'Filter by assigned asset type. Counts reflect only assets of this type.',
+    example: 1,
   })
   @ApiQuery({
     name: 'sortBy',
@@ -340,7 +348,43 @@ export class EmployeesController {
 
   @Get('export')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  @ApiOperation({ summary: 'Export employees to Excel with asset details' })
+  @ApiOperation({
+    summary: 'Export employees to Excel with asset details',
+    description:
+      'Respects the same filters as the employee list: search, status, assetCountRange, assetTypeId, sortBy, sortOrder.',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search by name, employee ID, or email',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['ACTIVE', 'INACTIVE'],
+  })
+  @ApiQuery({
+    name: 'assetCountRange',
+    required: false,
+    enum: ['0', '1', '2', '3', '4', '5', '5+'],
+  })
+  @ApiQuery({
+    name: 'assetTypeId',
+    required: false,
+    type: Number,
+    description: 'Only employees with this assigned asset type',
+  })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    enum: ['name', 'employeeId', 'email', 'status', 'createdAt'],
+  })
+  @ApiQuery({
+    name: 'sortOrder',
+    required: false,
+    enum: ['asc', 'desc'],
+  })
   @ApiResponse({
     status: 200,
     description: 'Excel file generated successfully',

@@ -351,6 +351,11 @@ export class AssetsController {
     description: 'Filter by location',
   })
   @ApiQuery({
+    name: 'specificationFilters',
+    required: false,
+    description: 'JSON object of specification filters, e.g. {"ram":"16GB"}',
+  })
+  @ApiQuery({
     name: 'sortBy',
     required: false,
     description:

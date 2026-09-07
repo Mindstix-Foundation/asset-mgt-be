@@ -71,13 +71,24 @@ export class QueryEmployeeDto {
 
   @ApiProperty({
     description: 'Filter by asset count range',
-    enum: ['0', '1-2', '3+'],
-    example: '1-2',
+    enum: ['0', '1', '2', '3', '4', '5', '5+'],
+    example: '1',
     required: false,
   })
   @IsOptional()
   @IsString()
   assetCountRange?: string;
+
+  @ApiProperty({
+    description:
+      'Filter by assigned asset type ID. Asset counts then reflect only this type.',
+    example: 1,
+    required: false,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  assetTypeId?: number;
 
   @ApiProperty({
     description: 'Sort by field',

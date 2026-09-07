@@ -248,6 +248,7 @@ export class EmployeesService {
     const page = query.page || 1;
     const limit = Math.min(query.limit || 10, 100);
     const skip = (page - 1) * limit;
+    const assetTypeId = this.normalizeAssetTypeId(query.assetTypeId);
 
     // Build where clause
     const where: Prisma.EmployeeWhereInput = {};
@@ -269,9 +270,27 @@ export class EmployeesService {
         : { none: { returnDate: null } };
     }
 
-    // If assetCountRange is provided, we cannot compute it purely via simple where.
-    // We'll count and paginate after in-memory filtering, but hasAssets stays in DB.
-    const isPostFilterByCount = Boolean(query.assetCountRange);
+    // Pre-filter by asset type at DB when not asking for "0 of this type"
+    if (assetTypeId !== undefined && query.assetCountRange !== '0') {
+      effectiveWhere.assetIssues = {
+        some: {
+          returnDate: null,
+          asset: { assetTypeId },
+        },
+      };
+    } else if (assetTypeId !== undefined && query.assetCountRange === '0') {
+      effectiveWhere.assetIssues = {
+        none: {
+          returnDate: null,
+          asset: { assetTypeId },
+        },
+      };
+    }
+
+    // Post-filter when counting by type or by range (pagination must match filtered set)
+    const isPostFilterByCount = Boolean(
+      query.assetCountRange || assetTypeId !== undefined,
+    );
 
     // Get total count based on effective filters (includes hasAssets if provided)
     const baseTotalCount = await this.prisma.employee.count({
@@ -281,7 +300,7 @@ export class EmployeesService {
     // Fetch page candidates
     const baseEmployees = await this.prisma.employee.findMany({
       where: effectiveWhere,
-      // When post-filtering by count range, fetch all to compute accurate totals
+      // When post-filtering by count/type, fetch all to compute accurate totals
       skip: isPostFilterByCount ? undefined : skip,
       take: isPostFilterByCount ? undefined : limit,
       include: {
@@ -305,10 +324,11 @@ export class EmployeesService {
       orderBy,
     });
 
-    // Post-filter for assetCountRange
-    const filteredEmployees = this.filterEmployeesByAssetCountRange(
+    // Post-filter for asset type + assetCountRange (counts scoped to type when set)
+    const filteredEmployees = this.filterEmployeesByAssetTypeAndCount(
       baseEmployees,
       query.assetCountRange,
+      assetTypeId,
     );
 
     // Compute totalCount consistent with filters
@@ -323,8 +343,14 @@ export class EmployeesService {
 
     const responseEmployees = pagedEmployees.map((employee: any) => {
       const responseDto = this.mapToResponseDto(employee);
-      responseDto.assignedAssetsCount = employee._count.assetIssues;
-      responseDto.assignedAssets = employee.assetIssues.map((issue: any) => {
+      const relevantIssues =
+        assetTypeId !== undefined
+          ? employee.assetIssues.filter(
+              (issue: any) => Number(issue.asset?.assetTypeId) === assetTypeId,
+            )
+          : employee.assetIssues;
+      responseDto.assignedAssetsCount = relevantIssues.length;
+      responseDto.assignedAssets = relevantIssues.map((issue: any) => {
         const { specifications, specificationLabelMap } =
           this.extractAssetSpecifications(issue.asset);
         const specificationDescription = this.getAssetNotesDescription(
@@ -1881,17 +1907,79 @@ export class EmployeesService {
     }
   }
 
+  private matchesAssetCountRange(
+    assetCount: number,
+    assetCountRange: string,
+  ): boolean {
+    if (assetCountRange === '0') return assetCount === 0;
+    if (assetCountRange === '5+') return assetCount >= 5;
+    if (['1', '2', '3', '4', '5'].includes(assetCountRange)) {
+      return assetCount === Number(assetCountRange);
+    }
+    // Legacy ranges kept for backward compatibility
+    if (assetCountRange === '1-2') return assetCount >= 1 && assetCount <= 2;
+    if (assetCountRange === '3+') return assetCount >= 3;
+    return true;
+  }
+
+  private normalizeAssetTypeId(
+    assetTypeId?: number | string | null,
+  ): number | undefined {
+    if (assetTypeId === undefined || assetTypeId === null || assetTypeId === '') {
+      return undefined;
+    }
+    const parsed = Number(assetTypeId);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  private getRelevantAssetCount(
+    employee: {
+      assetIssues?: Array<{
+        asset?: { assetTypeId?: number | null } | null;
+      }>;
+      _count?: { assetIssues: number };
+    },
+    assetTypeId?: number,
+  ): number {
+    if (assetTypeId !== undefined) {
+      return (employee.assetIssues || []).filter(
+        (issue) => Number(issue.asset?.assetTypeId) === assetTypeId,
+      ).length;
+    }
+    if (employee._count?.assetIssues !== undefined) {
+      return employee._count.assetIssues;
+    }
+    return employee.assetIssues?.length || 0;
+  }
+
+  private filterEmployeesByAssetTypeAndCount<
+    T extends {
+      assetIssues?: Array<{
+        asset?: { assetTypeId?: number | null } | null;
+      }>;
+      _count?: { assetIssues: number };
+    },
+  >(
+    employees: T[],
+    assetCountRange?: string,
+    assetTypeId?: number | string,
+  ): T[] {
+    const normalizedTypeId = this.normalizeAssetTypeId(assetTypeId);
+    if (!assetCountRange && normalizedTypeId === undefined) return employees;
+    return employees.filter((emp) => {
+      const count = this.getRelevantAssetCount(emp, normalizedTypeId);
+      if (assetCountRange) {
+        return this.matchesAssetCountRange(count, assetCountRange);
+      }
+      // Asset type alone: only employees who have at least one of that type
+      return count > 0;
+    });
+  }
+
   private filterEmployeesByAssetCountRange<
     T extends { _count: { assetIssues: number } },
   >(employees: T[], assetCountRange?: string): T[] {
-    if (!assetCountRange) return employees;
-    return employees.filter((emp) => {
-      const assetCount = emp._count.assetIssues;
-      if (assetCountRange === '0') return assetCount === 0;
-      if (assetCountRange === '1-2') return assetCount >= 1 && assetCount <= 2;
-      if (assetCountRange === '3+') return assetCount >= 3;
-      return true;
-    });
+    return this.filterEmployeesByAssetTypeAndCount(employees, assetCountRange);
   }
 
   private extractAssetSpecifications(asset: any): {
@@ -2073,6 +2161,7 @@ export class EmployeesService {
       sortBy = 'firstName',
       sortOrder = 'asc',
     } = queryDto;
+    const assetTypeId = this.normalizeAssetTypeId(queryDto.assetTypeId);
 
     const where: Prisma.EmployeeWhereInput = {};
 
@@ -2087,12 +2176,31 @@ export class EmployeesService {
       where.status = status;
     }
 
+    // Apply createdAt date range (same as findAll)
+    this.applyCreatedAtDateRange(where, queryDto as any);
+
     if (hasAssets !== undefined) {
       if (hasAssets) {
         where.assetIssues = { some: { returnDate: null } };
       } else {
         where.assetIssues = { none: { returnDate: null } };
       }
+    }
+
+    if (assetTypeId !== undefined && assetCountRange !== '0') {
+      where.assetIssues = {
+        some: {
+          returnDate: null,
+          asset: { assetTypeId },
+        },
+      };
+    } else if (assetTypeId !== undefined && assetCountRange === '0') {
+      where.assetIssues = {
+        none: {
+          returnDate: null,
+          asset: { assetTypeId },
+        },
+      };
     }
 
     const orderBy: any = {};
@@ -2164,22 +2272,26 @@ export class EmployeesService {
 
     const filename = `employees_export_${new Date().toISOString().split('T')[0]}.xlsx`;
 
-    const matchesAssetCountRange = (assetCount: number): boolean => {
-      if (!assetCountRange) return true;
-      switch (assetCountRange) {
-        case '0':
-          return assetCount === 0;
-        case '1-2':
-          return assetCount >= 1 && assetCount <= 2;
-        case '3+':
-          return assetCount >= 3;
-        default:
-          return true;
+    const employeeMatchesFilters = (employee: any): boolean => {
+      const count = this.getRelevantAssetCount(employee, assetTypeId);
+      if (assetCountRange) {
+        return this.matchesAssetCountRange(count, assetCountRange);
       }
+      if (assetTypeId !== undefined) {
+        return count > 0;
+      }
+      return true;
     };
 
     const mapEmployeeRow = (employee: any) => {
-      const assetDetails = employee.assetIssues
+      const relevantIssues =
+        assetTypeId !== undefined
+          ? employee.assetIssues.filter(
+              (issue: any) => Number(issue.asset?.assetTypeId) === assetTypeId,
+            )
+          : employee.assetIssues;
+
+      const assetDetails = relevantIssues
         .map(
           (issue: any) =>
             `${issue.asset.brand.name} ${issue.asset.model.name} (${issue.asset.assetId})`,
@@ -2197,7 +2309,7 @@ export class EmployeesService {
           : '',
         address: employee.address || '',
         status: employee.status,
-        assetCount: employee.assetIssues.length,
+        assetCount: relevantIssues.length,
         assetDetails,
         createdBy:
           (employee.createdByUser?.employee
@@ -2218,8 +2330,8 @@ export class EmployeesService {
       };
     };
 
-    // assetCountRange requires post-filter; do a chunked count pass then stream write
-    if (assetCountRange) {
+    // assetCountRange / assetTypeId require post-filter; chunked count then stream write
+    if (assetCountRange || assetTypeId !== undefined) {
       await withExportLock(async () => {
         const chunkSize = getExportChunkSize();
         let matching = 0;
@@ -2233,9 +2345,7 @@ export class EmployeesService {
             take: chunkSize,
           });
           if (chunk.length === 0) break;
-          matching += chunk.filter((e) =>
-            matchesAssetCountRange(e.assetIssues.length),
-          ).length;
+          matching += chunk.filter((e) => employeeMatchesFilters(e)).length;
           skip += chunkSize;
           if (chunk.length < chunkSize) break;
         }
@@ -2260,7 +2370,7 @@ export class EmployeesService {
           });
           if (chunk.length === 0) break;
           for (const employee of chunk) {
-            if (!matchesAssetCountRange(employee.assetIssues.length)) continue;
+            if (!employeeMatchesFilters(employee)) continue;
             const mapped = mapEmployeeRow(employee);
             worksheet
               .addRow(columns.map((c) => mapped[c.key as keyof typeof mapped]))

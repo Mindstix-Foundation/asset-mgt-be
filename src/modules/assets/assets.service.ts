@@ -3615,55 +3615,45 @@ export class AssetsService {
   }
 
   async exportAssets(queryDto: AssetQueryDto, res: Response) {
+    // Same filtering logic as findAll so export matches the list view
     const {
       status,
       assetTypeId,
       brandId,
       modelId,
+      vendorId,
       search,
       condition,
       location,
+      fromDate,
+      toDate,
+      assetType,
+      assetStatus,
+      specificationFilters,
       sortBy = 'assetId',
       sortOrder = 'asc',
     } = queryDto;
 
-    const where: any = {};
+    const where: any = {
+      ...this.buildSearchFilter(search),
+      ...this.buildSimpleFilters(
+        assetTypeId,
+        brandId,
+        modelId,
+        vendorId,
+        status,
+        condition,
+        location,
+      ),
+      ...this.buildStringBasedFilters(assetType, assetStatus),
+      ...this.buildDateRangeFilter(fromDate, toDate),
+    };
 
-    if (status) {
-      where.status = status;
-    }
-
-    if (assetTypeId) {
-      where.assetTypeId =
-        typeof assetTypeId === 'string'
-          ? Number.parseInt(assetTypeId)
-          : assetTypeId;
-    }
-
-    if (brandId) {
-      where.brandId =
-        typeof brandId === 'string' ? Number.parseInt(brandId) : brandId;
-    }
-
-    if (modelId) {
-      where.modelId =
-        typeof modelId === 'string' ? Number.parseInt(modelId) : modelId;
-    }
-
-    if (condition) {
-      where.condition = condition;
-    }
-
-    if (location) {
-      where.location = location;
-    }
-
-    if (search) {
-      where.OR = [
-        { assetId: { contains: search, mode: 'insensitive' } },
-        { serialNumber: { contains: search, mode: 'insensitive' } },
-        { notes: { contains: search, mode: 'insensitive' } },
-      ];
+    const specFilters = this.buildSpecificationFilters(specificationFilters);
+    if (specFilters.AND) {
+      where.AND = where.AND
+        ? [...where.AND, ...specFilters.AND]
+        : specFilters.AND;
     }
 
     const orderBy: any = {};
