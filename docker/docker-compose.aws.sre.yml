@@ -1,34 +1,29 @@
 # ==============================================================================
-# Asset Management - AWS production stack
+# Asset Management - AWS SRE / second deployment (same EC2 as prod)
 # ------------------------------------------------------------------------------
-# Designed to run on a single EC2 instance (Amazon Linux 2023) behind an
-# Application Load Balancer. Postgres lives in RDS (the bundled `db` service
-# from docker-compose.yml is omitted).
+# Sibling of docker-compose.aws.yml for an alternate branch/deploy.
+# Container + image names are prefixed with `sre-` so both stacks can run on
+# the same host / git checkout without clashing.
 #
 # Architecture:
-#   ALB :80/:443  ->  sre-nginx (host:8080, separate compose)  ->  assets.mindstix.com / + /api/*
-#                                                               \-> attendance.mindstix.com / + /api/*
+#   ALB :80/:443  ->  sre-nginx (host:8080)  ->  assets.sre.mindstix.com / + /api/*
+#        (edge.conf upstreams: sre-asset-mgt-backend, sre-asset-mgt-frontend)
 #
-# Edge proxy is owned by Mindstix-Foundation/sre-nginx and must already be
-# running on mindstix-edge-net. This stack only runs backend + frontend so an
-# asset upgrade does NOT rebuild sre-nginx.
+# Prerequisites:
+#   cd /opt/asset-mgt/sre-nginx && docker-compose up -d --build
 #
-#   cd /opt/asset-mgt/sre-nginx && docker-compose up -d --build   # once / on edge changes
+# Usage:
 #   cd /opt/asset-mgt/asset-mgt-be/docker
-#   source ./load-ssm-secrets.sh
-#   docker-compose -f docker-compose.aws.yml up -d --build       # app only
+#   source ./load-ssm-secrets.sh   # or a SRE-specific env with assets.sre.mindstix.com
+#   docker-compose -f docker-compose.aws.sre.yml up -d --build
 #
-# Note: the EC2 has the standalone `docker-compose` v2 binary (with hyphen)
-# rather than the `docker compose` plugin (no hyphen). Both run the same
-# Compose v2 engine; only the invocation differs. HRIS uses the same binary.
+# Prod stack (unchanged):
+#   docker-compose -f docker-compose.aws.yml up -d --build
 #
-# All sensitive configuration is sourced from AWS SSM Parameter Store and
-# exposed via ASST_TRACKER_* environment variables (see load-ssm-secrets.sh).
-#
-# Image tags use yyyymmdd-X-Y-Z (currently 20260723-1-0-2). Bump package.json + these tags together on each release — do not use latest.
+# Set CORS_ORIGIN / FRONTEND_URL to https://assets.sre.mindstix.com for this stack.
 # ==============================================================================
 
-name: asset-mgt
+name: sre-asset-mgt
 
 version: "3.9"
 
@@ -37,8 +32,8 @@ services:
     build:
       context: ../
       dockerfile: docker/backend/Dockerfile
-    image: asset-mgt-backend:20260723-1-0-2
-    container_name: asset-mgt-backend
+    image: sre-asset-mgt-backend:20260723-1-0-2
+    container_name: sre-asset-mgt-backend
     restart: unless-stopped
     environment:
       NODE_ENV: ${ASST_TRACKER_BACKEND_NODE_ENV:-production}
@@ -50,9 +45,6 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       CORS_ORIGIN: ${ASST_TRACKER_BACKEND_CORS_ORIGIN:?ASST_TRACKER_BACKEND_CORS_ORIGIN is required}
       FRONTEND_URL: ${ASST_TRACKER_BACKEND_FRONTEND_URL:?ASST_TRACKER_BACKEND_FRONTEND_URL is required}
-      # Set COOKIE_SECURE=false for plain-HTTP test deployments behind an ALB
-      # without TLS. For HTTPS deployments leave unset (defaults to secure=true
-      # in production).
       COOKIE_SECURE: ${ASST_TRACKER_BACKEND_COOKIE_SECURE:-true}
       MAX_FILE_SIZE: ${MAX_FILE_SIZE:-10485760}
       UPLOAD_DEST: /app/uploads
@@ -61,8 +53,6 @@ services:
       SMTP_USER: ${ASST_TRACKER_BACKEND_SMTP_USER:-}
       SMTP_PASS: ${ASST_TRACKER_BACKEND_SMTP_PASS:-}
       SMTP_FROM: ${ASST_TRACKER_BACKEND_SMTP_FROM:-}
-      # Postgres connection details (mirrored from SSM for tooling/debug; the
-      # backend itself uses DATABASE_URL above).
       POSTGRES_HOST: ${ASST_TRACKER_POSTGRES_HOST:-}
       POSTGRES_PORT: ${ASST_TRACKER_POSTGRES_PORT:-5432}
       POSTGRES_DB: ${ASST_TRACKER_POSTGRES_DB:-}
@@ -86,8 +76,8 @@ services:
       dockerfile: ../../asset-mgt-be/docker/frontend/Dockerfile
       args:
         VITE_API_BASE_URL: ${ASST_TRACKER_FRONTEND_VITE_API_BASE_URL:-/api}
-    image: asset-mgt-frontend:20260723-1-0-2
-    container_name: asset-mgt-frontend
+    image: sre-asset-mgt-frontend:20260723-1-0-2
+    container_name: sre-asset-mgt-frontend
     restart: unless-stopped
     expose:
       - "80"

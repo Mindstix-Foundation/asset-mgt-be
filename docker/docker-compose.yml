@@ -6,8 +6,10 @@
 #   - backend   : NestJS API (built from ../ i.e. asset-mgt-be root)
 #   - frontend  : Static Vue 3 + Vite SPA served by a tiny nginx (built from
 #                 ../../asset-mgt-fe/frontend). NOT exposed to the host.
-#   - nginx     : Reverse proxy. Routes "/api/*" -> backend, "/*" -> frontend.
-#                 The ONLY service published on the host (port 8080 -> 80).
+#
+# Edge reverse proxy is a separate stack (Mindstix-Foundation/sre-nginx).
+# Start it first so mindstix-edge-net exists and host :8080 is published:
+#   cd ../../sre-nginx && docker compose up -d --build
 #
 # Usage:
 #   cp .env.example .env       # then edit secrets
@@ -89,24 +91,6 @@ services:
     networks:
       - asset-net
 
-  # The nginx reverse-proxy image is owned by the SRE team and lives in a
-  # separate repo (Mindstix-Foundation/sre-nginx), checked out alongside this
-  # repo on disk. See ../README.md and the sre-nginx repo's README for details.
-  nginx:
-    build:
-      context: ../../sre-nginx
-      dockerfile: Dockerfile
-    image: sre-nginx:latest
-    container_name: sre-nginx
-    restart: unless-stopped
-    depends_on:
-      - backend
-      - frontend
-    ports:
-      - "${FRONTEND_PORT:-8080}:80"
-    networks:
-      - asset-net
-
 volumes:
   postgres_data:
     driver: local
@@ -114,6 +98,7 @@ volumes:
     driver: local
 
 networks:
+  # Created by sre-nginx/docker-compose.yml — start the edge stack first.
   asset-net:
     name: mindstix-edge-net
-    driver: bridge
+    external: true

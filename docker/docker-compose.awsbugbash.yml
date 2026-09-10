@@ -1,13 +1,15 @@
 # ==============================================================================
 # Asset Management - AWS bug-bash stack (separate AWS account)
 # ------------------------------------------------------------------------------
-# Same as docker-compose.aws.yml except nginx uses path-based edge-bugbash.conf.
-# Prod AWS account uses docker-compose.aws.yml (host-based edge.conf).
+# Same as docker-compose.aws.yml (backend + frontend only). Edge routing for
+# bug-bash is path-based and lives in sre-nginx:
+#   EDGE_CONF=edge-bugbash.conf docker-compose up -d --build
 #
-#   ALB :8080  ->  nginx  ->  / + /api/*           (Asset)
-#                         \->  /attendance/ + /attendance/api/*  (Attendance)
+#   ALB :8080  ->  sre-nginx  ->  / + /api/*           (Asset)
+#                             \->  /attendance/ + /attendance/api/*  (Attendance)
 #
 # Usage:
+#   cd /opt/asset-mgt/sre-nginx && EDGE_CONF=edge-bugbash.conf docker-compose up -d --build
 #   cd /opt/asset-mgt/asset-mgt-be/docker
 #   source ./load-ssm-secrets.sh
 #   docker compose -f docker-compose.awsbugbash.yml up -d --build
@@ -79,33 +81,12 @@ services:
         max-size: "10m"
         max-file: "5"
 
-  nginx:
-    build:
-      context: ../../sre-nginx
-      dockerfile: Dockerfile
-      args:
-        EDGE_CONF: edge-bugbash.conf
-    image: sre-nginx:latest
-    container_name: sre-nginx
-    restart: unless-stopped
-    depends_on:
-      - backend
-      - frontend
-    ports:
-      - "${FRONTEND_PORT:-8080}:80"
-    networks:
-      - asset-net
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "5"
-
 volumes:
   backend_uploads:
     driver: local
 
 networks:
+  # Created by sre-nginx/docker-compose.yml — start the edge stack first.
   asset-net:
     name: mindstix-edge-net
-    driver: bridge
+    external: true
