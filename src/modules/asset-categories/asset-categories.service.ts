@@ -8,6 +8,10 @@ import { PrismaService } from '../../core/database/prisma.service';
 import { CreateAssetCategoryDto, AssetCategoryQueryDto } from './dto';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '@prisma/client';
+import {
+  toUserRef,
+  userDisplaySelect,
+} from '../../shared/utils/user-display.util';
 
 @Injectable()
 export class AssetCategoriesService {
@@ -26,7 +30,7 @@ export class AssetCategoriesService {
         },
         include: {
           createdByUser: {
-            select: { id: true, username: true },
+            select: userDisplaySelect,
           },
           _count: {
             select: { assetTypes: true },
@@ -46,7 +50,12 @@ export class AssetCategoriesService {
 
       return {
         message: 'Asset category created successfully',
-        data: { assetCategory },
+        data: {
+          assetCategory: {
+            ...assetCategory,
+            createdByUser: toUserRef(assetCategory.createdByUser),
+          },
+        },
       };
     } catch (error) {
       if (error.code === 'P2002') {
@@ -85,7 +94,7 @@ export class AssetCategoriesService {
         orderBy,
         include: {
           createdByUser: {
-            select: { id: true, username: true },
+            select: userDisplaySelect,
           },
           _count: {
             select: { assetTypes: true },
@@ -100,7 +109,10 @@ export class AssetCategoriesService {
     return {
       message: 'Asset categories retrieved successfully',
       data: {
-        assetCategories,
+        assetCategories: assetCategories.map((assetCategory) => ({
+          ...assetCategory,
+          createdByUser: toUserRef(assetCategory.createdByUser),
+        })),
         pagination: {
           totalCount,
           currentPage: page,
@@ -117,10 +129,10 @@ export class AssetCategoriesService {
       where: { id },
       include: {
         createdByUser: {
-          select: { id: true, username: true },
+          select: userDisplaySelect,
         },
         updatedByUser: {
-          select: { id: true, username: true },
+          select: userDisplaySelect,
         },
         assetTypes: {
           select: {
@@ -144,7 +156,13 @@ export class AssetCategoriesService {
 
     return {
       message: 'Asset category retrieved successfully',
-      data: { assetCategory },
+      data: {
+        assetCategory: {
+          ...assetCategory,
+          createdByUser: toUserRef(assetCategory.createdByUser),
+          updatedByUser: toUserRef(assetCategory.updatedByUser),
+        },
+      },
     };
   }
 

@@ -9,21 +9,14 @@ export class UserDto {
   id: number;
 
   @ApiProperty({
-    description: 'Username for authentication',
-    example: 'john.doe',
-    type: 'string',
-  })
-  username: string;
-
-  @ApiProperty({
-    description: 'User email address',
+    description: 'User email address (Google SSO identity)',
     example: 'john.doe@company.com',
     type: 'string',
   })
   email: string;
 
   @ApiProperty({
-    description: 'Full name of the user',
+    description: 'Full name of the user (from employee record)',
     example: 'John Doe',
     type: 'string',
   })
@@ -48,10 +41,11 @@ export class AuthResponseDto {
   @ApiProperty({
     description: 'JWT access token for API authentication',
     example:
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsInVzZXJuYW1lIjoiam9obi5kb2UiLCJlbWFpbCI6ImpvaG4uZG9lQGNvbXBhbnkuY29tIiwiZW1wbG95ZWVJZCI6MTIzNDUsImlhdCI6MTcwNTMxNjQwMCwiZXhwIjoxNzA1NDAyODAwfQ.signature',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsImVtYWlsIjoiam9obi5kb2VAYomVhbnkuY29tIiwiZW1wbG95ZWVJZCI6IkVNUDAwMSIsImlhdCI6MTcwNTMxNjQwMCwiZXhwIjoxNzA1NDAyODAwfQ.signature',
     type: 'string',
+    required: false,
   })
-  access_token: string;
+  access_token?: string;
 
   @ApiProperty({
     description: 'Refresh token for obtaining new access tokens',

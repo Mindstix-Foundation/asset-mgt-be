@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../core/database/prisma.service';
 import { TimezoneUtil } from '../../shared/utils/timezone.util';
+import { toUserRef } from '../../shared/utils/user-display.util';
 import {
   AssetHistoryQueryDto,
   AssetEventType,
@@ -33,17 +34,7 @@ export class AssetHistoryService {
    * Utility method to build enhanced user information
    */
   private buildUserInfo(user: any): any {
-    if (!user) return null;
-
-    return {
-      id: user.id,
-      username: user.username,
-      displayName: user.employee
-        ? `${user.employee.firstName} ${user.employee.lastName}`
-        : user.username,
-      email: user.employee?.email || null,
-      employeeId: user.employee?.employeeId || null,
-    };
+    return toUserRef(user);
   }
 
   /**

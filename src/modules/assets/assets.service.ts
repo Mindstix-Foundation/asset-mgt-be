@@ -20,6 +20,11 @@ import {
   streamRowsInChunks,
   type ColumnDef,
 } from '../../shared/export/safe-excel-export';
+import {
+  toUserRef,
+  userDisplayName,
+  userDisplaySelect,
+} from '../../shared/utils/user-display.util';
 
 /**
  * Validation context for bulk upload processing
@@ -51,7 +56,6 @@ export class AssetsService {
     brand?: { name: string };
     model?: { name: string };
   }) {
-    const type = asset.assetType?.name ?? 'Asset';
     const brand = asset.brand?.name ?? '';
     const model = asset.model?.name ?? '';
     return `${asset.assetId} ${brand} ${model}`.trim() || asset.assetId;
@@ -233,7 +237,7 @@ export class AssetsService {
         brand: { select: { id: true, name: true } },
         model: { select: { id: true, name: true, specifications: true } },
         vendor: { select: { id: true, name: true } },
-        createdByUser: { select: { id: true, username: true } },
+        createdByUser: { select: userDisplaySelect },
         _count: { select: { assetIssues: true } },
       },
     });
@@ -387,7 +391,12 @@ export class AssetsService {
 
       return {
         message: 'Asset created successfully',
-        data: { asset },
+        data: {
+          asset: {
+            ...asset,
+            createdByUser: toUserRef(asset.createdByUser),
+          },
+        },
       };
     } catch (error) {
       this.handleDatabaseErrors(error);
@@ -629,8 +638,8 @@ export class AssetsService {
         vendor: {
           select: { id: true, name: true },
         },
-        createdByUser: { select: { username: true } },
-        updatedByUser: { select: { username: true } },
+        createdByUser: { select: userDisplaySelect },
+        updatedByUser: { select: userDisplaySelect },
         assetIssues: {
           select: {
             id: true,
@@ -645,7 +654,7 @@ export class AssetsService {
               },
             },
             issuedByUser: {
-              select: { username: true },
+              select: userDisplaySelect,
             },
           },
           orderBy: { issueDate: 'desc' },
@@ -668,6 +677,12 @@ export class AssetsService {
       specificationLabelMap: this.buildSpecificationLabelMap(
         asset.assetType?.specificationTemplate as any,
       ),
+      createdByUser: toUserRef(asset.createdByUser),
+      updatedByUser: toUserRef(asset.updatedByUser),
+      assetIssues: asset.assetIssues?.map((issue) => ({
+        ...issue,
+        issuedByUser: toUserRef(issue.issuedByUser),
+      })),
     };
 
     return {
@@ -922,8 +937,8 @@ export class AssetsService {
         brand: { select: { id: true, name: true } },
         model: { select: { id: true, name: true } },
         vendor: { select: { id: true, name: true } },
-        createdByUser: { select: { id: true, username: true } },
-        updatedByUser: { select: { id: true, username: true } },
+        createdByUser: { select: userDisplaySelect },
+        updatedByUser: { select: userDisplaySelect },
         _count: { select: { assetIssues: true } },
       },
     });
@@ -986,7 +1001,13 @@ export class AssetsService {
 
       return {
         message: 'Asset updated successfully',
-        data: { asset },
+        data: {
+          asset: {
+            ...asset,
+            createdByUser: toUserRef(asset.createdByUser),
+            updatedByUser: toUserRef(asset.updatedByUser),
+          },
+        },
       };
     } catch (error) {
       this.handleUpdateErrors(error);
@@ -1988,7 +2009,7 @@ export class AssetsService {
           brand: { select: { id: true, name: true } },
           model: { select: { id: true, name: true, specifications: true } },
           vendor: { select: { id: true, name: true } },
-          createdByUser: { select: { id: true, username: true } },
+          createdByUser: { select: userDisplaySelect },
           _count: {
             select: {
               assetIssues: true,
@@ -2006,7 +2027,10 @@ export class AssetsService {
     return {
       message: 'Deletable assets retrieved successfully',
       data: {
-        assets,
+        assets: assets.map((asset) => ({
+          ...asset,
+          createdByUser: toUserRef(asset.createdByUser),
+        })),
         pagination: {
           totalCount,
           currentPage: page,
@@ -3692,18 +3716,10 @@ export class AssetsService {
       model: { select: { id: true, name: true } },
       vendor: { select: { id: true, name: true } },
       createdByUser: {
-        select: {
-          id: true,
-          username: true,
-          employee: { select: { firstName: true, lastName: true } },
-        },
+        select: userDisplaySelect,
       },
       updatedByUser: {
-        select: {
-          id: true,
-          username: true,
-          employee: { select: { firstName: true, lastName: true } },
-        },
+        select: userDisplaySelect,
       },
       assetIssues: {
         where: { returnDate: null },
@@ -3804,17 +3820,11 @@ export class AssetsService {
           ? new Date(asset.reactivationDate).toLocaleDateString('en-GB')
           : '',
         reactivationReason: asset.reactivationReason || '',
-        createdBy:
-          (asset.createdByUser?.employee
-            ? `${asset.createdByUser.employee.firstName} ${asset.createdByUser.employee.lastName}`.trim()
-            : asset.createdByUser?.username) || '',
+        createdBy: userDisplayName(asset.createdByUser, ''),
         createdAt: asset.createdAt
           ? new Date(asset.createdAt).toLocaleString('en-GB')
           : '',
-        updatedBy:
-          (asset.updatedByUser?.employee
-            ? `${asset.updatedByUser.employee.firstName} ${asset.updatedByUser.employee.lastName}`.trim()
-            : asset.updatedByUser?.username) || '',
+        updatedBy: userDisplayName(asset.updatedByUser, ''),
         updatedAt: asset.updatedAt
           ? new Date(asset.updatedAt).toLocaleString('en-GB')
           : '',

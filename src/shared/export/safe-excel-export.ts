@@ -144,7 +144,7 @@ export async function streamRowsInChunks<T>(
       }
     }
 
-    await worksheet.commit();
+    worksheet.commit();
     await workbook.commit();
     return { count: written };
   });
@@ -179,13 +179,28 @@ export async function streamPreloadedRows(
       worksheet.addRow(row).commit();
     }
 
-    await worksheet.commit();
+    worksheet.commit();
     await workbook.commit();
     return { count: rows.length };
   });
 }
 
 /** Extract stable export error payload for controllers using @Res(). */
+function asExportMessage(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return value.toString();
+  }
+  if (Array.isArray(value)) {
+    return value.map(asExportMessage).join(', ');
+  }
+  if (value instanceof Error) return value.message;
+  if (typeof value === 'object' && value !== null) {
+    return JSON.stringify(value);
+  }
+  return 'Export failed';
+}
+
 export function getExportErrorPayload(error: unknown): {
   status: number;
   body: { message: string; code?: string; error?: string };
@@ -198,8 +213,8 @@ export function getExportErrorPayload(error: unknown): {
       return {
         status,
         body: {
-          message: String(r.message ?? error.message),
-          code: r.code ? String(r.code) : undefined,
+          message: asExportMessage(r.message ?? error.message),
+          code: r.code == null ? undefined : asExportMessage(r.code),
         },
       };
     }

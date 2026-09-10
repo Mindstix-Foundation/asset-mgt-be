@@ -12,8 +12,8 @@ async function seedEmployeesFromCSV() {
   console.log('🌱 Starting employee seed from CSV...');
 
   // Get admin user for audit fields
-  const adminUser = await prisma.user.findUnique({
-    where: { username: 'admin' },
+  const adminUser = await prisma.user.findFirst({
+    where: { employee: { employeeId: '9999' } },
   });
 
   if (!adminUser) {

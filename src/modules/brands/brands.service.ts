@@ -8,6 +8,10 @@ import { PrismaService } from '../../core/database/prisma.service';
 import { CreateBrandDto, BrandQueryDto } from './dto';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '@prisma/client';
+import {
+  toUserRef,
+  userDisplaySelect,
+} from '../../shared/utils/user-display.util';
 
 @Injectable()
 export class BrandsService {
@@ -46,7 +50,7 @@ export class BrandsService {
         },
         include: {
           createdByUser: {
-            select: { id: true, username: true },
+            select: userDisplaySelect,
           },
           _count: {
             select: { models: true, assets: true },
@@ -66,7 +70,12 @@ export class BrandsService {
 
       return {
         message: 'Brand created successfully',
-        data: { brand },
+        data: {
+          brand: {
+            ...brand,
+            createdByUser: toUserRef(brand.createdByUser),
+          },
+        },
       };
     } catch (error) {
       if (error instanceof ConflictException) {
@@ -108,7 +117,7 @@ export class BrandsService {
         orderBy,
         include: {
           createdByUser: {
-            select: { id: true, username: true },
+            select: userDisplaySelect,
           },
           _count: {
             select: { models: true, assets: true },
@@ -123,7 +132,10 @@ export class BrandsService {
     return {
       message: 'Brands retrieved successfully',
       data: {
-        brands,
+        brands: brands.map((brand) => ({
+          ...brand,
+          createdByUser: toUserRef(brand.createdByUser),
+        })),
         pagination: {
           totalCount,
           currentPage: page,
@@ -140,10 +152,10 @@ export class BrandsService {
       where: { id },
       include: {
         createdByUser: {
-          select: { id: true, username: true },
+          select: userDisplaySelect,
         },
         updatedByUser: {
-          select: { id: true, username: true },
+          select: userDisplaySelect,
         },
         models: {
           select: {
@@ -178,7 +190,13 @@ export class BrandsService {
 
     return {
       message: 'Brand retrieved successfully',
-      data: { brand },
+      data: {
+        brand: {
+          ...brand,
+          createdByUser: toUserRef(brand.createdByUser),
+          updatedByUser: toUserRef(brand.updatedByUser),
+        },
+      },
     };
   }
 

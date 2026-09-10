@@ -12,8 +12,11 @@ async function seedAssetAssignments() {
   console.log('🌱 Starting asset assignments seed...');
 
   // Get admin user for audit fields
-  const adminUser = await prisma.user.findUnique({
-    where: { username: 'admin' },
+  const adminUser = await prisma.user.findFirst({
+    where: { employee: { employeeId: '9999' } },
+    include: {
+      employee: { select: { firstName: true, lastName: true } },
+    },
   });
 
   if (!adminUser) {
@@ -441,7 +444,7 @@ async function seedAssetAssignments() {
               employeeId: employee.employeeId,
               employeeName: `${employee.firstName} ${employee.lastName}`,
               employeeEmail: employee.email,
-              issuedBy: adminUser.username,
+              issuedBy: `${adminUser.employee?.firstName ?? ''} ${adminUser.employee?.lastName ?? ''}`.trim() || 'System',
               issueDate: issueDate.toISOString().split('T')[0], // Format as YYYY-MM-DD
               issueCondition: AssetCondition.NEW,
               issueReason: 'Initial Assignment',

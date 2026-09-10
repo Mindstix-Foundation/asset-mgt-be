@@ -7,6 +7,10 @@ import {
   buildFieldDiff,
   TABLE_DISPLAY_NAMES,
 } from './audit.util';
+import {
+  userDisplayName,
+  userDisplaySelect,
+} from '../../shared/utils/user-display.util';
 
 export interface AuditLogInput {
   tableName: string;
@@ -34,7 +38,7 @@ export class AuditService {
       let changedFields: string[] = [];
       let oldValues: Record<string, unknown> | null = null;
       let newValues: Record<string, unknown> | null = null;
-      let metadata: Record<string, unknown> = { ...(input.metadata ?? {}) };
+      let metadata: Record<string, unknown> = { ...input.metadata };
 
       if (input.changes && input.changes.length > 0) {
         changedFields = input.changes.map((c) => c.field);
@@ -144,13 +148,7 @@ export class AuditService {
         orderBy: { createdAt: 'desc' },
         include: {
           user: {
-            select: {
-              id: true,
-              username: true,
-              employee: {
-                select: { firstName: true, lastName: true, employeeId: true },
-              },
-            },
+            select: userDisplaySelect,
           },
         },
       }),
@@ -175,9 +173,7 @@ export class AuditService {
 
   private mapAuditLog(log: any) {
     const emp = log.user?.employee;
-    const performedByName = emp
-      ? `${emp.firstName} ${emp.lastName}`.trim()
-      : log.user?.username ?? 'Unknown';
+    const performedByName = userDisplayName(log.user, 'Unknown');
 
     const metadata = (log.metadata as Record<string, unknown>) ?? {};
     const changes = (metadata.changes as AuditChange[]) ?? [];
@@ -197,7 +193,6 @@ export class AuditService {
       metadata,
       performedBy: {
         userId: log.userId,
-        username: log.user?.username,
         name: performedByName,
         employeeId: emp?.employeeId,
       },

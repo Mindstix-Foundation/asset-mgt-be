@@ -23,7 +23,6 @@ import {
   AssetCondition,
   AssetEventType,
 } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
@@ -65,8 +64,6 @@ async function cleanAndCreateAdmin(): Promise<number> {
   `);
   console.log('Database cleaned.\n');
 
-  const passwordHash = await bcrypt.hash('Admin@123', 10);
-
   const adminUserId = await prisma.$transaction(async (tx) => {
     await tx.$executeRawUnsafe(`ALTER TABLE employees ALTER COLUMN created_by DROP NOT NULL`);
     await tx.$executeRawUnsafe(`ALTER TABLE employees ALTER COLUMN updated_by DROP NOT NULL`);
@@ -75,16 +72,18 @@ async function cleanAndCreateAdmin(): Promise<number> {
 
     await tx.$executeRawUnsafe(`
       INSERT INTO employees (employee_id, first_name, last_name, email, phone, date_of_birth, address, status)
-      VALUES ('9999', 'Mindstix', 'Admin', 'admin@mindstix.com', '+91 9175024873', '1990-01-01', 'System', 'ACTIVE')
+      VALUES ('9999', 'Mindstix', 'Admin', 'uduvalorant@gmail.com', '+91 9175024873', '1990-01-01', 'System', 'ACTIVE')
     `);
     const adminEmployee = await tx.employee.findUnique({ where: { employeeId: '9999' } });
     if (!adminEmployee) throw new Error('Failed to create admin employee');
 
     await tx.$executeRawUnsafe(`
-      INSERT INTO users (employee_id, username, password_hash, roles, is_active)
-      VALUES (${adminEmployee.id}, 'admin', '${passwordHash}', ARRAY['ADMIN']::text[], true)
+      INSERT INTO users (employee_id, roles, is_active)
+      VALUES (${adminEmployee.id}, ARRAY['ADMIN']::text[], true)
     `);
-    const adminUser = await tx.user.findUnique({ where: { username: 'admin' } });
+    const adminUser = await tx.user.findFirst({
+      where: { employee: { employeeId: '9999' } },
+    });
     if (!adminUser) throw new Error('Failed to create admin user');
 
     await tx.$executeRawUnsafe(`
@@ -112,7 +111,7 @@ async function cleanAndCreateAdmin(): Promise<number> {
     return adminUser.id;
   });
 
-  console.log('Admin user created (username: admin, password: Admin@123)');
+  console.log('Admin user created (employeeId: 9999, Google SSO email: uduvalorant@gmail.com)');
   return adminUserId;
 }
 
@@ -1353,7 +1352,7 @@ async function main() {
     console.log('║  SEEDING COMPLETE                                     ║');
     console.log('╚════════════════════════════════════════════════════════╝');
     console.log(`\nDuration: ${duration}s`);
-    console.log('\nAdmin Login: username=admin, password=Admin@123');
+    console.log('\nAdmin Login: Google SSO with employee email uduvalorant@gmail.com');
   } catch (error) {
     console.error('\nSeeding FAILED:', error);
     process.exit(1);

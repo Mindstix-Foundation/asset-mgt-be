@@ -10,8 +10,6 @@ datasource db {
 model User {
   id                          Int                   @id @default(autoincrement())
   employeeId                  Int                   @unique @map("employee_id")
-  username                    String                @unique @db.VarChar(50)
-  passwordHash                String                @map("password_hash") @db.VarChar(255)
   isActive                    Boolean               @default(true) @map("is_active")
   lastLogin                   DateTime?             @map("last_login") @db.Timestamptz(6)
   createdBy                   Int?                  @map("created_by")
@@ -42,7 +40,6 @@ model User {
   createdModels               Model[]               @relation("ModelCreatedBy")
   updatedModels               Model[]               @relation("ModelUpdatedBy")
   notifications               Notification[]        @relation("UserNotifications")
-  passwordResets              PasswordReset[]       @relation("PasswordResetUser")
   refreshSessions             RefreshSession[]      @relation("UserRefreshSessions")
   assignedRoles               UserRole[]            @relation("RoleAssignedBy")
   userRoles                   UserRole[]
@@ -58,19 +55,6 @@ model User {
 
   @@index([isActive, lastLogin])
   @@map("users")
-}
-
-model PasswordReset {
-  id        Int      @id @default(autoincrement())
-  token     String   @unique @db.VarChar(500)
-  userId    Int      @map("user_id")
-  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
-  used      Boolean  @default(false)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  user      User     @relation("PasswordResetUser", fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([token, used, expiresAt])
-  @@map("password_resets")
 }
 
 model BlacklistedToken {

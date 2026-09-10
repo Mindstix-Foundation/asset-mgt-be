@@ -24,7 +24,7 @@ export class MaintenanceScheduler {
       const endOfToday = new Date(now);
       endOfToday.setHours(23, 59, 59, 999);
 
-      const result = await this.prisma.maintenanceSchedule.updateMany({
+      await this.prisma.maintenanceSchedule.updateMany({
         where: {
           isActive: true,
           status: MaintenanceStatus.SCHEDULED,

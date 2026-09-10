@@ -14,6 +14,10 @@ import {
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '@prisma/client';
 import { pickFields } from '../audit/audit.util';
+import {
+  toUserRef,
+  userDisplaySelect,
+} from '../../shared/utils/user-display.util';
 type StoredSpecificationOption = {
   value: string;
   deprecated?: boolean;
@@ -86,7 +90,7 @@ export class AssetTypesService {
             select: { id: true, name: true },
           },
           createdByUser: {
-            select: { id: true, username: true },
+            select: userDisplaySelect,
           },
           _count: {
             select: { assets: true, models: true },
@@ -106,7 +110,12 @@ export class AssetTypesService {
 
       return {
         message: 'Asset type created successfully',
-        data: { assetType },
+        data: {
+          assetType: {
+            ...assetType,
+            createdByUser: toUserRef(assetType.createdByUser),
+          },
+        },
       };
     } catch (error) {
       if (error.code === 'P2002') {
@@ -172,7 +181,7 @@ export class AssetTypesService {
           select: { id: true, name: true },
         },
         createdByUser: {
-          select: { id: true, username: true },
+          select: userDisplaySelect,
         },
         _count: {
           select: { assets: true, models: true },
@@ -193,7 +202,12 @@ export class AssetTypesService {
 
     return {
       message: 'Asset type updated successfully',
-      data: { assetType },
+      data: {
+        assetType: {
+          ...assetType,
+          createdByUser: toUserRef(assetType.createdByUser),
+        },
+      },
     };
   }
 
@@ -239,7 +253,7 @@ export class AssetTypesService {
             select: { id: true, name: true },
           },
           createdByUser: {
-            select: { id: true, username: true },
+            select: userDisplaySelect,
           },
           _count: {
             select: { assets: true, models: true },
@@ -254,7 +268,10 @@ export class AssetTypesService {
     return {
       message: 'Asset types retrieved successfully',
       data: {
-        assetTypes,
+        assetTypes: assetTypes.map((assetType) => ({
+          ...assetType,
+          createdByUser: toUserRef(assetType.createdByUser),
+        })),
         pagination: {
           totalCount,
           currentPage: page,
@@ -286,7 +303,7 @@ export class AssetTypesService {
           select: { id: true, name: true },
         },
         createdByUser: {
-          select: { id: true, username: true },
+          select: userDisplaySelect,
         },
         _count: {
           select: { assets: true, models: true },
@@ -297,7 +314,12 @@ export class AssetTypesService {
 
     return {
       message: 'Asset types retrieved successfully',
-      data: { assetTypes },
+      data: {
+        assetTypes: assetTypes.map((assetType) => ({
+          ...assetType,
+          createdByUser: toUserRef(assetType.createdByUser),
+        })),
+      },
     };
   }
 
@@ -309,10 +331,10 @@ export class AssetTypesService {
           select: { id: true, name: true, description: true },
         },
         createdByUser: {
-          select: { id: true, username: true },
+          select: userDisplaySelect,
         },
         updatedByUser: {
-          select: { id: true, username: true },
+          select: userDisplaySelect,
         },
         models: {
           select: {
@@ -350,7 +372,13 @@ export class AssetTypesService {
 
     return {
       message: 'Asset type retrieved successfully',
-      data: { assetType },
+      data: {
+        assetType: {
+          ...assetType,
+          createdByUser: toUserRef(assetType.createdByUser),
+          updatedByUser: toUserRef(assetType.updatedByUser),
+        },
+      },
     };
   }
 

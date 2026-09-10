@@ -124,17 +124,15 @@ async function main() {
     console.log(`⏱️  Duration: ${duration}s`);
     console.log();
     console.log('📦 Database State:');
-    console.log('   ✓ Admin user created (username: admin, password: Admin@123)');
+    console.log('   ✓ Admin user created (employeeId: 9999, Google SSO)');
     console.log('   ✓ Asset structure created (categories, types, brands, models)');
     console.log('   ✓ 325 Assets created with proper categorization');
     console.log('   ✓ Employees created from CSV');
     console.log('   ✓ Assets assigned to employees');
     console.log();
-    console.log('🔐 Admin Login Credentials:');
-    console.log('   Username: admin');
-    console.log('   Password: Admin@123');
-    console.log();
-    console.log('⚠️  Remember to change the admin password after first login!');
+    console.log('🔐 Admin Login (Google SSO):');
+    console.log('   Sign in with Google using the admin employee email');
+    console.log('   (seeded as uduvalorant@gmail.com)');
     console.log();
   }
 }

@@ -12,6 +12,11 @@ import {
 } from './dto';
 import { AssetEventType, AuditAction } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
+import {
+  toUserRef,
+  userDisplayName,
+  userDisplaySelect,
+} from '../../shared/utils/user-display.util';
 
 @Injectable()
 export class AssignmentsService {
@@ -104,7 +109,7 @@ export class AssignmentsService {
               },
             },
             issuedByUser: {
-              select: { id: true, username: true },
+              select: userDisplaySelect,
             },
           },
         });
@@ -130,7 +135,7 @@ export class AssignmentsService {
               employeeId: assignment.employee.employeeId,
               employeeName: `${assignment.employee.firstName} ${assignment.employee.lastName}`,
               employeeEmail: assignment.employee.email,
-              issuedBy: assignment.issuedByUser.username,
+              issuedBy: userDisplayName(assignment.issuedByUser),
               issueDate: assignment.issueDate,
               issueCondition: assignment.issueCondition,
               issueReason: assignment.issueReason,
@@ -163,7 +168,12 @@ export class AssignmentsService {
 
       return {
         message: 'Asset assigned successfully',
-        data: { assignment: result },
+        data: {
+          assignment: {
+            ...result,
+            issuedByUser: toUserRef(result.issuedByUser),
+          },
+        },
       };
     } catch (error) {
       if (error.code === 'P2002') {
@@ -251,7 +261,7 @@ export class AssignmentsService {
             },
           },
           issuedByUser: {
-            select: { id: true, username: true },
+            select: userDisplaySelect,
           },
         },
       }),
@@ -263,7 +273,10 @@ export class AssignmentsService {
     return {
       message: 'Active assignments retrieved successfully',
       data: {
-        assignments,
+        assignments: assignments.map((assignment) => ({
+          ...assignment,
+          issuedByUser: toUserRef(assignment.issuedByUser),
+        })),
         pagination: {
           totalCount,
           currentPage: page,
@@ -346,7 +359,7 @@ export class AssignmentsService {
             },
           },
           issuedByUser: {
-            select: { id: true, username: true },
+            select: userDisplaySelect,
           },
         },
       }),
@@ -358,7 +371,10 @@ export class AssignmentsService {
     return {
       message: 'Active assignments retrieved successfully',
       data: {
-        assignments,
+        assignments: assignments.map((assignment) => ({
+          ...assignment,
+          issuedByUser: toUserRef(assignment.issuedByUser),
+        })),
         pagination: {
           totalCount,
           currentPage: page,
@@ -449,7 +465,7 @@ export class AssignmentsService {
             },
           },
           issuedByUser: {
-            select: { id: true, username: true },
+            select: userDisplaySelect,
           },
         },
       }),
@@ -461,7 +477,10 @@ export class AssignmentsService {
     return {
       message: 'Assignments retrieved successfully',
       data: {
-        assignments,
+        assignments: assignments.map((assignment) => ({
+          ...assignment,
+          issuedByUser: toUserRef(assignment.issuedByUser),
+        })),
         pagination: {
           totalCount,
           currentPage: page,
@@ -509,13 +528,13 @@ export class AssignmentsService {
           },
         },
         issuedByUser: {
-          select: { id: true, username: true },
+          select: userDisplaySelect,
         },
         createdByUser: {
-          select: { id: true, username: true },
+          select: userDisplaySelect,
         },
         updatedByUser: {
-          select: { id: true, username: true },
+          select: userDisplaySelect,
         },
       },
     });
@@ -526,7 +545,14 @@ export class AssignmentsService {
 
     return {
       message: 'Assignment retrieved successfully',
-      data: { assignment },
+      data: {
+        assignment: {
+          ...assignment,
+          issuedByUser: toUserRef(assignment.issuedByUser),
+          createdByUser: toUserRef(assignment.createdByUser),
+          updatedByUser: toUserRef(assignment.updatedByUser),
+        },
+      },
     };
   }
 
@@ -587,10 +613,10 @@ export class AssignmentsService {
               },
             },
             issuedByUser: {
-              select: { id: true, username: true },
+              select: userDisplaySelect,
             },
             updatedByUser: {
-              select: { id: true, username: true },
+              select: userDisplaySelect,
             },
           },
         });
@@ -621,7 +647,7 @@ export class AssignmentsService {
               employeeId: updatedAssignment.employee.employeeId,
               employeeName: `${updatedAssignment.employee.firstName} ${updatedAssignment.employee.lastName}`,
               employeeEmail: updatedAssignment.employee.email,
-              collectedBy: updatedAssignment.updatedByUser.username,
+              collectedBy: userDisplayName(updatedAssignment.updatedByUser),
               returnDate: updatedAssignment.returnDate,
               returnCondition: updatedAssignment.returnCondition,
               returnReason: updatedAssignment.returnReason,
@@ -663,7 +689,13 @@ export class AssignmentsService {
 
       return {
         message: 'Asset returned successfully',
-        data: { assignment: result },
+        data: {
+          assignment: {
+            ...result,
+            issuedByUser: toUserRef(result.issuedByUser),
+            updatedByUser: toUserRef(result.updatedByUser),
+          },
+        },
       };
     } catch (error) {
       if (error.code === 'P2025') {

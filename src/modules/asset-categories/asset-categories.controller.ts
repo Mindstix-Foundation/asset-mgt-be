@@ -49,7 +49,7 @@ export class AssetCategoriesController {
             updatedAt: '2024-01-15T10:30:00Z',
             createdByUser: {
               id: 1,
-              username: 'admin',
+              name: 'System Administrator',
             },
             _count: {
               assetTypes: 0,
@@ -121,7 +121,7 @@ export class AssetCategoriesController {
               createdAt: '2024-01-15T10:30:00Z',
               createdByUser: {
                 id: 1,
-                username: 'admin',
+                name: 'System Administrator',
               },
               _count: {
                 assetTypes: 5,
@@ -161,11 +161,11 @@ export class AssetCategoriesController {
             updatedAt: '2024-01-15T10:30:00Z',
             createdByUser: {
               id: 1,
-              username: 'admin',
+              name: 'System Administrator',
             },
             updatedByUser: {
               id: 1,
-              username: 'admin',
+              name: 'System Administrator',
             },
             assetTypes: [
               {

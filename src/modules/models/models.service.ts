@@ -8,6 +8,10 @@ import { PrismaService } from '../../core/database/prisma.service';
 import { CreateModelDto, ModelQueryDto } from './dto';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '@prisma/client';
+import {
+  toUserRef,
+  userDisplaySelect,
+} from '../../shared/utils/user-display.util';
 
 @Injectable()
 export class ModelsService {
@@ -51,7 +55,7 @@ export class ModelsService {
             },
           },
           createdByUser: {
-            select: { id: true, username: true },
+            select: userDisplaySelect,
           },
           _count: {
             select: { assets: true },
@@ -71,7 +75,12 @@ export class ModelsService {
 
       return {
         message: 'Model created successfully',
-        data: { model },
+        data: {
+          model: {
+            ...model,
+            createdByUser: toUserRef(model.createdByUser),
+          },
+        },
       };
     } catch (error) {
       if (error.code === 'P2002') {
@@ -129,7 +138,7 @@ export class ModelsService {
             },
           },
           createdByUser: {
-            select: { id: true, username: true },
+            select: userDisplaySelect,
           },
           _count: {
             select: { assets: true },
@@ -144,7 +153,10 @@ export class ModelsService {
     return {
       message: 'Models retrieved successfully',
       data: {
-        models,
+        models: models.map((model) => ({
+          ...model,
+          createdByUser: toUserRef(model.createdByUser),
+        })),
         pagination: {
           totalCount,
           currentPage: page,
@@ -187,7 +199,7 @@ export class ModelsService {
           },
         },
         createdByUser: {
-          select: { id: true, username: true },
+          select: userDisplaySelect,
         },
         _count: {
           select: { assets: true },
@@ -198,7 +210,12 @@ export class ModelsService {
 
     return {
       message: 'Models retrieved successfully',
-      data: { models },
+      data: {
+        models: models.map((model) => ({
+          ...model,
+          createdByUser: toUserRef(model.createdByUser),
+        })),
+      },
     };
   }
 
@@ -218,10 +235,10 @@ export class ModelsService {
           },
         },
         createdByUser: {
-          select: { id: true, username: true },
+          select: userDisplaySelect,
         },
         updatedByUser: {
-          select: { id: true, username: true },
+          select: userDisplaySelect,
         },
         assets: {
           select: {
@@ -246,7 +263,13 @@ export class ModelsService {
 
     return {
       message: 'Model retrieved successfully',
-      data: { model },
+      data: {
+        model: {
+          ...model,
+          createdByUser: toUserRef(model.createdByUser),
+          updatedByUser: toUserRef(model.updatedByUser),
+        },
+      },
     };
   }
 

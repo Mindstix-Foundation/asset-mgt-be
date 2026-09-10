@@ -18,7 +18,9 @@ const MAINTENANCE_TYPES = [
 ];
 
 async function main() {
-  const admin = await prisma.user.findUnique({ where: { username: 'admin' } });
+  const admin = await prisma.user.findFirst({
+    where: { employee: { employeeId: '9999' } },
+  });
   if (!admin) {
     throw new Error('Admin user not found. Run the main seed first.');
   }
