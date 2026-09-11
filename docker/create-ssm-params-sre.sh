@@ -112,13 +112,14 @@ put_param() {
     args+=(--overwrite)
   fi
 
+  # Dry-run: print only — never call AWS (no Parameter Store changes).
   if [[ "${DRY_RUN}" == "true" ]]; then
     local shown="${value}"
     if [[ "${#shown}" -gt 24 ]]; then
       shown="${shown:0:8}…(hidden)"
     fi
-    echo "[DRY_RUN] put SecureString ${name} = ${shown}"
-    return
+    echo "[DRY_RUN] would put SecureString ${name} = ${shown}"
+    return 0
   fi
 
   echo "  + ${name}"
@@ -276,12 +277,17 @@ put_param "/sre-postgres-asset-tracker/postgres_port"     "${POSTGRES_PORT}"    
 put_param "/sre-postgres-asset-tracker/postgres_user"     "${POSTGRES_USER}"     "SRE Asset Tracker Postgres user"
 
 echo ""
-echo "Done. Created 20 SecureString parameters in ${AWS_REGION}."
-echo ""
-echo "Next:"
-echo "  1. Create Postgres role + database on RDS to match the values you entered"
-echo "  2. source ./loadsecrets-sre.sh"
-echo "  3. docker-compose -f docker-compose.aws.sre.yml up -d --build"
-echo "  4. Later: replace google_* PENDING values in console, then recreate backend"
+if [[ "${DRY_RUN}" == "true" ]]; then
+  echo "Dry-run complete. No parameters were created or changed in ${AWS_REGION}."
+  echo "Re-run without DRY_RUN=true to create them for real."
+else
+  echo "Done. Created 20 SecureString parameters in ${AWS_REGION}."
+  echo ""
+  echo "Next:"
+  echo "  1. Create Postgres role + database on RDS to match the values you entered"
+  echo "  2. source ./loadsecrets-sre.sh"
+  echo "  3. docker-compose -f docker-compose.aws.sre.yml up -d --build"
+  echo "  4. Later: replace google_* PENDING values in console, then recreate backend"
+fi
 echo ""
 echo "Console: https://us-east-2.console.aws.amazon.com/systems-manager/parameters/?region=us-east-2&tab=Table"
