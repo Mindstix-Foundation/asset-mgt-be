@@ -13,14 +13,19 @@
 #   cd /opt/asset-mgt/sre-nginx && docker-compose up -d --build
 #
 # Usage:
-#   cd /opt/asset-mgt/asset-mgt-be/docker
-#   source ./load-ssm-secrets.sh   # or a SRE-specific env with assets.sre.mindstix.com
+#   cd /opt/asset-mgt
+#   source ./loadsecrets-sre.sh   # or: source asset-mgt-be/docker/loadsecrets-sre.sh
+#   cd asset-mgt-be/docker
 #   docker-compose -f docker-compose.aws.sre.yml up -d --build
 #
 # Prod stack (unchanged):
+#   source ./loadsecrets.sh
 #   docker-compose -f docker-compose.aws.yml up -d --build
 #
-# Set CORS_ORIGIN / FRONTEND_URL to https://assets.sre.mindstix.com for this stack.
+# SSM paths (us-east-2, see loadsecrets-sre.sh / create-ssm-params-sre.sh):
+#   /sre-backend-asset-tracker/*  /sre-frontend-asset-tracker/*  /sre-postgres-asset-tracker/*
+# Do not share prod /backend-asset-tracker/* params.
+# CORS / FRONTEND_URL in SSM must be https://assets.sre.mindstix.com
 # ==============================================================================
 
 name: sre-asset-mgt
