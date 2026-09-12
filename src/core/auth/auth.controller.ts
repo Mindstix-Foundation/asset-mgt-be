@@ -10,7 +10,6 @@ import {
   Req,
   Res,
   UnauthorizedException,
-  Logger,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -75,8 +74,6 @@ function buildRefreshCookieOptions(rememberMe: boolean): CookieOptions {
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  private readonly logger = new Logger(AuthController.name);
-
   constructor(private readonly authService: AuthService) {}
 
   private setAuthCookies(
@@ -153,22 +150,12 @@ export class AuthController {
         rememberMeRaw === '1' ||
         rememberMeRaw === 'true' ||
         rememberMeRaw === 'yes';
-      const redirectUri = this.authService.getGoogleOAuthRedirectUri();
-      this.logger.log(
-        `[google/start] rememberMe=${rememberMe} redirect=${redirect ?? '(none)'} computedRedirectUri=${redirectUri}`,
-      );
       const url = this.authService.buildGoogleOAuthAuthorizationUrl(
         rememberMe,
         redirect,
       );
-      this.logger.log(`[google/start] redirecting to Google authUrl=${url}`);
       res.redirect(url);
     } catch (error) {
-      this.logger.error(
-        `[google/start] failed to build Google auth URL: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
       const message =
         error instanceof UnauthorizedException
           ? error.message
@@ -188,18 +175,7 @@ export class AuthController {
     @Req() req: ExpressRequest,
     @Res() res: ExpressResponse,
   ): Promise<void> {
-    this.logger.log(
-      `[google/callback] received host=${req.headers.host} proto=${
-        req.headers['x-forwarded-proto'] ?? '(none)'
-      } hasCode=${!!code?.trim()} hasState=${!!state?.trim()} oauthError=${
-        oauthError ?? '(none)'
-      } fullUrl=${req.originalUrl}`,
-    );
-
     if (oauthError) {
-      this.logger.warn(
-        `[google/callback] Google returned error param: ${oauthError}`,
-      );
       const message =
         oauthError === 'access_denied'
           ? 'Google sign-in was cancelled.'
@@ -209,9 +185,6 @@ export class AuthController {
     }
 
     if (!code?.trim() || !state?.trim()) {
-      this.logger.warn(
-        `[google/callback] missing code/state -> "did not complete". hasCode=${!!code?.trim()} hasState=${!!state?.trim()}`,
-      );
       res.redirect(
         this.authService.buildFrontendGoogleErrorRedirect(
           'Google sign-in did not complete. Please try again.',
@@ -224,20 +197,11 @@ export class AuthController {
       const { rememberMe, returnPath } =
         this.authService.parseGoogleOAuthState(state);
       const redirectUri = this.authService.getGoogleOAuthRedirectUri();
-      this.logger.log(
-        `[google/callback] state parsed OK rememberMe=${rememberMe} returnPath=${
-          returnPath ?? '(none)'
-        } redirectUri=${redirectUri} — exchanging code`,
-      );
       const result = await this.authService.loginWithGoogleAuthCode(
         code.trim(),
         redirectUri,
         this.deviceInfoFromRequest(req),
         rememberMe,
-      );
-
-      this.logger.log(
-        `[google/callback] login success user=${result.user?.email} secureCookies=${authCookieSecure()} sameSite=${authCookieSameSite()}`,
       );
 
       this.setAuthCookies(
@@ -256,11 +220,6 @@ export class AuthController {
         this.authService.buildFrontendLoginRedirect({ google_session: '1' }),
       );
     } catch (error) {
-      this.logger.error(
-        `[google/callback] login failed: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
       const message =
         error instanceof UnauthorizedException
           ? error.message
