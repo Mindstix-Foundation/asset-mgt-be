@@ -121,12 +121,17 @@ export class AuthService implements OnModuleInit {
         clientSecret: googleClientSecret,
         redirectUri,
       });
+      this.logger.log(
+        `[exchangeCode] exchanging auth code with redirectUri=${redirectUri} clientIdSuffix=...${googleClientId.slice(-12)}`,
+      );
       const { tokens } = await oauthClient.getToken(code);
       if (!tokens?.id_token) {
+        this.logger.error('[exchangeCode] token exchange returned no id_token');
         throw new UnauthorizedException(
           'Google code exchange missing id_token',
         );
       }
+      this.logger.log('[exchangeCode] id_token received, verifying');
       return await this.verifyGoogleIdToken(tokens.id_token, googleClientId);
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;
@@ -253,17 +258,27 @@ export class AuthService implements OnModuleInit {
     deviceInfo?: DeviceInfo,
     rememberMe: boolean = false,
   ): Promise<SessionResult> {
+    this.logger.log(
+      `[completeGoogleLogin] google email=${payload.email} verified=${payload.email_verified}`,
+    );
     if (!payload.email || payload.email_verified !== true) {
+      this.logger.warn('[completeGoogleLogin] email missing or not verified');
       throw new UnauthorizedException('Google email is not verified');
     }
 
     const user = await this.findActiveUserByGoogleEmail(payload.email);
     if (!user) {
+      this.logger.warn(
+        `[completeGoogleLogin] no active user linked to email=${payload.email}`,
+      );
       throw new UnauthorizedException(
         'No active account is linked to this Google email.',
       );
     }
 
+    this.logger.log(
+      `[completeGoogleLogin] matched userId=${user.id} employeeId=${user.employee?.employeeId} activeRoles=${user.userRoles?.length ?? 0}`,
+    );
     return this.issueSessionForUser(user, deviceInfo, rememberMe);
   }
 
