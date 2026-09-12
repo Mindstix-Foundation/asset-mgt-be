@@ -48,6 +48,17 @@ ASST_TRACKER_BACKEND_FRONTEND_URL="$(ssm_get "/sre-backend-asset-tracker/fronten
 export ASST_TRACKER_BACKEND_NODE_ENV
 ASST_TRACKER_BACKEND_NODE_ENV="$(ssm_get "/sre-backend-asset-tracker/node_env")"
 
+# ── Google OAuth ──────────────────────────────────────────────────────────────
+
+export ASST_TRACKER_BACKEND_GOOGLE_CLIENT_ID
+ASST_TRACKER_BACKEND_GOOGLE_CLIENT_ID="$(ssm_get "/sre-backend-asset-tracker/google_client_id")"
+
+export ASST_TRACKER_BACKEND_GOOGLE_CLIENT_SECRET
+ASST_TRACKER_BACKEND_GOOGLE_CLIENT_SECRET="$(ssm_get "/sre-backend-asset-tracker/google_client_secret")"
+
+export ASST_TRACKER_BACKEND_GOOGLE_OAUTH_REDIRECT_URI
+ASST_TRACKER_BACKEND_GOOGLE_OAUTH_REDIRECT_URI="$(ssm_get "/sre-backend-asset-tracker/google_oauth_redirect_uri")"
+
 # ── SMTP ──────────────────────────────────────────────────────────────────────
 
 export ASST_TRACKER_BACKEND_SMTP_FROM
@@ -99,6 +110,9 @@ echo "  ASST_TRACKER_BACKEND_CORS_ORIGIN          = ${ASST_TRACKER_BACKEND_CORS_
 echo "  ASST_TRACKER_BACKEND_DATABASE_URL         = postgresql://***@***"
 echo "  ASST_TRACKER_BACKEND_FRONTEND_URL         = ${ASST_TRACKER_BACKEND_FRONTEND_URL}"
 echo "  ASST_TRACKER_BACKEND_NODE_ENV             = ${ASST_TRACKER_BACKEND_NODE_ENV}"
+echo "  ASST_TRACKER_BACKEND_GOOGLE_CLIENT_ID     = ***"
+echo "  ASST_TRACKER_BACKEND_GOOGLE_CLIENT_SECRET = ***"
+echo "  ASST_TRACKER_BACKEND_GOOGLE_OAUTH_REDIRECT_URI = ${ASST_TRACKER_BACKEND_GOOGLE_OAUTH_REDIRECT_URI}"
 echo "  ASST_TRACKER_BACKEND_SMTP_FROM            = ${ASST_TRACKER_BACKEND_SMTP_FROM}"
 echo "  ASST_TRACKER_BACKEND_SMTP_HOST            = ${ASST_TRACKER_BACKEND_SMTP_HOST}"
 echo "  ASST_TRACKER_BACKEND_SMTP_PASS            = ***"
