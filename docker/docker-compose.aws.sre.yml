@@ -1,7 +1,7 @@
 # ==============================================================================
 # Asset Management - AWS SRE / second deployment (same EC2 as prod)
 # ------------------------------------------------------------------------------
-# Sibling of docker-compose.aws.yml for an alternate branch/deploy.
+# Sibling of docker-compose.aws.core.yml for an alternate branch/deploy.
 # Container + image names are prefixed with `sre-` so both stacks can run on
 # the same host / git checkout without clashing.
 #
@@ -9,23 +9,16 @@
 #   ALB :80/:443  ->  sre-nginx (host:8080)  ->  assets.sre.mindstix.com / + /api/*
 #        (edge.conf upstreams: sre-asset-mgt-backend, sre-asset-mgt-frontend)
 #
-# Prerequisites:
-#   cd /opt/asset-mgt/sre-nginx && docker-compose up -d --build
-#
-# Usage:
-#   cd /opt/asset-mgt
-#   source ./loadsecrets-sre.sh   # or: source asset-mgt-be/docker/loadsecrets-sre.sh
+# Deploy (secrets only needed for `up`, not for `build`):
+#   cd /home/ssm-user/asset-mgt/asset-mgt-be/docker
+#   docker-compose -f docker-compose.aws.sre.yml build
+#   cd /home/ssm-user/asset-mgt
+#   source asset-mgt-be/docker/loadsecrets-sre.sh
 #   cd asset-mgt-be/docker
-#   docker-compose -f docker-compose.aws.sre.yml up -d --build
+#   docker-compose -f docker-compose.aws.sre.yml up -d
 #
-# Prod stack (unchanged):
-#   source ./loadsecrets.sh
-#   docker-compose -f docker-compose.aws.yml up -d --build
-#
-# SSM paths (us-east-2, see loadsecrets-sre.sh / create-ssm-params-sre.sh):
-#   /sre-backend-asset-tracker/*  /sre-frontend-asset-tracker/*  /sre-postgres-asset-tracker/*
-# Do not share prod /backend-asset-tracker/* params.
-# CORS / FRONTEND_URL in SSM must be https://assets.sre.mindstix.com
+# Frontend API base is hard-coded to /api. Do not mix Core /backend-asset-tracker/*
+# SSM with SRE /sre-* params.
 # ==============================================================================
 
 name: sre-asset-mgt
@@ -37,35 +30,36 @@ services:
     build:
       context: ../
       dockerfile: docker/backend/Dockerfile
-    image: sre-asset-mgt-backend:20260723-1-0-2
+    image: sre-asset-mgt-backend:20260928-1-1-0
     container_name: sre-asset-mgt-backend
     restart: unless-stopped
     environment:
-      NODE_ENV: ${ASST_TRACKER_BACKEND_NODE_ENV:-production}
+      NODE_ENV: ${SRE_ASST_TRACKER_BACKEND_NODE_ENV:-production}
       PORT: 3000
-      DATABASE_URL: ${ASST_TRACKER_BACKEND_DATABASE_URL:?ASST_TRACKER_BACKEND_DATABASE_URL is required}
-      JWT_SECRET: ${ASST_TRACKER_BACKEND_JWT_SECRET:?ASST_TRACKER_BACKEND_JWT_SECRET is required}
+      # Runtime-only (from loadsecrets-sre.sh). Empty at `build` time is OK.
+      DATABASE_URL: ${SRE_ASST_TRACKER_BACKEND_DATABASE_URL:-}
+      JWT_SECRET: ${SRE_ASST_TRACKER_BACKEND_JWT_SECRET:-}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       ENABLE_SWAGGER: ${ENABLE_SWAGGER:-false}
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      CORS_ORIGIN: ${ASST_TRACKER_BACKEND_CORS_ORIGIN:?ASST_TRACKER_BACKEND_CORS_ORIGIN is required}
-      FRONTEND_URL: ${ASST_TRACKER_BACKEND_FRONTEND_URL:?ASST_TRACKER_BACKEND_FRONTEND_URL is required}
-      COOKIE_SECURE: ${ASST_TRACKER_BACKEND_COOKIE_SECURE:-true}
+      CORS_ORIGIN: ${SRE_ASST_TRACKER_BACKEND_CORS_ORIGIN:-}
+      FRONTEND_URL: ${SRE_ASST_TRACKER_BACKEND_FRONTEND_URL:-}
+      COOKIE_SECURE: ${SRE_ASST_TRACKER_BACKEND_COOKIE_SECURE:-true}
       MAX_FILE_SIZE: ${MAX_FILE_SIZE:-10485760}
       UPLOAD_DEST: /app/uploads
-      SMTP_HOST: ${ASST_TRACKER_BACKEND_SMTP_HOST:-}
-      SMTP_PORT: ${ASST_TRACKER_BACKEND_SMTP_PORT:-587}
-      SMTP_USER: ${ASST_TRACKER_BACKEND_SMTP_USER:-}
-      SMTP_PASS: ${ASST_TRACKER_BACKEND_SMTP_PASS:-}
-      SMTP_FROM: ${ASST_TRACKER_BACKEND_SMTP_FROM:-}
-      GOOGLE_CLIENT_ID: ${ASST_TRACKER_BACKEND_GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${ASST_TRACKER_BACKEND_GOOGLE_CLIENT_SECRET:-}
-      GOOGLE_OAUTH_REDIRECT_URI: ${ASST_TRACKER_BACKEND_GOOGLE_OAUTH_REDIRECT_URI:-}
-      POSTGRES_HOST: ${ASST_TRACKER_POSTGRES_HOST:-}
-      POSTGRES_PORT: ${ASST_TRACKER_POSTGRES_PORT:-5432}
-      POSTGRES_DB: ${ASST_TRACKER_POSTGRES_DB:-}
-      POSTGRES_USER: ${ASST_TRACKER_POSTGRES_USER:-}
-      POSTGRES_PASSWORD: ${ASST_TRACKER_POSTGRES_PASSWORD:-}
+      SMTP_HOST: ${SRE_ASST_TRACKER_BACKEND_SMTP_HOST:-}
+      SMTP_PORT: ${SRE_ASST_TRACKER_BACKEND_SMTP_PORT:-587}
+      SMTP_USER: ${SRE_ASST_TRACKER_BACKEND_SMTP_USER:-}
+      SMTP_PASS: ${SRE_ASST_TRACKER_BACKEND_SMTP_PASS:-}
+      SMTP_FROM: ${SRE_ASST_TRACKER_BACKEND_SMTP_FROM:-}
+      GOOGLE_CLIENT_ID: ${SRE_ASST_TRACKER_BACKEND_GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${SRE_ASST_TRACKER_BACKEND_GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_REDIRECT_URI: ${SRE_ASST_TRACKER_BACKEND_GOOGLE_OAUTH_REDIRECT_URI:-}
+      POSTGRES_HOST: ${SRE_ASST_TRACKER_POSTGRES_HOST:-}
+      POSTGRES_PORT: ${SRE_ASST_TRACKER_POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${SRE_ASST_TRACKER_POSTGRES_DB:-}
+      POSTGRES_USER: ${SRE_ASST_TRACKER_POSTGRES_USER:-}
+      POSTGRES_PASSWORD: ${SRE_ASST_TRACKER_POSTGRES_PASSWORD:-}
     volumes:
       - backend_uploads:/app/uploads
     expose:
@@ -83,8 +77,8 @@ services:
       context: ../../asset-mgt-fe/frontend
       dockerfile: ../../asset-mgt-be/docker/frontend/Dockerfile
       args:
-        VITE_API_BASE_URL: ${ASST_TRACKER_FRONTEND_VITE_API_BASE_URL:-/api}
-    image: sre-asset-mgt-frontend:20260723-1-0-2
+        VITE_API_BASE_URL: /api
+    image: sre-asset-mgt-frontend:20260928-1-1-0
     container_name: sre-asset-mgt-frontend
     restart: unless-stopped
     expose:

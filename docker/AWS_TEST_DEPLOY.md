@@ -514,7 +514,7 @@ COOKIE_SECURE=false
 
 ```bash
 cd /opt/asset-mgt/asset-mgt-be/docker
-docker compose -f docker-compose.aws.yml up -d --build
+docker compose -f docker-compose.aws.core.yml up -d --build
 ```
 
 First build pulls Node, runs `npm ci` for both apps, and builds Vite — expect ~3–8 minutes depending on EC2 + network. Subsequent runs use cache.
@@ -522,7 +522,7 @@ First build pulls Node, runs `npm ci` for both apps, and builds Vite — expect 
 Watch the logs while migrations apply:
 
 ```bash
-docker compose -f docker-compose.aws.yml logs -f backend
+docker compose -f docker-compose.aws.core.yml logs -f backend
 ```
 
 You should see:
@@ -541,7 +541,7 @@ Press `Ctrl-C` to stop tailing (the containers keep running).
 ### 4.4 Verify on the EC2
 
 ```bash
-docker compose -f docker-compose.aws.yml ps
+docker compose -f docker-compose.aws.core.yml ps
 # both containers should be "Up"
 
 curl -s -o /dev/null -w "frontend: HTTP %{http_code}\n" http://localhost:8080/
@@ -700,7 +700,7 @@ sed -i "s|^CORS_ORIGIN=.*|CORS_ORIGIN=${ALB_URL}|"   .env
 sed -i "s|^FRONTEND_URL=.*|FRONTEND_URL=${ALB_URL}|" .env
 
 # Restart only the backend (the frontend bundle doesn't depend on these vars).
-docker compose -f docker-compose.aws.yml up -d backend
+docker compose -f docker-compose.aws.core.yml up -d backend
 ```
 
 (The Vite frontend uses `VITE_API_BASE_URL=/api` for same-origin requests, so the frontend image doesn't need to be rebuilt when the public hostname changes.)
@@ -764,7 +764,7 @@ Tick off:
 ```bash
 # Restart the backend; ALB health check should briefly mark unhealthy then recover
 ssh -i ~/Downloads/${KEY_NAME}.pem ec2-user@${EC2_PUBLIC_IP} \
-  'cd /opt/asset-mgt/asset-mgt-be/docker && docker compose -f docker-compose.aws.yml restart backend'
+  'cd /opt/asset-mgt/asset-mgt-be/docker && docker compose -f docker-compose.aws.core.yml restart backend'
 
 # Watch from your laptop
 while true; do
@@ -788,13 +788,13 @@ On the EC2:
 cd /opt/asset-mgt/asset-mgt-be/docker
 
 # Tail both
-docker compose -f docker-compose.aws.yml logs -f --tail=50
+docker compose -f docker-compose.aws.core.yml logs -f --tail=50
 
 # Just the backend
-docker compose -f docker-compose.aws.yml logs -f backend
+docker compose -f docker-compose.aws.core.yml logs -f backend
 
 # Just nginx access logs
-docker compose -f docker-compose.aws.yml logs -f frontend
+docker compose -f docker-compose.aws.core.yml logs -f frontend
 ```
 
 ---
@@ -913,7 +913,7 @@ You ran the seed *before* the schema was synced. Re-run the seed (it cleans the 
 
 ### Browser shows "Not Allowed by CORS"
 
-`CORS_ORIGIN` in `.env` doesn't match the URL in the address bar. Fix the value, then `docker compose -f docker-compose.aws.yml up -d backend` to restart the backend.
+`CORS_ORIGIN` in `.env` doesn't match the URL in the address bar. Fix the value, then `docker compose -f docker-compose.aws.core.yml up -d backend` to restart the backend.
 
 ### `docker compose up` fails with "no space left on device"
 
@@ -954,11 +954,11 @@ ssh -i ~/Downloads/${KEY_NAME}.pem ec2-user@${EC2_PUBLIC_IP}
 cd /opt/asset-mgt/asset-mgt-be && git pull
 cd /opt/asset-mgt/asset-mgt-fe && git pull
 cd /opt/asset-mgt/sre-nginx    && git pull
-cd /opt/asset-mgt/asset-mgt-be/docker && docker compose -f docker-compose.aws.yml up -d --build
+cd /opt/asset-mgt/asset-mgt-be/docker && docker compose -f docker-compose.aws.core.yml up -d --build
 
 # Tail logs
-docker compose -f docker-compose.aws.yml logs -f backend
-docker compose -f docker-compose.aws.yml logs -f frontend
+docker compose -f docker-compose.aws.core.yml logs -f backend
+docker compose -f docker-compose.aws.core.yml logs -f frontend
 
 # Reseed
 cd /opt/asset-mgt/asset-mgt-be

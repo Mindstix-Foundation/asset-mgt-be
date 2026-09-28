@@ -1,7 +1,7 @@
 # ==============================================================================
 # Asset Management - AWS bug-bash stack (separate AWS account)
 # ------------------------------------------------------------------------------
-# Same as docker-compose.aws.yml (backend + frontend only). Edge routing for
+# Same as docker-compose.aws.core.yml (backend + frontend only). Edge routing for
 # bug-bash is path-based and lives in sre-nginx:
 #   EDGE_CONF=edge-bugbash.conf docker-compose up -d --build
 #
@@ -24,7 +24,7 @@ services:
     build:
       context: ../
       dockerfile: docker/backend/Dockerfile
-    image: asset-mgt-backend:20260723-1-0-2
+    image: asset-mgt-backend:20260928-1-1-0
     container_name: asset-mgt-backend
     restart: unless-stopped
     environment:
@@ -68,7 +68,7 @@ services:
       dockerfile: ../../asset-mgt-be/docker/frontend/Dockerfile
       args:
         VITE_API_BASE_URL: ${ASST_TRACKER_FRONTEND_VITE_API_BASE_URL:-/api}
-    image: asset-mgt-frontend:20260723-1-0-2
+    image: asset-mgt-frontend:20260928-1-1-0
     container_name: asset-mgt-frontend
     restart: unless-stopped
     expose:

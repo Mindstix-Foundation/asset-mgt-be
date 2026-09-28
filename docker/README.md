@@ -27,7 +27,7 @@ asset-mgt-be/                          # NestJS backend (build context for backe
 │   │   ├── Dockerfile                  # multi-stage Vite -> tiny static-serving nginx
 │   │   └── Dockerfile.dockerignore
 │   ├── docker-compose.yml              # local stack: db + backend + frontend + nginx
-│   ├── docker-compose.aws.yml          # AWS stack: backend + frontend + nginx (RDS provides db)
+│   ├── docker-compose.aws.core.yml          # AWS stack: backend + frontend + nginx (RDS provides db)
 │   ├── .env.example                    # template for the local stack
 │   ├── .env.aws.example                # template for the AWS stack
 │   ├── DEPLOY_AWS.md                   # step-by-step EC2 + RDS deployment guide
@@ -57,7 +57,7 @@ nginx service:
 
 ```bash
 cd /opt/asset-mgt/asset-mgt-be/docker
-docker compose -f docker-compose.aws.yml up -d --build nginx
+docker compose -f docker-compose.aws.core.yml up -d --build nginx
 ```
 
 ## AWS deployment
@@ -119,7 +119,7 @@ docker compose down -v
 ## Environment variables of note
 
 - **`COOKIE_SECURE`** — controls the `secure` flag on the auth cookies.
-  - `true` (default in `docker-compose.aws.yml`) — required when serving over HTTPS.
+  - `true` (default in `docker-compose.aws.core.yml`) — required when serving over HTTPS.
   - `false` — required when serving over plain HTTP (otherwise login appears
     to succeed but the browser silently drops the cookie and you're bounced
     back to the login screen).

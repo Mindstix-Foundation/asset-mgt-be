@@ -1,0 +1,107 @@
+# ==============================================================================
+# Asset Management - AWS production stack (Mindstix Core)
+# ------------------------------------------------------------------------------
+# Designed to run on a single EC2 instance (Amazon Linux 2023) behind an
+# Application Load Balancer. Postgres lives in RDS (the bundled `db` service
+# from docker-compose.yml is omitted).
+#
+# Architecture:
+#   ALB :80/:443  ->  sre-nginx (host:8080, separate compose)  ->  assets.mindstix.com / + /api/*
+#                                                               \-> attendance.mindstix.com / + /api/*
+#
+# Edge proxy is owned by Mindstix-Foundation/sre-nginx and must already be
+# running on mindstix-edge-net. This stack only runs backend + frontend so an
+# asset upgrade does NOT rebuild sre-nginx.
+#
+# Deploy (secrets only needed for `up`, not for `build`):
+#   cd /home/ssm-user/asset-mgt/asset-mgt-be/docker
+#   docker-compose -f docker-compose.aws.core.yml build
+#   cd /home/ssm-user/asset-mgt
+#   source asset-mgt-be/docker/loadsecrets-core.sh
+#   cd asset-mgt-be/docker
+#   docker-compose -f docker-compose.aws.core.yml up -d
+#
+# Frontend API base is hard-coded to /api (same-origin; edge proxies /api → backend).
+# Image tags use yyyymmdd-X-Y-Z (currently 20260928-1-1-0). Do not use latest.
+# ==============================================================================
+
+name: asset-mgt
+
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ../
+      dockerfile: docker/backend/Dockerfile
+    image: asset-mgt-backend:20260928-1-1-0
+    container_name: asset-mgt-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${CORE_ASST_TRACKER_BACKEND_NODE_ENV:-production}
+      PORT: 3000
+      # Runtime-only (from loadsecrets-core.sh). Empty at `build` time is OK.
+      DATABASE_URL: ${CORE_ASST_TRACKER_BACKEND_DATABASE_URL:-}
+      JWT_SECRET: ${CORE_ASST_TRACKER_BACKEND_JWT_SECRET:-}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      ENABLE_SWAGGER: ${ENABLE_SWAGGER:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      CORS_ORIGIN: ${CORE_ASST_TRACKER_BACKEND_CORS_ORIGIN:-}
+      FRONTEND_URL: ${CORE_ASST_TRACKER_BACKEND_FRONTEND_URL:-}
+      COOKIE_SECURE: ${CORE_ASST_TRACKER_BACKEND_COOKIE_SECURE:-true}
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-10485760}
+      UPLOAD_DEST: /app/uploads
+      SMTP_HOST: ${CORE_ASST_TRACKER_BACKEND_SMTP_HOST:-}
+      SMTP_PORT: ${CORE_ASST_TRACKER_BACKEND_SMTP_PORT:-587}
+      SMTP_USER: ${CORE_ASST_TRACKER_BACKEND_SMTP_USER:-}
+      SMTP_PASS: ${CORE_ASST_TRACKER_BACKEND_SMTP_PASS:-}
+      SMTP_FROM: ${CORE_ASST_TRACKER_BACKEND_SMTP_FROM:-}
+      GOOGLE_CLIENT_ID: ${CORE_ASST_TRACKER_BACKEND_GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${CORE_ASST_TRACKER_BACKEND_GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_REDIRECT_URI: ${CORE_ASST_TRACKER_BACKEND_GOOGLE_OAUTH_REDIRECT_URI:-}
+      POSTGRES_HOST: ${CORE_ASST_TRACKER_POSTGRES_HOST:-}
+      POSTGRES_PORT: ${CORE_ASST_TRACKER_POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${CORE_ASST_TRACKER_POSTGRES_DB:-}
+      POSTGRES_USER: ${CORE_ASST_TRACKER_POSTGRES_USER:-}
+      POSTGRES_PASSWORD: ${CORE_ASST_TRACKER_POSTGRES_PASSWORD:-}
+    volumes:
+      - backend_uploads:/app/uploads
+    expose:
+      - "3000"
+    networks:
+      - asset-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  frontend:
+    build:
+      context: ../../asset-mgt-fe/frontend
+      dockerfile: ../../asset-mgt-be/docker/frontend/Dockerfile
+      args:
+        # Same-origin path; sre-nginx routes /api → backend. Not a secret.
+        VITE_API_BASE_URL: /api
+    image: asset-mgt-frontend:20260928-1-1-0
+    container_name: asset-mgt-frontend
+    restart: unless-stopped
+    expose:
+      - "80"
+    networks:
+      - asset-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  backend_uploads:
+    driver: local
+
+networks:
+  # Created by sre-nginx/docker-compose.yml — start the edge stack first.
+  asset-net:
+    name: mindstix-edge-net
+    external: true

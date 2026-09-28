@@ -236,7 +236,7 @@ FRONTEND_PORT=8080
 
 ```bash
 cd /opt/asset-mgt/asset-mgt-be/docker
-docker compose -f docker-compose.aws.yml up -d --build
+docker compose -f docker-compose.aws.core.yml up -d --build
 ```
 
 The backend container's entrypoint runs `npx prisma migrate deploy` against RDS, then starts NestJS. First boot takes ~30 seconds.
@@ -244,7 +244,7 @@ The backend container's entrypoint runs `npx prisma migrate deploy` against RDS,
 ### 4.3 Health check from the EC2
 
 ```bash
-docker compose -f docker-compose.aws.yml ps
+docker compose -f docker-compose.aws.core.yml ps
 curl -s -o /dev/null -w "frontend: %{http_code}\n" http://localhost:8080/
 curl -s -o /dev/null -w "api:      %{http_code}\n" http://localhost:8080/api/
 ```
@@ -357,7 +357,7 @@ On the EC2:
 cd /opt/asset-mgt/asset-mgt-be && git pull
 cd /opt/asset-mgt/asset-mgt-fe && git pull
 cd /opt/asset-mgt/asset-mgt-be/docker
-docker compose -f docker-compose.aws.yml up -d --build
+docker compose -f docker-compose.aws.core.yml up -d --build
 ```
 
 The backend's entrypoint will run any new Prisma migrations on startup.
@@ -366,8 +366,8 @@ The backend's entrypoint will run any new Prisma migrations on startup.
 
 ```bash
 cd /opt/asset-mgt/asset-mgt-be/docker
-docker compose -f docker-compose.aws.yml logs -f backend
-docker compose -f docker-compose.aws.yml logs -f frontend
+docker compose -f docker-compose.aws.core.yml logs -f backend
+docker compose -f docker-compose.aws.core.yml logs -f frontend
 ```
 
 ### Manual DB shell

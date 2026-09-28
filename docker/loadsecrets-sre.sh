@@ -2,15 +2,20 @@
 # ==============================================================================
 # Load SRE Asset Tracker secrets from AWS SSM Parameter Store (us-east-2)
 # ------------------------------------------------------------------------------
-# Paths (separate from prod — never reads /backend-asset-tracker/*):
+# Exports SRE_ASST_TRACKER_* so Core and SRE can both be sourced in one shell
+# without overwriting each other (Core uses CORE_ASST_TRACKER_*).
+#
+# SSM paths (never reads /backend-asset-tracker/*):
 #   /sre-backend-asset-tracker/*
 #   /sre-frontend-asset-tracker/*
 #   /sre-postgres-asset-tracker/*
 #
-#   cd /opt/asset-mgt
-#   source ./loadsecrets-sre.sh
+#   cd /home/ssm-user/asset-mgt/asset-mgt-be/docker
+#   docker-compose -f docker-compose.aws.sre.yml build           # no secrets needed
+#   cd /home/ssm-user/asset-mgt
+#   source asset-mgt-be/docker/loadsecrets-sre.sh                # secrets for up only
 #   cd asset-mgt-be/docker
-#   docker-compose -f docker-compose.aws.sre.yml up -d --build
+#   docker-compose -f docker-compose.aws.sre.yml up -d
 # ==============================================================================
 
 set -euo pipefail
@@ -30,97 +35,97 @@ ssm_get() {
 
 # ── Backend Asset Tracker (SRE) ───────────────────────────────────────────────
 
-export ASST_TRACKER_BACKEND_JWT_SECRET
-ASST_TRACKER_BACKEND_JWT_SECRET="$(ssm_get "/sre-backend-asset-tracker/jwt_secret")"
+export SRE_ASST_TRACKER_BACKEND_JWT_SECRET
+SRE_ASST_TRACKER_BACKEND_JWT_SECRET="$(ssm_get "/sre-backend-asset-tracker/jwt_secret")"
 
-export ASST_TRACKER_BACKEND_COOKIE_SECURE
-ASST_TRACKER_BACKEND_COOKIE_SECURE="$(ssm_get "/sre-backend-asset-tracker/cookie_secure")"
+export SRE_ASST_TRACKER_BACKEND_COOKIE_SECURE
+SRE_ASST_TRACKER_BACKEND_COOKIE_SECURE="$(ssm_get "/sre-backend-asset-tracker/cookie_secure")"
 
-export ASST_TRACKER_BACKEND_CORS_ORIGIN
-ASST_TRACKER_BACKEND_CORS_ORIGIN="$(ssm_get "/sre-backend-asset-tracker/cors_origin")"
+export SRE_ASST_TRACKER_BACKEND_CORS_ORIGIN
+SRE_ASST_TRACKER_BACKEND_CORS_ORIGIN="$(ssm_get "/sre-backend-asset-tracker/cors_origin")"
 
-export ASST_TRACKER_BACKEND_DATABASE_URL
-ASST_TRACKER_BACKEND_DATABASE_URL="$(ssm_get "/sre-backend-asset-tracker/database_url")"
+export SRE_ASST_TRACKER_BACKEND_DATABASE_URL
+SRE_ASST_TRACKER_BACKEND_DATABASE_URL="$(ssm_get "/sre-backend-asset-tracker/database_url")"
 
-export ASST_TRACKER_BACKEND_FRONTEND_URL
-ASST_TRACKER_BACKEND_FRONTEND_URL="$(ssm_get "/sre-backend-asset-tracker/frontend_url")"
+export SRE_ASST_TRACKER_BACKEND_FRONTEND_URL
+SRE_ASST_TRACKER_BACKEND_FRONTEND_URL="$(ssm_get "/sre-backend-asset-tracker/frontend_url")"
 
-export ASST_TRACKER_BACKEND_NODE_ENV
-ASST_TRACKER_BACKEND_NODE_ENV="$(ssm_get "/sre-backend-asset-tracker/node_env")"
+export SRE_ASST_TRACKER_BACKEND_NODE_ENV
+SRE_ASST_TRACKER_BACKEND_NODE_ENV="$(ssm_get "/sre-backend-asset-tracker/node_env")"
 
 # ── Google OAuth ──────────────────────────────────────────────────────────────
 
-export ASST_TRACKER_BACKEND_GOOGLE_CLIENT_ID
-ASST_TRACKER_BACKEND_GOOGLE_CLIENT_ID="$(ssm_get "/sre-backend-asset-tracker/google_client_id")"
+export SRE_ASST_TRACKER_BACKEND_GOOGLE_CLIENT_ID
+SRE_ASST_TRACKER_BACKEND_GOOGLE_CLIENT_ID="$(ssm_get "/sre-backend-asset-tracker/google_client_id")"
 
-export ASST_TRACKER_BACKEND_GOOGLE_CLIENT_SECRET
-ASST_TRACKER_BACKEND_GOOGLE_CLIENT_SECRET="$(ssm_get "/sre-backend-asset-tracker/google_client_secret")"
+export SRE_ASST_TRACKER_BACKEND_GOOGLE_CLIENT_SECRET
+SRE_ASST_TRACKER_BACKEND_GOOGLE_CLIENT_SECRET="$(ssm_get "/sre-backend-asset-tracker/google_client_secret")"
 
-export ASST_TRACKER_BACKEND_GOOGLE_OAUTH_REDIRECT_URI
-ASST_TRACKER_BACKEND_GOOGLE_OAUTH_REDIRECT_URI="$(ssm_get "/sre-backend-asset-tracker/google_oauth_redirect_uri")"
+export SRE_ASST_TRACKER_BACKEND_GOOGLE_OAUTH_REDIRECT_URI
+SRE_ASST_TRACKER_BACKEND_GOOGLE_OAUTH_REDIRECT_URI="$(ssm_get "/sre-backend-asset-tracker/google_oauth_redirect_uri")"
 
 # ── SMTP ──────────────────────────────────────────────────────────────────────
 
-export ASST_TRACKER_BACKEND_SMTP_FROM
-ASST_TRACKER_BACKEND_SMTP_FROM="$(ssm_get "/sre-backend-asset-tracker/smtp_from")"
+export SRE_ASST_TRACKER_BACKEND_SMTP_FROM
+SRE_ASST_TRACKER_BACKEND_SMTP_FROM="$(ssm_get "/sre-backend-asset-tracker/smtp_from")"
 
-export ASST_TRACKER_BACKEND_SMTP_HOST
-ASST_TRACKER_BACKEND_SMTP_HOST="$(ssm_get "/sre-backend-asset-tracker/smtp_host")"
+export SRE_ASST_TRACKER_BACKEND_SMTP_HOST
+SRE_ASST_TRACKER_BACKEND_SMTP_HOST="$(ssm_get "/sre-backend-asset-tracker/smtp_host")"
 
-export ASST_TRACKER_BACKEND_SMTP_PASS
-ASST_TRACKER_BACKEND_SMTP_PASS="$(ssm_get "/sre-backend-asset-tracker/smtp_pass")"
+export SRE_ASST_TRACKER_BACKEND_SMTP_PASS
+SRE_ASST_TRACKER_BACKEND_SMTP_PASS="$(ssm_get "/sre-backend-asset-tracker/smtp_pass")"
 
-export ASST_TRACKER_BACKEND_SMTP_PORT
-ASST_TRACKER_BACKEND_SMTP_PORT="$(ssm_get "/sre-backend-asset-tracker/smtp_port")"
+export SRE_ASST_TRACKER_BACKEND_SMTP_PORT
+SRE_ASST_TRACKER_BACKEND_SMTP_PORT="$(ssm_get "/sre-backend-asset-tracker/smtp_port")"
 
-export ASST_TRACKER_BACKEND_SMTP_USER
-ASST_TRACKER_BACKEND_SMTP_USER="$(ssm_get "/sre-backend-asset-tracker/smtp_user")"
+export SRE_ASST_TRACKER_BACKEND_SMTP_USER
+SRE_ASST_TRACKER_BACKEND_SMTP_USER="$(ssm_get "/sre-backend-asset-tracker/smtp_user")"
 
 # ── Frontend ──────────────────────────────────────────────────────────────────
 
-export ASST_TRACKER_FRONTEND_VITE_API_BASE_URL
-ASST_TRACKER_FRONTEND_VITE_API_BASE_URL="$(ssm_get "/sre-frontend-asset-tracker/vite_api_base_url")"
+export SRE_ASST_TRACKER_FRONTEND_VITE_API_BASE_URL
+SRE_ASST_TRACKER_FRONTEND_VITE_API_BASE_URL="$(ssm_get "/sre-frontend-asset-tracker/vite_api_base_url")"
 
 # ── Postgres ──────────────────────────────────────────────────────────────────
 
-export ASST_TRACKER_POSTGRES_DB
-ASST_TRACKER_POSTGRES_DB="$(ssm_get "/sre-postgres-asset-tracker/postgres_db")"
+export SRE_ASST_TRACKER_POSTGRES_DB
+SRE_ASST_TRACKER_POSTGRES_DB="$(ssm_get "/sre-postgres-asset-tracker/postgres_db")"
 
-export ASST_TRACKER_POSTGRES_HOST
-ASST_TRACKER_POSTGRES_HOST="$(ssm_get "/sre-postgres-asset-tracker/postgres_host")"
+export SRE_ASST_TRACKER_POSTGRES_HOST
+SRE_ASST_TRACKER_POSTGRES_HOST="$(ssm_get "/sre-postgres-asset-tracker/postgres_host")"
 
-export ASST_TRACKER_POSTGRES_PASSWORD
-ASST_TRACKER_POSTGRES_PASSWORD="$(ssm_get "/sre-postgres-asset-tracker/postgres_password")"
+export SRE_ASST_TRACKER_POSTGRES_PASSWORD
+SRE_ASST_TRACKER_POSTGRES_PASSWORD="$(ssm_get "/sre-postgres-asset-tracker/postgres_password")"
 
-export ASST_TRACKER_POSTGRES_PORT
-ASST_TRACKER_POSTGRES_PORT="$(ssm_get "/sre-postgres-asset-tracker/postgres_port")"
+export SRE_ASST_TRACKER_POSTGRES_PORT
+SRE_ASST_TRACKER_POSTGRES_PORT="$(ssm_get "/sre-postgres-asset-tracker/postgres_port")"
 
-export ASST_TRACKER_POSTGRES_USER
-ASST_TRACKER_POSTGRES_USER="$(ssm_get "/sre-postgres-asset-tracker/postgres_user")"
+export SRE_ASST_TRACKER_POSTGRES_USER
+SRE_ASST_TRACKER_POSTGRES_USER="$(ssm_get "/sre-postgres-asset-tracker/postgres_user")"
 
 # ── Verification (secrets masked) ─────────────────────────────────────────────
 
 echo ""
-echo "All SRE secrets loaded successfully!"
+echo "All SRE secrets loaded successfully (SRE_ASST_TRACKER_*)!"
 echo ""
 echo "Loaded variables:"
-echo "  ASST_TRACKER_BACKEND_JWT_SECRET           = ***"
-echo "  ASST_TRACKER_BACKEND_COOKIE_SECURE        = ${ASST_TRACKER_BACKEND_COOKIE_SECURE}"
-echo "  ASST_TRACKER_BACKEND_CORS_ORIGIN          = ${ASST_TRACKER_BACKEND_CORS_ORIGIN}"
-echo "  ASST_TRACKER_BACKEND_DATABASE_URL         = postgresql://***@***"
-echo "  ASST_TRACKER_BACKEND_FRONTEND_URL         = ${ASST_TRACKER_BACKEND_FRONTEND_URL}"
-echo "  ASST_TRACKER_BACKEND_NODE_ENV             = ${ASST_TRACKER_BACKEND_NODE_ENV}"
-echo "  ASST_TRACKER_BACKEND_GOOGLE_CLIENT_ID     = ***"
-echo "  ASST_TRACKER_BACKEND_GOOGLE_CLIENT_SECRET = ***"
-echo "  ASST_TRACKER_BACKEND_GOOGLE_OAUTH_REDIRECT_URI = ${ASST_TRACKER_BACKEND_GOOGLE_OAUTH_REDIRECT_URI}"
-echo "  ASST_TRACKER_BACKEND_SMTP_FROM            = ${ASST_TRACKER_BACKEND_SMTP_FROM}"
-echo "  ASST_TRACKER_BACKEND_SMTP_HOST            = ${ASST_TRACKER_BACKEND_SMTP_HOST}"
-echo "  ASST_TRACKER_BACKEND_SMTP_PASS            = ***"
-echo "  ASST_TRACKER_BACKEND_SMTP_PORT            = ${ASST_TRACKER_BACKEND_SMTP_PORT}"
-echo "  ASST_TRACKER_BACKEND_SMTP_USER            = ${ASST_TRACKER_BACKEND_SMTP_USER}"
-echo "  ASST_TRACKER_FRONTEND_VITE_API_BASE_URL   = ${ASST_TRACKER_FRONTEND_VITE_API_BASE_URL}"
-echo "  ASST_TRACKER_POSTGRES_DB                  = ${ASST_TRACKER_POSTGRES_DB}"
-echo "  ASST_TRACKER_POSTGRES_HOST                = ${ASST_TRACKER_POSTGRES_HOST}"
-echo "  ASST_TRACKER_POSTGRES_PASSWORD            = ***"
-echo "  ASST_TRACKER_POSTGRES_PORT                = ${ASST_TRACKER_POSTGRES_PORT}"
-echo "  ASST_TRACKER_POSTGRES_USER                = ${ASST_TRACKER_POSTGRES_USER}"
+echo "  SRE_ASST_TRACKER_BACKEND_JWT_SECRET           = ***"
+echo "  SRE_ASST_TRACKER_BACKEND_COOKIE_SECURE        = ${SRE_ASST_TRACKER_BACKEND_COOKIE_SECURE}"
+echo "  SRE_ASST_TRACKER_BACKEND_CORS_ORIGIN          = ${SRE_ASST_TRACKER_BACKEND_CORS_ORIGIN}"
+echo "  SRE_ASST_TRACKER_BACKEND_DATABASE_URL         = postgresql://***@***"
+echo "  SRE_ASST_TRACKER_BACKEND_FRONTEND_URL         = ${SRE_ASST_TRACKER_BACKEND_FRONTEND_URL}"
+echo "  SRE_ASST_TRACKER_BACKEND_NODE_ENV             = ${SRE_ASST_TRACKER_BACKEND_NODE_ENV}"
+echo "  SRE_ASST_TRACKER_BACKEND_GOOGLE_CLIENT_ID     = ***"
+echo "  SRE_ASST_TRACKER_BACKEND_GOOGLE_CLIENT_SECRET = ***"
+echo "  SRE_ASST_TRACKER_BACKEND_GOOGLE_OAUTH_REDIRECT_URI = ${SRE_ASST_TRACKER_BACKEND_GOOGLE_OAUTH_REDIRECT_URI}"
+echo "  SRE_ASST_TRACKER_BACKEND_SMTP_FROM            = ${SRE_ASST_TRACKER_BACKEND_SMTP_FROM}"
+echo "  SRE_ASST_TRACKER_BACKEND_SMTP_HOST            = ${SRE_ASST_TRACKER_BACKEND_SMTP_HOST}"
+echo "  SRE_ASST_TRACKER_BACKEND_SMTP_PASS            = ***"
+echo "  SRE_ASST_TRACKER_BACKEND_SMTP_PORT            = ${SRE_ASST_TRACKER_BACKEND_SMTP_PORT}"
+echo "  SRE_ASST_TRACKER_BACKEND_SMTP_USER            = ${SRE_ASST_TRACKER_BACKEND_SMTP_USER}"
+echo "  SRE_ASST_TRACKER_FRONTEND_VITE_API_BASE_URL   = ${SRE_ASST_TRACKER_FRONTEND_VITE_API_BASE_URL}"
+echo "  SRE_ASST_TRACKER_POSTGRES_DB                  = ${SRE_ASST_TRACKER_POSTGRES_DB}"
+echo "  SRE_ASST_TRACKER_POSTGRES_HOST                = ${SRE_ASST_TRACKER_POSTGRES_HOST}"
+echo "  SRE_ASST_TRACKER_POSTGRES_PASSWORD            = ***"
+echo "  SRE_ASST_TRACKER_POSTGRES_PORT                = ${SRE_ASST_TRACKER_POSTGRES_PORT}"
+echo "  SRE_ASST_TRACKER_POSTGRES_USER                = ${SRE_ASST_TRACKER_POSTGRES_USER}"
