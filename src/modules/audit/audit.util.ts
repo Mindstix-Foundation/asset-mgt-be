@@ -12,14 +12,28 @@ export interface FieldDiffResult {
   changes: AuditChange[];
 }
 
+function fromJsonable(value: object): string | undefined {
+  const maybe = value as { toJSON?: () => unknown };
+  if (typeof maybe.toJSON !== 'function') return undefined;
+  const json = maybe.toJSON();
+  if (typeof json === 'string') return json;
+  if (typeof json === 'number') return String(json);
+  return undefined;
+}
+
+function fromNumericObjectString(value: object): string | undefined {
+  const maybe = value as { toString?: () => string };
+  if (typeof maybe.toString !== 'function') return undefined;
+  const str = maybe.toString();
+  if (str === '[object Object]' || !/^\d+(\.\d+)?$/.test(str)) return undefined;
+  return str;
+}
+
 function normalizeValue(value: unknown): unknown {
   if (value === null || value === undefined) return null;
   if (value instanceof Date) return value.toISOString();
-  if (typeof value === 'object' && value !== null && 'toString' in value) {
-    const str = String(value);
-    if (/^\d+(\.\d+)?$/.test(str)) return str;
-  }
-  return value;
+  if (typeof value !== 'object') return value;
+  return fromJsonable(value) ?? fromNumericObjectString(value) ?? value;
 }
 
 function valuesEqual(a: unknown, b: unknown): boolean {

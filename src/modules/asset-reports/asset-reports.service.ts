@@ -1,6 +1,10 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../core/database/prisma.service';
 import { GenerateReportDto } from './dto';
+import {
+  userDisplayName,
+  userDisplaySelect,
+} from '../../shared/utils/user-display.util';
 
 @Injectable()
 export class AssetReportsService {
@@ -124,7 +128,7 @@ export class AssetReportsService {
         brand: { select: { name: true } },
         model: { select: { name: true } },
         vendor: { select: { name: true } },
-        createdByUser: { select: { username: true } },
+        createdByUser: { select: userDisplaySelect },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -161,7 +165,7 @@ export class AssetReportsService {
       asset.purchaseCost || '',
       asset.vendor?.name || '',
       asset.notes || '',
-      asset.createdByUser.username,
+      userDisplayName(asset.createdByUser),
       asset.createdAt.toISOString().split('T')[0],
     ]);
 
@@ -199,7 +203,7 @@ export class AssetReportsService {
             employeeId: true,
           },
         },
-        issuedByUser: { select: { username: true } },
+        issuedByUser: { select: userDisplaySelect },
       },
       orderBy: { issueDate: 'desc' },
     });
@@ -239,7 +243,7 @@ export class AssetReportsService {
       assignment.returnCondition || '',
       assignment.returnReason || '',
       assignment.returnDate ? 'RETURNED' : 'ACTIVE',
-      assignment.issuedByUser.username,
+      userDisplayName(assignment.issuedByUser),
     ]);
 
     return { data, headers };
@@ -248,7 +252,7 @@ export class AssetReportsService {
   private async generateAssetCategoriesReport() {
     const categories = await this.prisma.assetCategory.findMany({
       include: {
-        createdByUser: { select: { username: true } },
+        createdByUser: { select: userDisplaySelect },
         _count: { select: { assetTypes: true } },
       },
       orderBy: { name: 'asc' },
@@ -268,7 +272,7 @@ export class AssetReportsService {
       category.name,
       category.description || '',
       category._count.assetTypes,
-      category.createdByUser.username,
+      userDisplayName(category.createdByUser),
       category.createdAt.toISOString().split('T')[0],
     ]);
 
@@ -279,7 +283,7 @@ export class AssetReportsService {
     const assetTypes = await this.prisma.assetType.findMany({
       include: {
         category: { select: { name: true } },
-        createdByUser: { select: { username: true } },
+        createdByUser: { select: userDisplaySelect },
         _count: { select: { assets: true } },
       },
       orderBy: { name: 'asc' },
@@ -303,7 +307,7 @@ export class AssetReportsService {
       type.description || '',
       type._count.assets,
       type.isActive ? 'Yes' : 'No',
-      type.createdByUser.username,
+      userDisplayName(type.createdByUser),
       type.createdAt.toISOString().split('T')[0],
     ]);
 
@@ -313,7 +317,7 @@ export class AssetReportsService {
   private async generateBrandsReport() {
     const brands = await this.prisma.brand.findMany({
       include: {
-        createdByUser: { select: { username: true } },
+        createdByUser: { select: userDisplaySelect },
         _count: { select: { assets: true, models: true } },
       },
       orderBy: { name: 'asc' },
@@ -335,7 +339,7 @@ export class AssetReportsService {
       brand.description || '',
       brand._count.assets,
       brand._count.models,
-      brand.createdByUser.username,
+      userDisplayName(brand.createdByUser),
       brand.createdAt.toISOString().split('T')[0],
     ]);
 
@@ -347,7 +351,7 @@ export class AssetReportsService {
       include: {
         brand: { select: { name: true } },
         assetType: { select: { name: true } },
-        createdByUser: { select: { username: true } },
+        createdByUser: { select: userDisplaySelect },
         _count: { select: { assets: true } },
       },
       orderBy: { name: 'asc' },
@@ -371,7 +375,7 @@ export class AssetReportsService {
       model.assetType.name,
       model.specifications ? JSON.stringify(model.specifications) : '',
       model._count.assets,
-      model.createdByUser.username,
+      userDisplayName(model.createdByUser),
       model.createdAt.toISOString().split('T')[0],
     ]);
 
@@ -381,7 +385,7 @@ export class AssetReportsService {
   private async generateEmployeesReport() {
     const employees = await this.prisma.employee.findMany({
       include: {
-        createdByUser: { select: { username: true } },
+        createdByUser: { select: userDisplaySelect },
         _count: { select: { assetIssues: true } },
       },
       orderBy: { employeeId: 'asc' },
@@ -413,7 +417,7 @@ export class AssetReportsService {
       employee.address || '',
       employee.status,
       employee._count.assetIssues,
-      employee.createdByUser?.username || 'System',
+      userDisplayName(employee.createdByUser),
       employee.createdAt.toISOString().split('T')[0],
     ]);
 
@@ -423,7 +427,7 @@ export class AssetReportsService {
   private async generateVendorsReport() {
     const vendors = await this.prisma.vendor.findMany({
       include: {
-        createdByUser: { select: { username: true } },
+        createdByUser: { select: userDisplaySelect },
         _count: { select: { assets: true } },
       },
       orderBy: { name: 'asc' },
@@ -449,7 +453,7 @@ export class AssetReportsService {
       vendor.phone || '',
       vendor.address || '',
       vendor._count.assets,
-      vendor.createdByUser.username,
+      userDisplayName(vendor.createdByUser),
       vendor.createdAt.toISOString().split('T')[0],
     ]);
 

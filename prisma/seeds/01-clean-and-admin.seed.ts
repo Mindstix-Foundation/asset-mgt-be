@@ -1,5 +1,4 @@
 import { PrismaClient, EmployeeStatus } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
@@ -58,12 +57,7 @@ async function createAdminUser() {
 
   // Due to circular dependencies (employee needs user, user needs employee, both need created_by),
   // we need to create them with SET CONSTRAINTS DEFERRED or use a workaround
-  
-  // 1. Hash the default password
-  const defaultPassword = 'Admin@123';
-  const passwordHash = await bcrypt.hash(defaultPassword, 10);
 
-  // 2. Use transaction with deferred constraints (Postgres feature)
   console.log('📝 Creating admin employee and user with deferred constraints...');
   
   const result = await prisma.$transaction(async (tx) => {
@@ -76,7 +70,7 @@ async function createAdminUser() {
     // Insert admin employee with NULL created_by (will update later)
     await tx.$executeRawUnsafe(`
       INSERT INTO employees (employee_id, first_name, last_name, email, phone, date_of_birth, address, status)
-      VALUES ('9999', 'System', 'Administrator', 'admin@pebble-asset-tracker.com', '+91 9999999999', '1990-01-01', 'System', 'ACTIVE')
+      VALUES ('9999', 'System', 'Administrator', 'uduvalorant@gmail.com', '+91 9999999999', '1990-01-01', 'System', 'ACTIVE')
     `);
     
     const adminEmployee = await tx.employee.findUnique({
@@ -85,14 +79,14 @@ async function createAdminUser() {
     if (!adminEmployee) throw new Error('Failed to create admin employee');
     console.log('✅ Admin employee created');
 
-    // Insert admin user with NULL created_by (will update later)
+    // Insert admin user with NULL created_by (will update later) — Google SSO, no password
     await tx.$executeRawUnsafe(`
-      INSERT INTO users (employee_id, username, password_hash, roles, is_active)
-      VALUES (${adminEmployee.id}, 'admin', '${passwordHash}', ARRAY['ADMIN']::text[], true)
+      INSERT INTO users (employee_id, roles, is_active)
+      VALUES (${adminEmployee.id}, ARRAY['ADMIN']::text[], true)
     `);
     
-    const adminUser = await tx.user.findUnique({
-      where: { username: 'admin' },
+    const adminUser = await tx.user.findFirst({
+      where: { employee: { employeeId: '9999' } },
     });
     if (!adminUser) throw new Error('Failed to create admin user');
     console.log('✅ Admin user created');
@@ -133,10 +127,9 @@ async function createAdminUser() {
   });
 
   console.log('\n🎉 Admin seed completed successfully!');
-  console.log('\n📋 Login Credentials:');
-  console.log('   Username: admin');
-  console.log('   Password: Admin@123');
-  console.log('\n⚠️  Please change the password after first login!\n');
+  console.log('\n📋 Google SSO Login:');
+  console.log('   Sign in with Google using the employee email: uduvalorant@gmail.com');
+  console.log('   (This must match the Google account you use for SSO.)\n');
 
   return result;
 }
@@ -154,7 +147,7 @@ async function main() {
     console.log('\n🎉 Database seeding completed successfully!');
     console.log('\n📊 Summary:');
     console.log('   ✓ Database cleaned (all old data removed)');
-    console.log('   ✓ 1 Admin user created (username: admin)');
+    console.log('   ✓ 1 Admin user created (employeeId: 9999)');
     console.log('   ✓ 1 Admin employee created (ID: 9999)');
     console.log('   ✓ 1 ADMIN role created and assigned');
     

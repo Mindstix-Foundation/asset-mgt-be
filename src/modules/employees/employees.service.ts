@@ -31,6 +31,10 @@ import {
   createStreamingWorkbook,
   type ColumnDef,
 } from '../../shared/export/safe-excel-export';
+import {
+  userDisplayName,
+  userDisplaySelect,
+} from '../../shared/utils/user-display.util';
 
 const EMPLOYEE_AUDIT_FIELDS = [
   'employeeId',
@@ -1466,8 +1470,8 @@ export class EmployeesService {
             model: { select: { name: true } },
           },
         },
-        issuedByUser: { select: { username: true } },
-        updatedByUser: { select: { username: true } },
+        issuedByUser: { select: userDisplaySelect },
+        updatedByUser: { select: userDisplaySelect },
       },
       orderBy: { issueDate: 'desc' },
     });
@@ -1495,8 +1499,10 @@ export class EmployeesService {
         issueReason: issue.issueReason || undefined,
         returnReason: issue.returnReason || undefined,
         notes: issue.notes || undefined,
-        issuedBy: issue.issuedByUser.username,
-        returnedBy: issue.updatedByUser?.username,
+        issuedBy: userDisplayName(issue.issuedByUser),
+        returnedBy: issue.updatedByUser
+          ? userDisplayName(issue.updatedByUser)
+          : undefined,
         duration,
       };
     });
@@ -1594,16 +1600,7 @@ export class EmployeesService {
           },
         },
         performedByUser: {
-          select: {
-            username: true,
-            employee: {
-              select: {
-                firstName: true,
-                lastName: true,
-                employeeId: true,
-              },
-            },
-          },
+          select: userDisplaySelect,
         },
       },
       orderBy: { eventDate: 'desc' },
@@ -1678,14 +1675,7 @@ export class EmployeesService {
   }
 
   private getPerformedByName(event: any): string {
-    const first = event.performedByUser.employee?.firstName || '';
-    const last = event.performedByUser.employee?.lastName || '';
-    const full = `${first} ${last}`.trim();
-    return (
-      full ||
-      event.performedByUser.employee?.employeeId ||
-      event.performedByUser.username
-    );
+    return userDisplayName(event.performedByUser, '');
   }
 
   private transformAssetEvent(event: any): AssetEventRow | null {
@@ -2226,18 +2216,10 @@ export class EmployeesService {
 
     const include = {
       createdByUser: {
-        select: {
-          id: true,
-          username: true,
-          employee: { select: { firstName: true, lastName: true } },
-        },
+        select: userDisplaySelect,
       },
       updatedByUser: {
-        select: {
-          id: true,
-          username: true,
-          employee: { select: { firstName: true, lastName: true } },
-        },
+        select: userDisplaySelect,
       },
       assetIssues: {
         where: { returnDate: null },
@@ -2311,14 +2293,8 @@ export class EmployeesService {
         status: employee.status,
         assetCount: relevantIssues.length,
         assetDetails,
-        createdBy:
-          (employee.createdByUser?.employee
-            ? `${employee.createdByUser.employee.firstName} ${employee.createdByUser.employee.lastName}`.trim()
-            : employee.createdByUser?.username) || 'System',
-        updatedBy:
-          (employee.updatedByUser?.employee
-            ? `${employee.updatedByUser.employee.firstName} ${employee.updatedByUser.employee.lastName}`.trim()
-            : employee.updatedByUser?.username) || 'System',
+        createdBy: userDisplayName(employee.createdByUser),
+        updatedBy: userDisplayName(employee.updatedByUser),
         createdAt: employee.createdAt
           .toISOString()
           .replace('T', ' ')
@@ -2380,7 +2356,7 @@ export class EmployeesService {
           if (chunk.length < chunkSize) break;
         }
 
-        await worksheet.commit();
+        worksheet.commit();
         await workbook.commit();
       });
       return;

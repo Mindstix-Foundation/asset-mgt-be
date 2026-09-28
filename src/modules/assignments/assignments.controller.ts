@@ -71,7 +71,7 @@ export class AssignmentsController {
             },
             issuedByUser: {
               id: 1,
-              username: 'admin',
+              name: 'System Administrator',
             },
           },
         },
@@ -174,7 +174,7 @@ export class AssignmentsController {
               },
               issuedByUser: {
                 id: 1,
-                username: 'admin',
+                name: 'System Administrator',
               },
             },
           ],

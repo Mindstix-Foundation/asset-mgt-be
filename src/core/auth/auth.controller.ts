@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Get,
+  Query,
   Request,
   Req,
   Res,
@@ -19,135 +20,242 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
-import { LoginDto } from './dto/login.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
-import {
-  ForgotPasswordDto,
-  ResetPasswordDto,
-  ChangePasswordDto,
-} from './dto/password.dto';
+import { GoogleLoginDto } from './dto/google-login.dto';
+import { GoogleCodeLoginDto } from './dto/google-code-login.dto';
 import { Public } from './decorators/public.decorator';
 import type {
   Response as ExpressResponse,
   Request as ExpressRequest,
+  CookieOptions,
 } from 'express';
+
+const ACCESS_TOKEN_COOKIE_MAX_AGE_MS = 15 * 60 * 1000;
+const REMEMBER_ME_REFRESH_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+function authCookieSecure(): boolean {
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (process.env.COOKIE_SECURE !== undefined) {
+    return process.env.COOKIE_SECURE === 'true';
+  }
+  return isProduction;
+}
+
+function authCookieSameSite(): 'strict' | 'lax' {
+  return authCookieSecure() ? 'strict' : 'lax';
+}
+
+function buildAccessCookieOptions(rememberMe: boolean): CookieOptions {
+  const base: CookieOptions = {
+    httpOnly: true,
+    secure: authCookieSecure(),
+    sameSite: authCookieSameSite(),
+    path: '/',
+  };
+  if (rememberMe) {
+    return { ...base, maxAge: ACCESS_TOKEN_COOKIE_MAX_AGE_MS };
+  }
+  return base;
+}
+
+function buildRefreshCookieOptions(rememberMe: boolean): CookieOptions {
+  const base: CookieOptions = {
+    httpOnly: true,
+    secure: authCookieSecure(),
+    sameSite: authCookieSameSite(),
+    path: '/',
+  };
+  if (rememberMe) {
+    return { ...base, maxAge: REMEMBER_ME_REFRESH_COOKIE_MAX_AGE_MS };
+  }
+  return base;
+}
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Public()
-  @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 login attempts per minute
-  @Post('login')
-  @ApiOperation({
-    summary: 'User login authentication',
-    description:
-      'Authenticate user with username/email/employee ID and password. Returns JWT token for authorized access.',
-  })
-  @ApiBody({
-    type: LoginDto,
-    description:
-      'Login credentials - Use username, email, or employee ID with password',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Login successful - Returns JWT token and user information',
-    type: AuthResponseDto,
-    schema: {
-      example: {
-        success: true,
-        access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-        user: {
-          id: 1,
-          username: 'EMP-0001',
-          email: 'john.doe@company.com',
-          name: 'John Doe',
-          employeeId: 'EMP-0001',
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Bad Request - Invalid input data',
-    schema: {
-      example: {
-        message: [
-          'username should not be empty',
-          'password should not be empty',
-        ],
-        error: 'Bad Request',
-        statusCode: 400,
-      },
-    },
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized - Invalid credentials',
-    schema: {
-      example: {
-        message: 'Invalid credentials',
-        error: 'Unauthorized',
-        statusCode: 401,
-      },
-    },
-  })
-  @ApiResponse({
-    status: 500,
-    description: 'Internal Server Error - Authentication system failure',
-    schema: {
-      example: {
-        message: 'Authentication failed',
-        error: 'Internal Server Error',
-        statusCode: 500,
-      },
-    },
-  })
-  async login(
-    @Body() loginDto: LoginDto,
-    @Req() req: ExpressRequest,
-    @Res({ passthrough: true }) res: ExpressResponse,
-  ): Promise<AuthResponseDto> {
-    // Extract device info
-    const deviceInfo = {
+  private setAuthCookies(
+    res: ExpressResponse,
+    accessToken: string,
+    refreshToken: string,
+    rememberMe: boolean,
+  ): void {
+    res.cookie(
+      'access_token',
+      accessToken,
+      buildAccessCookieOptions(rememberMe),
+    );
+    res.cookie(
+      'refresh_token',
+      refreshToken,
+      buildRefreshCookieOptions(rememberMe),
+    );
+  }
+
+  private deviceInfoFromRequest(req: ExpressRequest) {
+    return {
       ipAddress: req.ip || req.socket?.remoteAddress,
       userAgent: req.headers['user-agent'],
       deviceId: req.headers['x-device-id'] as string,
     };
+  }
 
-    const result = await this.authService.login(loginDto, deviceInfo);
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('google-login')
+  @ApiOperation({ summary: 'Google Sign-In login (ID token)' })
+  @ApiBody({ type: GoogleLoginDto })
+  @ApiResponse({ status: 200, type: AuthResponseDto })
+  async googleLogin(
+    @Body() dto: GoogleLoginDto,
+    @Req() req: ExpressRequest,
+    @Res({ passthrough: true }) res: ExpressResponse,
+  ): Promise<AuthResponseDto> {
+    const result = await this.authService.loginWithGoogle(
+      dto.credential,
+      this.deviceInfoFromRequest(req),
+      dto.remember_me === true,
+    );
 
-    // Set HTTP-only cookies
-    const isProduction = process.env.NODE_ENV === 'production';
-    // Allow opting out of secure/strict cookies in production (e.g. HTTP-only
-    // test deployments behind an ALB without TLS). Default: secure in prod.
-    const cookieSecure = process.env.COOKIE_SECURE
-      ? process.env.COOKIE_SECURE === 'true'
-      : isProduction;
-    const cookieSameSite: 'strict' | 'lax' = cookieSecure ? 'strict' : 'lax';
+    this.setAuthCookies(
+      res,
+      result.access_token,
+      result.refresh_token,
+      result.remember_me === true,
+    );
 
-    res.cookie('access_token', result.access_token, {
-      httpOnly: true,
-      secure: cookieSecure,
-      sameSite: cookieSameSite,
-      maxAge: 15 * 60 * 1000, // 15 minutes
-      path: '/',
-    });
-
-    res.cookie('refresh_token', result.refresh_token, {
-      httpOnly: true,
-      secure: cookieSecure,
-      sameSite: cookieSameSite,
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: '/',
-    });
-
-    // Return response without tokens (they're in cookies now)
     return {
       success: result.success,
-      access_token: result.access_token, // Still return for backwards compatibility during migration
+      access_token: result.access_token,
+      user: result.user,
+    };
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Get('google')
+  @ApiOperation({
+    summary: 'Start Google OAuth (server redirect)',
+  })
+  async googleAuthStart(
+    @Query('remember_me') rememberMeRaw: string | undefined,
+    @Query('redirect') redirect: string | undefined,
+    @Res() res: ExpressResponse,
+  ): Promise<void> {
+    try {
+      const rememberMe =
+        rememberMeRaw === '1' ||
+        rememberMeRaw === 'true' ||
+        rememberMeRaw === 'yes';
+      const url = this.authService.buildGoogleOAuthAuthorizationUrl(
+        rememberMe,
+        redirect,
+      );
+      res.redirect(url);
+    } catch (error) {
+      const message =
+        error instanceof UnauthorizedException
+          ? error.message
+          : 'Google sign-in is unavailable.';
+      res.redirect(this.authService.buildFrontendGoogleErrorRedirect(message));
+    }
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Get('google/callback')
+  @ApiOperation({ summary: 'Google OAuth callback (sets session cookies)' })
+  async googleAuthCallback(
+    @Query('code') code: string | undefined,
+    @Query('state') state: string | undefined,
+    @Query('error') oauthError: string | undefined,
+    @Req() req: ExpressRequest,
+    @Res() res: ExpressResponse,
+  ): Promise<void> {
+    if (oauthError) {
+      const message =
+        oauthError === 'access_denied'
+          ? 'Google sign-in was cancelled.'
+          : 'Google sign-in failed. Please try again.';
+      res.redirect(this.authService.buildFrontendGoogleErrorRedirect(message));
+      return;
+    }
+
+    if (!code?.trim() || !state?.trim()) {
+      res.redirect(
+        this.authService.buildFrontendGoogleErrorRedirect(
+          'Google sign-in did not complete. Please try again.',
+        ),
+      );
+      return;
+    }
+
+    try {
+      const { rememberMe, returnPath } =
+        this.authService.parseGoogleOAuthState(state);
+      const redirectUri = this.authService.getGoogleOAuthRedirectUri();
+      const result = await this.authService.loginWithGoogleAuthCode(
+        code.trim(),
+        redirectUri,
+        this.deviceInfoFromRequest(req),
+        rememberMe,
+      );
+
+      this.setAuthCookies(
+        res,
+        result.access_token,
+        result.refresh_token,
+        result.remember_me === true,
+      );
+
+      if (returnPath) {
+        res.redirect(`${this.authService.getFrontendBaseUrl()}${returnPath}`);
+        return;
+      }
+
+      res.redirect(
+        this.authService.buildFrontendLoginRedirect({ google_session: '1' }),
+      );
+    } catch (error) {
+      const message =
+        error instanceof UnauthorizedException
+          ? error.message
+          : 'Google login failed. Please try again.';
+      res.redirect(this.authService.buildFrontendGoogleErrorRedirect(message));
+    }
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('google-code-login')
+  @ApiOperation({ summary: 'Google OAuth code login (popup fallback)' })
+  @ApiBody({ type: GoogleCodeLoginDto })
+  async googleCodeLogin(
+    @Body() dto: GoogleCodeLoginDto,
+    @Req() req: ExpressRequest,
+    @Res({ passthrough: true }) res: ExpressResponse,
+  ): Promise<AuthResponseDto> {
+    const result = await this.authService.loginWithGoogleAuthCode(
+      dto.code,
+      dto.redirect_uri,
+      this.deviceInfoFromRequest(req),
+      dto.remember_me === true,
+    );
+
+    this.setAuthCookies(
+      res,
+      result.access_token,
+      result.refresh_token,
+      result.remember_me === true,
+    );
+
+    return {
+      success: result.success,
+      access_token: result.access_token,
       user: result.user,
     };
   }
@@ -162,38 +270,10 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: 'User profile retrieved successfully',
-    schema: {
-      example: {
-        success: true,
-        data: {
-          id: 1,
-          username: 'john.doe',
-          email: 'john.doe@company.com',
-          name: 'John Doe',
-          employeeId: 'EMP001',
-          employee: {
-            id: 1,
-            firstName: 'John',
-            lastName: 'Doe',
-            email: 'john.doe@company.com',
-            department: 'IT',
-            position: 'Software Engineer',
-          },
-          roles: ['USER', 'ADMIN'],
-          lastLogin: '2025-09-28T17:30:00.000Z',
-        },
-      },
-    },
   })
   @ApiResponse({
     status: 401,
     description: 'Unauthorized - Invalid or expired token',
-    schema: {
-      example: {
-        message: 'Unauthorized',
-        statusCode: 401,
-      },
-    },
   })
   async getProfile(@Request() req: any) {
     return this.authService.getProfile(req.user.id);
@@ -208,13 +288,6 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: 'Token refreshed successfully',
-    schema: {
-      example: {
-        success: true,
-        access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-        expires_in: 900,
-      },
-    },
   })
   @ApiResponse({
     status: 401,
@@ -225,51 +298,27 @@ export class AuthController {
     @Res({ passthrough: true }) res: ExpressResponse,
     @Body('refresh_token') bodyRefreshToken?: string,
   ) {
-    // Get refresh token from cookie or body
     const refreshToken = req.cookies?.refresh_token || bodyRefreshToken;
 
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token not provided');
     }
 
-    // Extract device info
-    const deviceInfo = {
-      ipAddress: req.ip || req.socket?.remoteAddress,
-      userAgent: req.headers['user-agent'],
-      deviceId: req.headers['x-device-id'] as string,
-    };
-
     const result = await this.authService.refreshToken(
       refreshToken,
-      deviceInfo,
+      this.deviceInfoFromRequest(req),
     );
 
-    // Set new cookies
-    const isProduction = process.env.NODE_ENV === 'production';
-    const cookieSecure = process.env.COOKIE_SECURE
-      ? process.env.COOKIE_SECURE === 'true'
-      : isProduction;
-    const cookieSameSite: 'strict' | 'lax' = cookieSecure ? 'strict' : 'lax';
-
-    res.cookie('access_token', result.access_token, {
-      httpOnly: true,
-      secure: cookieSecure,
-      sameSite: cookieSameSite,
-      maxAge: 15 * 60 * 1000,
-      path: '/',
-    });
-
-    res.cookie('refresh_token', result.refresh_token, {
-      httpOnly: true,
-      secure: cookieSecure,
-      sameSite: cookieSameSite,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/',
-    });
+    this.setAuthCookies(
+      res,
+      result.access_token,
+      result.refresh_token,
+      result.remember_me === true,
+    );
 
     return {
       success: result.success,
-      access_token: result.access_token, // Backwards compatibility
+      access_token: result.access_token,
       expires_in: result.expires_in,
     };
   }
@@ -283,19 +332,12 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: 'Logout successful',
-    schema: {
-      example: {
-        success: true,
-        message: 'Logged out successfully',
-      },
-    },
   })
   async logout(
     @Request() req: any,
     @Req() request: ExpressRequest,
     @Res({ passthrough: true }) res: ExpressResponse,
   ) {
-    // Extract tokens
     const accessToken =
       req.headers.authorization?.split(' ')[1] || request.cookies?.access_token;
     const refreshToken = request.cookies?.refresh_token;
@@ -306,97 +348,9 @@ export class AuthController {
       refreshToken,
     );
 
-    // Clear cookies
     res.clearCookie('access_token', { path: '/' });
     res.clearCookie('refresh_token', { path: '/' });
 
     return result;
-  }
-
-  @Public()
-  @Post('forgot-password')
-  @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 attempts per minute
-  @ApiOperation({
-    summary: 'Request password reset',
-    description: 'Send password reset email to the user',
-  })
-  @ApiBody({ type: ForgotPasswordDto })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Reset email sent successfully',
-    schema: {
-      example: {
-        message:
-          'If your email is registered with us, you will receive a password reset link shortly.',
-      },
-    },
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Invalid email format',
-  })
-  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
-    return this.authService.forgotPassword(forgotPasswordDto);
-  }
-
-  @Public()
-  @Post('reset-password')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Reset password using token',
-    description: 'Reset user password with a valid reset token',
-  })
-  @ApiBody({ type: ResetPasswordDto })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Password reset successful',
-    schema: {
-      example: {
-        message: 'Password successfully reset',
-      },
-    },
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'Invalid or expired reset token',
-  })
-  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
-    return this.authService.resetPassword(resetPasswordDto);
-  }
-
-  @Post('change-password')
-  @ApiBearerAuth('JWT-auth')
-  @ApiOperation({
-    summary: 'Change user password',
-    description: 'Change password for authenticated user',
-  })
-  @ApiBody({ type: ChangePasswordDto })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Password changed successfully',
-    schema: {
-      example: {
-        message: 'Password changed successfully',
-      },
-    },
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'Current password is incorrect',
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Invalid password format',
-  })
-  async changePassword(
-    @Request() req: any,
-    @Body() changePasswordDto: ChangePasswordDto,
-  ) {
-    return await this.authService.changePassword(
-      req.user.id,
-      changePasswordDto.currentPassword,
-      changePasswordDto.newPassword,
-    );
   }
 }

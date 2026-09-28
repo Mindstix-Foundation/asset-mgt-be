@@ -102,8 +102,8 @@ async function ensureMaintenanceDueToday(adminUserId: number) {
 }
 
 async function main() {
-  const admin = await prisma.user.findUnique({
-    where: { username: 'admin' },
+  const admin = await prisma.user.findFirst({
+    where: { employee: { employeeId: '9999' } },
     include: {
       employee: { select: { email: true, firstName: true, lastName: true } },
     },

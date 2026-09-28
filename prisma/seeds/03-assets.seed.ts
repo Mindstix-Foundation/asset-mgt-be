@@ -535,8 +535,8 @@ async function seedAssets() {
   console.log('🚀 Starting comprehensive asset seeding...\n');
   
   // Get admin user for audit fields
-  const adminUser = await prisma.user.findUnique({
-    where: { username: 'admin' },
+  const adminUser = await prisma.user.findFirst({
+    where: { employee: { employeeId: '9999' } },
   });
 
   if (!adminUser) {

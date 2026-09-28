@@ -449,7 +449,7 @@ export class NotificationService {
           const idsToDelete = oldestNotifications.map((n) => n.id);
 
           // Delete the oldest notifications
-          const deleteResult = await this.prisma.notification.deleteMany({
+          await this.prisma.notification.deleteMany({
             where: {
               id: { in: idsToDelete },
             },

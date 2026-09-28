@@ -6,7 +6,7 @@ import { PrismaService } from '../../database/prisma.service';
 
 export interface JwtPayload {
   sub: number;
-  username: string;
+  email: string;
   employeeId: string;
 }
 
@@ -50,7 +50,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       },
     });
 
-    if (!user || !user.isActive) {
+    if (!user?.isActive) {
       throw new UnauthorizedException('Invalid or inactive user');
     }
 
@@ -64,7 +64,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     return {
       id: user.id,
-      username: user.username,
+      email: user.employee.email,
+      name: `${user.employee.firstName} ${user.employee.lastName}`.trim(),
       employeeId: user.employeeId,
       employee: user.employee,
       // Derive roles from UserRole mapping (source of truth)

@@ -23,6 +23,10 @@ import {
   streamRowsInChunks,
   type ColumnDef,
 } from '../../shared/export/safe-excel-export';
+import {
+  userDisplayName,
+  userDisplaySelect,
+} from '../../shared/utils/user-display.util';
 
 const MAINTENANCE_AUDIT_FIELDS = [
   'maintenanceType',
@@ -70,6 +74,21 @@ export class MaintenanceService {
       : maintenance.description;
   }
 
+  private toCostString(value: unknown): string {
+    if (typeof value === 'number' || typeof value === 'string' || typeof value === 'bigint') {
+      return value.toString();
+    }
+    if (typeof value === 'object' && value !== null) {
+      const maybeStringable = value as { toString?: () => string };
+      if (typeof maybeStringable.toString === 'function') {
+        const str = maybeStringable.toString();
+        if (str !== '[object Object]') return str;
+      }
+      return JSON.stringify(value);
+    }
+    return JSON.stringify(value);
+  }
+
   private pickMaintenanceSnapshot(maintenance: Record<string, unknown>) {
     const snapshot = pickFields(maintenance, MAINTENANCE_AUDIT_FIELDS);
     for (const key of ['scheduledDate', 'actualCompletionDate', 'cancellationDate']) {
@@ -78,10 +97,10 @@ export class MaintenanceService {
       }
     }
     if (maintenance.estimatedCost != null) {
-      snapshot.estimatedCost = String(maintenance.estimatedCost);
+      snapshot.estimatedCost = this.toCostString(maintenance.estimatedCost);
     }
     if (maintenance.actualCost != null) {
-      snapshot.actualCost = String(maintenance.actualCost);
+      snapshot.actualCost = this.toCostString(maintenance.actualCost);
     }
     return snapshot;
   }
@@ -1762,8 +1781,8 @@ export class MaintenanceService {
           model: { select: { name: true, specifications: true } },
         },
       },
-      createdByUser: { select: { id: true, username: true } },
-      updatedByUser: { select: { id: true, username: true } },
+      createdByUser: { select: userDisplaySelect },
+      updatedByUser: { select: userDisplaySelect },
     } as const;
 
     const columns: ColumnDef[] = [
@@ -1848,8 +1867,8 @@ export class MaintenanceService {
           : '',
         completionNotes: record.completionNotes || '',
         cancellationNotes: record.cancellationNotes || '',
-        createdBy: record.createdByUser?.username || 'System',
-        updatedBy: record.updatedByUser?.username || 'System',
+        createdBy: userDisplayName(record.createdByUser),
+        updatedBy: userDisplayName(record.updatedByUser),
         createdAt: record.createdAt
           .toISOString()
           .replace('T', ' ')

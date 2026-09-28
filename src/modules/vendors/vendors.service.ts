@@ -17,6 +17,10 @@ import * as XLSX from 'xlsx';
 import { isEmail } from 'class-validator';
 import { AuditService } from '../audit/audit.service';
 import { pickFields } from '../audit/audit.util';
+import {
+  toUserRef,
+  userDisplaySelect,
+} from '../../shared/utils/user-display.util';
 
 const VENDOR_AUDIT_FIELDS = [
   'name',
@@ -179,10 +183,7 @@ export class VendorsService {
         orderBy,
         include: {
           user: {
-            select: {
-              id: true,
-              username: true,
-            },
+            select: userDisplaySelect,
           },
           _count: {
             select: {
@@ -199,7 +200,10 @@ export class VendorsService {
     return {
       message: 'Vendors retrieved successfully',
       data: {
-        vendors,
+        vendors: vendors.map((vendor) => ({
+          ...vendor,
+          user: toUserRef(vendor.user),
+        })),
         pagination: {
           totalCount,
           currentPage: page,
@@ -215,7 +219,7 @@ export class VendorsService {
     message: string;
     data: {
       vendor: Vendor & {
-        user: { id: number; username: string } | null;
+        user: ReturnType<typeof toUserRef>;
         assets: Array<{ id: number; assetId: string; status: string }>;
         _count: { assets: number };
       };
@@ -225,10 +229,7 @@ export class VendorsService {
       where: { id },
       include: {
         user: {
-          select: {
-            id: true,
-            username: true,
-          },
+          select: userDisplaySelect,
         },
         assets: {
           select: {
@@ -252,7 +253,12 @@ export class VendorsService {
 
     return {
       message: 'Vendor retrieved successfully',
-      data: { vendor },
+      data: {
+        vendor: {
+          ...vendor,
+          user: toUserRef(vendor.user),
+        },
+      },
     };
   }
 

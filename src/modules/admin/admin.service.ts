@@ -6,10 +6,10 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../core/database/prisma.service';
-import * as bcrypt from 'bcryptjs';
 import { CreateAdminDto, UpdateAdminStatusDto } from './dto/admin.dto';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '@prisma/client';
+import { userDisplayName } from '../../shared/utils/user-display.util';
 
 @Injectable()
 export class AdminService {
@@ -81,8 +81,6 @@ export class AdminService {
     try {
       const {
         employeeId,
-        username,
-        password,
         roles = ['ADMIN'],
       } = createAdminDto;
 
@@ -95,31 +93,20 @@ export class AdminService {
         throw new NotFoundException('Employee not found');
       }
 
-      // Check if employee is already an admin
-      const existingAdmin = await this.prisma.user.findFirst({
-        where: {
-          employeeId: employee.id,
-          roles: {
-            has: 'ADMIN',
-          },
-        },
-      });
-
-      if (existingAdmin) {
-        throw new ConflictException('This employee is already an admin');
+      if (!employee.email?.trim()) {
+        throw new BadRequestException(
+          'Employee must have an email address for Google SSO login',
+        );
       }
 
-      // Check if username is already taken
-      const existingUser = await this.prisma.user.findUnique({
-        where: { username },
+      // Check if employee already has a user account
+      const existingUser = await this.prisma.user.findFirst({
+        where: { employeeId: employee.id },
       });
 
       if (existingUser) {
-        throw new ConflictException('Username already exists');
+        throw new ConflictException('This employee already has a user account');
       }
-
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 10);
 
       // Get ADMIN role ID
       const adminRole = await this.prisma.role.findFirst({
@@ -130,11 +117,9 @@ export class AdminService {
         throw new BadRequestException('ADMIN role not found in system');
       }
 
-      // Create admin user
+      // Create admin user (Google SSO — identity is employee email)
       const adminUser = await this.prisma.user.create({
         data: {
-          username,
-          passwordHash: hashedPassword,
           employeeId: employee.id,
           roles: roles, // Keep for backward compatibility
           isActive: true,
@@ -163,16 +148,19 @@ export class AdminService {
         },
       });
 
+      const displayName = userDisplayName(adminUser, employee.email);
+
       await this.auditService.log({
         tableName: 'users',
         recordId: adminUser.id,
         action: AuditAction.INSERT,
         userId: currentUserId,
-        entityLabel: adminUser.username,
-        summary: `Created admin user ${adminUser.username}`,
+        entityLabel: displayName,
+        summary: `Created admin user ${displayName}`,
         after: {
-          username: adminUser.username,
+          name: displayName,
           employeeId: adminUser.employee?.employeeId,
+          email: adminUser.employee?.email,
           isActive: adminUser.isActive,
         },
       });
@@ -186,7 +174,8 @@ export class AdminService {
       this.logger.error('Error creating admin user:', error);
       if (
         error instanceof NotFoundException ||
-        error instanceof ConflictException
+        error instanceof ConflictException ||
+        error instanceof BadRequestException
       ) {
         throw error;
       }
@@ -275,8 +264,8 @@ export class AdminService {
         recordId: updatedUser.id,
         action: AuditAction.UPDATE,
         userId: currentUserId,
-        entityLabel: updatedUser.username,
-        summary: `${isActive ? 'Activated' : 'Deactivated'} admin user ${updatedUser.username}`,
+        entityLabel: userDisplayName(updatedUser),
+        summary: `${isActive ? 'Activated' : 'Deactivated'} admin user ${userDisplayName(updatedUser)}`,
         changes: [
           {
             field: 'isActive',
@@ -371,9 +360,13 @@ export class AdminService {
         recordId: id,
         action: AuditAction.DELETE,
         userId: currentUserId,
-        entityLabel: user.username,
-        summary: `Removed admin user ${user.username}`,
-        before: { username: user.username, isActive: user.isActive },
+        entityLabel: userDisplayName(user),
+        summary: `Removed admin user ${userDisplayName(user)}`,
+        before: {
+          name: userDisplayName(user),
+          employeeId: user.employee?.employeeId,
+          isActive: user.isActive,
+        },
       });
 
       return {

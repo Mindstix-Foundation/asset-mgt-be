@@ -47,7 +47,7 @@ export class BrandsController {
             updatedAt: '2024-01-15T10:30:00Z',
             createdByUser: {
               id: 1,
-              username: 'admin',
+              name: 'System Administrator',
             },
             _count: {
               models: 0,
@@ -115,7 +115,7 @@ export class BrandsController {
               createdAt: '2024-01-15T10:30:00Z',
               createdByUser: {
                 id: 1,
-                username: 'admin',
+                name: 'System Administrator',
               },
               _count: {
                 models: 5,
@@ -156,11 +156,11 @@ export class BrandsController {
             updatedAt: '2024-01-15T10:30:00Z',
             createdByUser: {
               id: 1,
-              username: 'admin',
+              name: 'System Administrator',
             },
             updatedByUser: {
               id: 1,
-              username: 'admin',
+              name: 'System Administrator',
             },
             models: [
               {

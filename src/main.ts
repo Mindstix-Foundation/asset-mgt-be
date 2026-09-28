@@ -22,11 +22,14 @@ async function bootstrap() {
       .map((o) => o.trim())
       .filter(Boolean);
 
-    const allowedOrigins = isProduction
-      ? corsOriginsFromEnv.length > 0
-        ? corsOriginsFromEnv
-        : [process.env.FRONTEND_URL].filter(Boolean) as string[]
-      : ['http://localhost:5173', 'http://localhost:5174'];
+    let allowedOrigins: string[];
+    if (!isProduction) {
+      allowedOrigins = ['http://localhost:5173', 'http://localhost:5174'];
+    } else if (corsOriginsFromEnv.length > 0) {
+      allowedOrigins = corsOriginsFromEnv;
+    } else {
+      allowedOrigins = [process.env.FRONTEND_URL].filter(Boolean) as string[];
+    }
 
     // Enhanced Security middleware
     app.use(
